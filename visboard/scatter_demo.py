@@ -1,34 +1,23 @@
-from re import S
 from typing import Optional, cast
 
-import pandas as pd
 import vaex as vx
 import plotly.express as px
 import numpy as np
 
 import solara
-import solara.express as solara_px  # similar to plotly express, but comes with cross filters
 import solara.lab
 from solara.components.columns import Columns
 from solara.components.file_drop import FileDrop
 
 github_url = solara.util.github_url(__file__)
 try:
-    # fails on pyodide
-    # df_sample = pd.read_csv("https://raw.githubusercontent.com/plotly/datasets/master/gapminderDataFiveYear.csv")
-    # df_sample = pd.read_parquet(
-    # "/home/riley/uni/rproj/data/allApogeeNetStar-0.4.0.parquet").dropna()
-    # df_sample = vx.example()
-    df_sample = vx.open(
-        "/home/riley/uni/rproj/data/allApogeeNetStar-0.4.0.parquet")
+    df_sample = vx.open("/home/riley/uni/rproj/data/astra-clean.parquet")
 except:  # noqa
     df_sample = None
 
 
 class State:
-    plottype = solara.reactive("scatter")
-    size_max = solara.reactive(40.0)
-    size = solara.reactive(cast(Optional[str], None))
+    plottype = solara.reactive("histogram")
     color = solara.reactive(cast(Optional[str], None))
     x = solara.reactive(cast(Optional[str], None))
     y = solara.reactive(cast(Optional[str], None))
@@ -43,10 +32,9 @@ class State:
 
     @staticmethod
     def load_sample():
-        State.x.value = str("TEFF")
-        State.y.value = str("LOGG")
-        State.size.value = str("E_TEFF")
-        State.color.value = str("FE_H")
+        State.x.value = str("teff")
+        State.y.value = str("logg")
+        State.color.value = str("fe_h")
         State.nbins.value = 100
         State.df.value = df_sample
 
@@ -55,7 +43,6 @@ class State:
         df = vx.open(file["file_obj"])
         State.x.value = str(df.columns[0])
         State.y.value = str(df.columns[1])
-        State.size.value = str(df.columns[2])
         State.color.value = str(df.columns[3])
         State.nbins.value = 100
         State.df.value = df
@@ -67,15 +54,20 @@ class State:
 
 @solara.component
 def scatterplot():
-    df = State.df.value
+    dff = State.df.value
+    dff.select(dff[State.x.value], State.x.value != None)
+    x = dff.evaluate(dff[State.x.value], selection=True)
+    y = dff.evaluate(dff[State.y.value], selection=True)
+    c = dff.evaluate(dff[State.color.value], selection=True)
+
     fig = px.scatter(
-        x=df[State.x.value].values,
-        y=df[State.y.value].values,
-        size=df[State.size.value].values,
-        color=df[State.color.value].values,
-        size_max=State.size_max.value,
+        x=x,
+        y=y,
+        color=c,
         log_x=State.logx.value,
         log_y=State.logy.value,
+        width=1600,
+        height=1000,
     )
     if State.flipx.value:
         fig.update_xaxes(autorange="reversed")
@@ -122,8 +114,14 @@ def histogram2dplot():
         shape=State.nbins.value,
         array_type="xarray",
     )
-    fig = px.imshow(np.log1p(counts).T)
-    fig.update_layout(xaxis_title=State.x.value, yaxis_title=State.y.value)
+    fig = px.imshow(
+        np.log1p(counts).T,
+        labels={
+            "x": State.x.value,
+            "y": State.y.value,
+            "color": "Counts"
+        },
+    )
     return solara.FigurePlotly(fig)
 
 
@@ -165,10 +163,6 @@ def Page():
                         value=State.plottype,
                     )
                     if State.plottype.value == "scatter":
-                        solara.SliderFloat(label="Size",
-                                           value=State.size_max,
-                                           min=1,
-                                           max=100)
                         solara.Checkbox(label="Log x", value=State.logx)
                         solara.Checkbox(label="Log y", value=State.logy)
                         solara.Checkbox(label="Flip x", value=State.flipx)
@@ -179,7 +173,6 @@ def Page():
                         solara.Select("Column y",
                                       values=columns,
                                       value=State.y)
-                        solara.Select("Size", values=columns, value=State.size)
                         solara.Select("Color",
                                       values=columns,
                                       value=State.color)
