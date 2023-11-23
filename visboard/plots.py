@@ -121,7 +121,7 @@ def histogram2d():
     df = State.df.value
     expr_x = df[PlotState.x.value]
     expr_y = df[PlotState.y.value]
-    expr = PlotState.color.value
+    expr = df[PlotState.color.value]
 
     bintype = str(PlotState.bintype.value)
     if bintype == "count":
@@ -146,8 +146,9 @@ def histogram2d():
             array_type="xarray",
         )
     elif bintype == "median":
-        sl.Warning(label="Median has memory issues. Remains unimplemented.",
-                   icon=True)
+        return sl.Warning(
+            label="Median has memory issues. Remains unimplemented.",
+            icon=True)
         # WARNING: do not use median_approx -- it consumed 9T of memory.
         # y = df.median_approx(
         #    expr,
@@ -197,13 +198,24 @@ def histogram2d():
     elif binscale == "log10":
         y = np.log10(y)
 
-    print(y)
-    fig = px.imshow(
-        y.T,
-        labels={
-            "x": PlotState.x.value,
-            "y": PlotState.y.value,
-            "color": PlotState.binscale.value,
-        },
-    )
+    y = y.where(y != np.inf, np.nan)
+    y = y.where(y != -np.inf, np.nan)
+    cmin = float(np.min(y).values)
+    cmax = float(np.max(y).values)
+    y = y.fillna(-999)
+    fig = px.imshow(y.T, zmin=cmin, zmax=cmax)
+    # fig = px.imshow(
+    #    y.T,
+    #    labels={
+    #        "x": PlotState.x.value,
+    #        "y": PlotState.y.value,
+    #        "color": PlotState.binscale.value,
+    #    },
+    #    width=1000,
+    #    height=1000,
+    # )
+    if PlotState.flipy.value:
+        fig.update_yaxes(range=[0, 1])
+    if PlotState.flipx.value:
+        fig.update_xaxes(autorange="reversed")
     return sl.FigurePlotly(fig)

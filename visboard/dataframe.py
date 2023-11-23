@@ -39,5 +39,8 @@ def DFView() -> None:
 
 @sl.component
 def NoDF() -> None:
-    sl.Markdown("## No Data Loaded.")
-    sl.Markdown("Import or select a dataset using the sidebar.")
+    sl.Info(
+        label=
+        "No dataset loaded. Import or select a dataset using the sidebar.",
+        icon=True,
+    )

@@ -42,10 +42,10 @@ class PlotState:
     flipy = sl.reactive(False)
 
     # statistics
-    nbins = sl.reactive(50)
-    bintype = sl.reactive("count")
+    nbins = sl.reactive(10)
+    bintype = sl.reactive("mean")
     binscale = sl.reactive(None)
-    norm = sl.reactive("percent")
+    norm = sl.reactive(None)
     Lookup = dict(
         norms=[
             None, "percent", "probability", "density", "probability density"

@@ -15,7 +15,7 @@ def dataset_menu():
     df = State.df.value
     with sl.Row():
         sl.Button(
-            "Sample dataset",
+            "Sample APOGEENET Dataset",
             color="primary",
             text=True,
             outlined=True,
@@ -69,23 +69,22 @@ def scatter_menu():
 def statistics_menu():
     df = State.df.value
     columns = list(map(str, df.columns))
-    sl.Select(
-        "Column x",
-        values=columns,
-        value=PlotState.x,
-    )
-    if State.view.value == "histogram2d":
+    with Columns([1, 1]):
         sl.Select(
-            "Column y",
+            "Column x",
             values=columns,
-            value=PlotState.y,
+            value=PlotState.x,
         )
+        if State.view.value == "histogram2d":
+            sl.Select(
+                "Column y",
+                values=columns,
+                value=PlotState.y,
+            )
     with Columns([1, 1]):
         with sl.Column():
-            sl.Checkbox(label="Log x", value=PlotState.logx)
             sl.Checkbox(label="Flip x", value=PlotState.flipx)
         with sl.Column():
-            sl.Checkbox(label="Log y", value=PlotState.logy)
             if State.view.value == "histogram2d":
                 sl.Checkbox(label="Flip y", value=PlotState.flipy)
     sl.SliderInt(
@@ -101,11 +100,12 @@ def statistics_menu():
             values=PlotState.Lookup["bintypes"],
             value=PlotState.bintype,
         )
-        sl.Select(
-            label="Column to Bin",
-            value=PlotState.color.value,
-            values=columns,
-        )
+        if str(PlotState.bintype.value) != "count":
+            sl.Select(
+                label="Column to Bin",
+                values=columns,
+                value=PlotState.color,
+            )
         sl.Select(
             label="Binning scale",
             values=PlotState.Lookup["binscales"],
