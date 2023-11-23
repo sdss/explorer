@@ -20,7 +20,6 @@ def Table(df: vx.DataFrame) -> None:
 def filtered_df(df: vx.DataFrame):
     dff = df[[
         "sdss_id",
-        "gaia_dr3_source_id",
         PlotState.x.value,
         PlotState.y.value,
         PlotState.color.value,
@@ -32,7 +31,7 @@ def filtered_df(df: vx.DataFrame):
 def DFView() -> None:
     dff = State.df.value
     if PlotState.x.value is not None and PlotState.y.value is not None:
-        dff = dff[[PlotState.x.value, PlotState.y.value]]
+        dff = filtered_df(dff)
         Table(dff)
     else:
         Loading()

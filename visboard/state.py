@@ -33,12 +33,27 @@ class State:
 
 class PlotState:
     color = sl.reactive("fe_h")
+    subset = sl.reactive(10000)
     x = sl.reactive("teff")
     y = sl.reactive("logg")
     logx = sl.reactive(False)
     logy = sl.reactive(False)
     flipx = sl.reactive(False)
     flipy = sl.reactive(False)
+
+    # statistics
     nbins = sl.reactive(50)
-    norms = [None, "percent", "probability", "density", "probability density"]
+    bintype = sl.reactive("count")
+    binscale = sl.reactive(None)
     norm = sl.reactive("percent")
+    Lookup = dict(
+        norms=[
+            None, "percent", "probability", "density", "probability density"
+        ],
+        bintypes=["count", "mean", "median", "mode", "min", "max"],
+        binscales=[None, "log1p", "log10"],
+    )
+
+    # 3d
+    logz = sl.reactive(False)
+    flipz = sl.reactive(False)
