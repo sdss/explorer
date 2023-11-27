@@ -17,22 +17,16 @@ def Table(df: vx.DataFrame) -> None:
     sl.DataFrame(df)
 
 
-def filtered_df(df: vx.DataFrame):
-    dff = df[[
-        "sdss_id",
-        PlotState.x.value,
-        PlotState.y.value,
-        PlotState.color.value,
-    ]]
-    return dff
-
-
 @sl.component
 def DFView() -> None:
-    dff = State.df.value
+    df = State.df.value
+    filter, use_filter = sl.use_cross_filter(id(df), "filter-viewing")
+    dff = df
+    if filter:
+        dff = dff[filter]
     if PlotState.x.value is not None and PlotState.y.value is not None:
-        dff = filtered_df(dff)
-        Table(dff)
+        sl.Markdown(f"## Data ({len(df):,} points)")
+        sl.PivotTableCard(dff)
     else:
         Loading()
 

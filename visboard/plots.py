@@ -2,7 +2,7 @@ import solara as sl
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-from solara.express import CrossFilteredFigurePlotly
+from solara.express import CrossFilteredFigurePlotly  # noqa: this thing literally does not function with vaex frames
 
 from state import State, PlotState
 
@@ -28,7 +28,12 @@ def show_plot(type):
 
 @sl.component
 def scatter3d():
-    dff = State.df.value
+    df = State.df.value
+    filter, set_filter = sl.use_cross_filter(id(df), "filter-plot3d")
+
+    dff = df
+    if filter:
+        dff = df[filter]
     selection = np.random.choice(int(len(dff)), PlotState.subset.value)
     x = np.array(dff[PlotState.x.value].values)[selection]
     y = np.array(dff[PlotState.y.value].values)[selection]
@@ -57,7 +62,12 @@ def scatter3d():
 
 @sl.component
 def scatter():
-    dff = State.df.value
+    df = State.df.value
+    filter, set_filter = sl.use_cross_filter(id(df), "filter-scatter")
+
+    dff = df
+    if filter:
+        dff = df[filter]
     selection = np.random.choice(int(len(dff)), PlotState.subset.value)
     x = np.array(dff[PlotState.x.value].values)[selection]
     y = np.array(dff[PlotState.y.value].values)[selection]
@@ -89,15 +99,20 @@ def scatter():
 @sl.component
 def histogram():
     df = State.df.value
-    expr = df[PlotState.x.value]
-    x = df.bin_centers(
+    filter, set_filter = sl.use_cross_filter(id(df), "filter-histogram")
+
+    dff = df
+    if filter:
+        dff = df[filter]
+    expr = dff[PlotState.x.value]
+    x = dff.bin_centers(
         expression=expr,
-        limits=df.minmax(PlotState.x.value),
+        limits=dff.minmax(PlotState.x.value),
         shape=PlotState.nbins.value,
     )
-    y = df.count(
+    y = dff.count(
         binby=PlotState.x.value,
-        limits=df.minmax(PlotState.x.value),
+        limits=dff.minmax(PlotState.x.value),
         shape=PlotState.nbins.value,
     )
 
@@ -119,28 +134,34 @@ def histogram():
 @sl.component
 def histogram2d():
     df = State.df.value
-    expr_x = df[PlotState.x.value]
-    expr_y = df[PlotState.y.value]
-    expr = df[PlotState.color.value]
+    filter, set_filter = sl.use_cross_filter(id(df), "filter-histogram2d")
+
+    dff = df
+    if filter:
+        dff = df[filter]
+
+    expr_x = dff[PlotState.x.value]
+    expr_y = dff[PlotState.y.value]
+    expr = dff[PlotState.color.value]
 
     bintype = str(PlotState.bintype.value)
     if bintype == "count":
-        y = df.count(
+        y = dff.count(
             binby=[expr_x, expr_y],
             limits=[
-                df.minmax(PlotState.x.value),
-                df.minmax(PlotState.y.value)
+                dff.minmax(PlotState.x.value),
+                dff.minmax(PlotState.y.value)
             ],
             shape=PlotState.nbins.value,
             array_type="xarray",
         )
     elif bintype == "mean":
-        y = df.mean(
+        y = dff.mean(
             expr,
             binby=[expr_x, expr_y],
             limits=[
-                df.minmax(PlotState.x.value),
-                df.minmax(PlotState.y.value)
+                dff.minmax(PlotState.x.value),
+                dff.minmax(PlotState.y.value)
             ],
             shape=PlotState.nbins.value,
             array_type="xarray",
@@ -150,43 +171,43 @@ def histogram2d():
             label="Median has memory issues. Remains unimplemented.",
             icon=True)
         # WARNING: do not use median_approx -- it consumed 9T of memory.
-        # y = df.median_approx(
+        # y = dff.median_approx(
         #    expr,
         #    binby=[expr_x, expr_y],
         #    limits=[
-        #        df.minmax(PlotState.x.value),
-        #        df.minmax(PlotState.y.value)
+        #        dff.minmax(PlotState.x.value),
+        #        dff.minmax(PlotState.y.value)
         #    ],
         #    shape=PlotState.nbins.value,
         # )
     elif bintype == "mode":
-        y = df.mode(
+        y = dff.mode(
             expr,
             binby=[expr_x, expr_y],
             limits=[
-                df.minmax(PlotState.x.value),
-                df.minmax(PlotState.y.value)
+                dff.minmax(PlotState.x.value),
+                dff.minmax(PlotState.y.value)
             ],
             shape=PlotState.nbins.value,
         )
     elif bintype == "min":
-        y = df.min(
+        y = dff.min(
             expr,
             binby=[expr_x, expr_y],
             limits=[
-                df.minmax(PlotState.x.value),
-                df.minmax(PlotState.y.value)
+                dff.minmax(PlotState.x.value),
+                dff.minmax(PlotState.y.value)
             ],
             shape=PlotState.nbins.value,
             array_type="xarray",
         )
     elif bintype == "max":
-        y = df.max(
+        y = dff.max(
             expr,
             binby=[expr_x, expr_y],
             limits=[
-                df.minmax(PlotState.x.value),
-                df.minmax(PlotState.y.value)
+                dff.minmax(PlotState.x.value),
+                dff.minmax(PlotState.y.value)
             ],
             shape=PlotState.nbins.value,
             array_type="xarray",
@@ -198,23 +219,27 @@ def histogram2d():
     elif binscale == "log10":
         y = np.log10(y)
 
+    # TODO: clean this code
     y = y.where(y != np.inf, np.nan)
     y = y.where(y != -np.inf, np.nan)
     cmin = float(np.min(y).values)
     cmax = float(np.max(y).values)
     y = y.fillna(-999)
-    fig = px.imshow(y.T, zmin=cmin, zmax=cmax)
-    # fig = px.imshow(
-    #    y.T,
-    #    labels={
-    #        "x": PlotState.x.value,
-    #        "y": PlotState.y.value,
-    #        "color": PlotState.binscale.value,
-    #    },
-    #    width=1000,
-    #    height=1000,
-    # )
+
+    fig = px.imshow(
+        y.T,
+        zmin=cmin,
+        zmax=cmax,
+        labels={
+            "x": PlotState.x.value,
+            "y": PlotState.y.value,
+            "color": PlotState.binscale.value,
+        },
+        width=1000,
+        height=1000,
+    )
     if PlotState.flipy.value:
+        # TODO: this call doesn't work, and I have no idea why.
         fig.update_yaxes(range=[0, 1])
     if PlotState.flipx.value:
         fig.update_xaxes(autorange="reversed")

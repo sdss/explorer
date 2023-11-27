@@ -5,6 +5,7 @@ Sidebar
 import solara as sl
 
 from solara.components.columns import Columns
+from solara.components.dataframe import SummaryCard, FilterCard
 from solara.components.file_drop import FileDrop
 
 from state import State, PlotState
@@ -29,11 +30,12 @@ def dataset_menu():
             outlined=True,
             on_click=State.reset,
         )
-    FileDrop(
-        on_file=State.load_from_file,
-        on_total_progress=lambda *args: None,
-        label="Drag file here",
-    )
+    if df is None:
+        FileDrop(
+            on_file=State.load_from_file,
+            on_total_progress=lambda *args: None,
+            label="Drag file here",
+        )
 
 
 @sl.component()
@@ -83,8 +85,10 @@ def statistics_menu():
             )
     with Columns([1, 1]):
         with sl.Column():
+            sl.Checkbox(label="Log x", value=PlotState.logx)
             sl.Checkbox(label="Flip x", value=PlotState.flipx)
         with sl.Column():
+            sl.Checkbox(label="Log y", value=PlotState.logy)
             if State.view.value == "histogram2d":
                 sl.Checkbox(label="Flip y", value=PlotState.flipy)
     sl.SliderInt(
@@ -155,6 +159,10 @@ def plot3d_menu():
 def plot_control_menu():
     df = State.df.value
     if df is not None:
+        SummaryCard(df)
+        FilterCard(
+            df
+        )  # TODO: find out why the successful expression menu doesn't work and also why it hella crashes
         if State.view.value == "scatter":
             scatter_menu()
         elif "histogram" in str(State.view.value):
