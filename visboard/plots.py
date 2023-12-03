@@ -68,10 +68,14 @@ def scatter():
     dff = df
     if filter:
         dff = df[filter]
-    selection = np.random.choice(int(len(dff)), PlotState.subset.value)
-    x = np.array(dff[PlotState.x.value].values)[selection]
-    y = np.array(dff[PlotState.y.value].values)[selection]
-    c = np.array(dff[PlotState.color.value].values)[selection]
+    if len(dff) > 10000:
+        x = dff[PlotState.x.value][:10_000].values
+        y = dff[PlotState.y.value][:10_000].values
+        c = dff[PlotState.color.value][:10_000].values
+    else:
+        x = dff[PlotState.x.value].values
+        y = dff[PlotState.y.value].values
+        c = dff[PlotState.color.value].values
     fig = go.Figure(data=go.Scattergl(
         x=x,
         y=y,
@@ -128,7 +132,12 @@ def histogram():
         },
     )
     fig.update_layout(xaxis_title=PlotState.x.value, yaxis_title="Frequency")
-    return sl.FigurePlotly(fig)
+    return sl.FigurePlotly(
+        fig,
+        dependencies=[PlotState.x.value, PlotState.nbins.value],
+        on_selection=print,
+        on_deselect=print,
+    )
 
 
 @sl.component

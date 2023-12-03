@@ -12,21 +12,16 @@ def Loading() -> None:
 
 
 @sl.component
-def Table(df: vx.DataFrame) -> None:
-    sl.Markdown(f"## Data ({len(df):,} points)")
-    sl.DataFrame(df)
-
-
-@sl.component
 def DFView() -> None:
     df = State.df.value
-    filter, use_filter = sl.use_cross_filter(id(df), "filter-viewing")
+    filter, set_filter = sl.use_cross_filter(id(df), name="filter-tableview")
     dff = df
-    if filter:
-        dff = dff[filter]
-    if PlotState.x.value is not None and PlotState.y.value is not None:
-        sl.Markdown(f"## Data ({len(df):,} points)")
-        sl.PivotTableCard(dff)
+    if df is not None:
+        sl.PivotTableCard(df, x=["telescope"], y=["release"])
+        if filter:
+            dff = df[filter]
+        sl.Markdown(f"## Data ({len(dff):,} points)")
+        sl.DataFrame(dff)
     else:
         Loading()
 

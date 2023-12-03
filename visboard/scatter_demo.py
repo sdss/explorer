@@ -28,13 +28,12 @@ def Page():
             )
             if df is not None:
                 if State.view.value in ["scatter", "3d"]:
-                    sl.SliderInt(
-                        label="Random choice subset size",
-                        value=PlotState.subset,
-                        min=100000,
-                        max=int(len(df)),
-                        step=1000,
-                    )
+                    if len(df) > 10000:
+                        sl.Warning(
+                            label=
+                            "Only plotting first 10,000 points. Please use a filter.",
+                            icon=True,
+                        )
                 show_plot(State.view.value)
             else:
                 NoDF()
