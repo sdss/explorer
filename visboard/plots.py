@@ -235,10 +235,16 @@ def histogram2d():
     cmax = float(np.max(y).values)
     y = y.fillna(-999)
 
+    if PlotState.flipy.value:
+        origin = "upper"
+    else:
+        origin = "lower"
+
     fig = px.imshow(
         y.T,
         zmin=cmin,
         zmax=cmax,
+        origin=origin,
         labels={
             "x": PlotState.x.value,
             "y": PlotState.y.value,
@@ -247,9 +253,6 @@ def histogram2d():
         width=1000,
         height=1000,
     )
-    if PlotState.flipy.value:
-        # TODO: this call doesn't work, and I have no idea why.
-        fig.update_yaxes(range=[0, 1])
     if PlotState.flipx.value:
         fig.update_xaxes(autorange="reversed")
     return sl.FigurePlotly(fig)
