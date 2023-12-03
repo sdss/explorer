@@ -17,11 +17,10 @@ def DFView() -> None:
     filter, set_filter = sl.use_cross_filter(id(df), name="filter-tableview")
     dff = df
     if df is not None:
-        sl.PivotTableCard(df, x=["telescope"], y=["release"])
         if filter:
             dff = df[filter]
         sl.Markdown(f"## Data ({len(dff):,} points)")
-        sl.DataFrame(dff)
+        # sl.DataFrame(dff)
     else:
         Loading()
 

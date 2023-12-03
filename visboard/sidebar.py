@@ -160,9 +160,9 @@ def plot_control_menu():
     df = State.df.value
     if df is not None:
         SummaryCard(df)
-        FilterCard(
-            df
-        )  # TODO: find out why the successful expression menu doesn't work and also why it hella crashes
+        FilterCard(df)
+        # TODO: find out why the successful expression menu doesn't work and also why it hella crashes
+        sl.PivotTableCard(df, x=["telescope"], y=["release"])
         if State.view.value == "scatter":
             scatter_menu()
         elif "histogram" in str(State.view.value):

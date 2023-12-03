@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 from solara.express import CrossFilteredFigurePlotly  # noqa: this thing literally does not function with vaex frames
 
 from state import State, PlotState
+from util import check_catagorical
 
 
 @sl.component
@@ -18,8 +19,6 @@ def show_plot(type):
             elif type == "scatter":
                 # scatterplot()
                 scatter()
-            elif type == "3d":
-                scatter3d()
         else:
             sl.ProgressLinear(True, color="purple")
     else:
@@ -76,6 +75,15 @@ def scatter():
         x = dff[PlotState.x.value].values
         y = dff[PlotState.y.value].values
         c = dff[PlotState.color.value].values
+    x_cat = check_catagorical(x)
+    y_cat = check_catagorical(y)
+    if x_cat or y_cat:
+        return sl.Warning(
+            icon=True,
+            label=
+            "Selected columns are catagorical! Incompatible with scatter plot.",
+        )
+
     fig = go.Figure(data=go.Scattergl(
         x=x,
         y=y,
@@ -90,6 +98,10 @@ def scatter():
         fig.update_xaxes(autorange="reversed")
     if PlotState.flipy.value:
         fig.update_yaxes(autorange="reversed")
+    if PlotState.logx.value:
+        fig.update_xaxes(type="log")
+    if PlotState.logy.value:
+        fig.update_yaxes(type="log")
     fig.update_layout(
         xaxis_title=PlotState.x.value,
         yaxis_title=PlotState.y.value,
@@ -109,35 +121,45 @@ def histogram():
     if filter:
         dff = df[filter]
     expr = dff[PlotState.x.value]
-    x = dff.bin_centers(
-        expression=expr,
-        limits=dff.minmax(PlotState.x.value),
-        shape=PlotState.nbins.value,
-    )
-    y = dff.count(
-        binby=PlotState.x.value,
-        limits=dff.minmax(PlotState.x.value),
-        shape=PlotState.nbins.value,
-    )
+
+    if check_catagorical(expr):
+        x = expr.unique()
+        y = []
+        for i in x:
+            # TODO: raise issue about vaex being unable to count catagorical data
+            y.append(float(expr.str.count(i).sum()))
+    else:
+        x = dff.bin_centers(
+            expression=expr,
+            limits=dff.minmax(PlotState.x.value),
+            shape=PlotState.nbins.value,
+        )
+        y = dff.count(
+            binby=PlotState.x.value,
+            limits=dff.minmax(PlotState.x.value),
+            shape=PlotState.nbins.value,
+        )
+    if check_catagorical(expr):
+        logx = False
+    else:
+        logx = PlotState.logx.value
 
     fig = px.histogram(
         x=x,
         y=y,
         nbins=PlotState.nbins.value,
-        log_x=PlotState.logx.value,
+        log_x=logx,
         log_y=PlotState.logy.value,
         histnorm=PlotState.norm.value,
         labels={
             "x": PlotState.x.value,
         },
     )
-    fig.update_layout(xaxis_title=PlotState.x.value, yaxis_title="Frequency")
-    return sl.FigurePlotly(
-        fig,
-        dependencies=[PlotState.x.value, PlotState.nbins.value],
-        on_selection=print,
-        on_deselect=print,
+    fig.update_layout(
+        xaxis_title=PlotState.x.value,
+        yaxis_title="Frequency",
     )
+    return sl.FigurePlotly(fig)
 
 
 @sl.component
@@ -152,6 +174,14 @@ def histogram2d():
     expr_x = dff[PlotState.x.value]
     expr_y = dff[PlotState.y.value]
     expr = dff[PlotState.color.value]
+    x_cat = check_catagorical(expr_x)
+    y_cat = check_catagorical(expr_y)
+    if x_cat or y_cat:
+        return sl.Warning(
+            icon=True,
+            label=
+            "Selected columns are catagorical! Incompatible with histogram2d plot.",
+        )
 
     bintype = str(PlotState.bintype.value)
     if bintype == "count":

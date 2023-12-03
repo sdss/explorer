@@ -24,10 +24,10 @@ def Page():
             sl.Select(
                 label="Plot Type",
                 value=State.view,
-                values=["histogram", "histogram2d", "scatter", "3d"],
+                values=["histogram", "histogram2d", "scatter"],
             )
             if df is not None:
-                if State.view.value in ["scatter", "3d"]:
+                if State.view.value in ["scatter"]:
                     if len(df) > 10000:
                         sl.Warning(
                             label=
