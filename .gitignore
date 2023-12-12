@@ -162,8 +162,8 @@ cython_debug/
 
 
 # Code directories for astropy & specutils
-astropy/astropy/
-astropy/
+solara/solara/
+solara/
 specutils/specutils/
 specutils/
 zora_valis_dockers/zora_valis_dockers/
