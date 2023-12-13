@@ -112,7 +112,18 @@ def scatter():
         height=1000,
     )
 
-    return sl.FigurePlotly(fig)
+    def on_selection(data):
+        print(df[PlotState.x.value].isin(data["points"]["xs"])
+              & df[PlotState.y.value].isin(data["points"]["ys"]))
+        set_filter((df[PlotState.x.value].isin(data["points"]["xs"])
+                    & df[PlotState.y.value].isin(data["points"]["ys"])))
+
+    def deselect(data):
+        set_filter(None)
+
+    return sl.FigurePlotly(fig,
+                           on_selection=on_selection,
+                           on_deselect=deselect)
 
 
 @sl.component
@@ -162,7 +173,20 @@ def histogram():
         xaxis_title=PlotState.x.value,
         yaxis_title="Frequency",
     )
-    return sl.FigurePlotly(fig)
+    if PlotState.flipx.value:
+        fig.update_xaxes(autorange="reversed")
+    return sl.FigurePlotly(
+        fig,
+        dependencies=[
+            PlotState.nbins.value,
+            PlotState.x.value,
+            PlotState.y.value,
+            PlotState.logx.value,
+            PlotState.logy.value,
+            PlotState.flipx.value,
+            PlotState.norm.value,
+        ],
+    )
 
 
 @sl.component
@@ -222,16 +246,16 @@ def histogram2d():
         #    ],
         #    shape=PlotState.nbins.value,
         # )
-    elif bintype == "mode":
-        y = dff.mode(
-            expr,
-            binby=[expr_x, expr_y],
-            limits=[
-                dff.minmax(PlotState.x.value),
-                dff.minmax(PlotState.y.value)
-            ],
-            shape=PlotState.nbins.value,
-        )
+    # elif bintype == "mode":
+    #    y = dff.mode(
+    #        expr,
+    #        binby=[expr_x, expr_y],
+    #        limits=[
+    #            dff.minmax(PlotState.x.value),
+    #            dff.minmax(PlotState.y.value)
+    #        ],
+    #        shape=PlotState.nbins.value,
+    #    )
     elif bintype == "min":
         y = dff.min(
             expr,

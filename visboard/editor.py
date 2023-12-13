@@ -1,10 +1,9 @@
 from typing import cast
 
-import numpy as np
 import solara as sl
 from solara.alias import rv
 
-from state import State, PlotState
+from state import State
 
 
 def ExprEditor():
@@ -36,6 +35,8 @@ def ExprEditor():
                         exprlist.append(expr)
                         if len(exprs) == 1:
                             break
+            if "&" in expression:
+                assert all(["(", ")"] in expression)
 
             for expr in exprlist:
                 if len(expr) == 2:
@@ -52,7 +53,7 @@ def ExprEditor():
                                                                     "") != ""
 
             # pass all checks, then set the filter
-            set_filter(dff[expression])
+            set_filter(dff["(" + expression + ")"])
             print("expreditor:valid")
             return True
 
