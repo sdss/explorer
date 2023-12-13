@@ -68,13 +68,13 @@ def scatter():
     if filter:
         dff = df[filter]
     if len(dff) > 10000:
-        x = dff[PlotState.x.value][:10_000].values
-        y = dff[PlotState.y.value][:10_000].values
-        c = dff[PlotState.color.value][:10_000].values
+        x = dff[PlotState.x.value][:10_000]
+        y = dff[PlotState.y.value][:10_000]
+        c = dff[PlotState.color.value][:10_000]
     else:
-        x = dff[PlotState.x.value].values
-        y = dff[PlotState.y.value].values
-        c = dff[PlotState.color.value].values
+        x = dff[PlotState.x.value]
+        y = dff[PlotState.y.value]
+        c = dff[PlotState.color.value]
     x_cat = check_catagorical(x)
     y_cat = check_catagorical(y)
     if x_cat or y_cat:
@@ -83,6 +83,9 @@ def scatter():
             label=
             "Selected columns are catagorical! Incompatible with scatter plot.",
         )
+    x = x.values
+    y = y.values
+    c = c.values
 
     fig = go.Figure(data=go.Scattergl(
         x=x,
