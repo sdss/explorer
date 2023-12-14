@@ -94,7 +94,7 @@ def scatter():
         marker=dict(
             color=c,
             colorbar=dict(title=PlotState.color.value),
-            colorscale="viridis",
+            colorscale=PlotState.colorscale.value,
         ),
     ), )
     if PlotState.flipx.value:
@@ -121,9 +121,22 @@ def scatter():
     def deselect(data):
         set_filter(None)
 
-    return sl.FigurePlotly(fig,
-                           on_selection=on_selection,
-                           on_deselect=deselect)
+    return sl.FigurePlotly(
+        fig,
+        on_selection=on_selection,
+        on_deselect=deselect,
+        dependencies=[
+            filter,
+            PlotState.x.value,
+            PlotState.y.value,
+            PlotState.color.value,
+            PlotState.colorscale.value,
+            PlotState.logx.value,
+            PlotState.logy.value,
+            PlotState.flipx.value,
+            PlotState.flipy.value,
+        ],
+    )
 
 
 @sl.component
@@ -178,9 +191,9 @@ def histogram():
     return sl.FigurePlotly(
         fig,
         dependencies=[
+            filter,
             PlotState.nbins.value,
             PlotState.x.value,
-            PlotState.y.value,
             PlotState.logx.value,
             PlotState.logy.value,
             PlotState.flipx.value,
@@ -302,6 +315,7 @@ def histogram2d():
         zmin=cmin,
         zmax=cmax,
         origin=origin,
+        color_continuous_scale=PlotState.colorscale.value,
         labels={
             "x": PlotState.x.value,
             "y": PlotState.y.value,
@@ -312,4 +326,20 @@ def histogram2d():
     )
     if PlotState.flipx.value:
         fig.update_xaxes(autorange="reversed")
-    return sl.FigurePlotly(fig)
+    return sl.FigurePlotly(
+        fig,
+        dependencies=[
+            filter,
+            PlotState.nbins.value,
+            PlotState.x.value,
+            PlotState.y.value,
+            PlotState.color.value,
+            PlotState.colorscale.value,
+            PlotState.logx.value,
+            PlotState.logy.value,
+            PlotState.flipx.value,
+            PlotState.flipy.value,
+            PlotState.binscale.value,
+            PlotState.bintype.value,
+        ],
+    )

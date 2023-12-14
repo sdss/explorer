@@ -18,9 +18,18 @@ def DFView() -> None:
     dff = df
     if df is not None:
         if filter:
-            dff = df[filter]
+            dff = dff[filter]
+        dff = dff[[
+            "sdss_id",
+            "gaia_dr3_source_id",
+            "telescope",
+            "release",
+            PlotState.x.value,
+            PlotState.y.value,
+            PlotState.color.value,
+        ]]
         sl.Markdown(f"## Data ({len(dff):,} points)")
-        # sl.DataFrame(dff)
+        sl.DataFrame(dff)
     else:
         Loading()
 

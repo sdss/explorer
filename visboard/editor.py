@@ -36,7 +36,7 @@ def ExprEditor():
                         if len(exprs) == 1:
                             break
             if "&" in expression:
-                assert all(["(", ")"] in expression)
+                assert all(b in expression for b in ["(", ")"])
 
             for expr in exprlist:
                 if len(expr) == 2:
@@ -45,6 +45,7 @@ def ExprEditor():
                     assert expr[-1].strip().replace(")", "").replace("(",
                                                                      "") != ""
                 else:
+                    print("expreditor:3part")
                     assert (expr[1].strip().replace(")", "").replace("(", "")
                             in dff.get_column_names())
                     assert expr[-1].strip().replace(")", "").replace("(",

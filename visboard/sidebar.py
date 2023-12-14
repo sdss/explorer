@@ -5,6 +5,7 @@ Sidebar
 import solara as sl
 
 from solara.components.columns import Columns
+from solara.components.card import Card
 from solara.components.dataframe import SummaryCard, FilterCard
 from solara.components.file_drop import FileDrop
 
@@ -43,85 +44,101 @@ def dataset_menu():
 def scatter_menu():
     df = State.df.value
     columns = list(map(str, df.columns))
-    with Columns([1, 1]):
+    with Card(margin=0):
+        with Columns([1, 1]):
+            sl.Select(
+                "Column x",
+                values=columns,
+                value=PlotState.x,
+            )
+            sl.Select(
+                "Column y",
+                values=columns,
+                value=PlotState.y,
+            )
         sl.Select(
-            "Column x",
+            label="Color",
             values=columns,
-            value=PlotState.x,
+            value=PlotState.color,
         )
         sl.Select(
-            "Column y",
-            values=columns,
-            value=PlotState.y,
+            label="Colorscale",
+            values=PlotState.Lookup["colorscales"],
+            value=PlotState.colorscale,
         )
-    with Columns([1, 1]):
-        with sl.Column():
-            sl.Checkbox(label="Flip x", value=PlotState.flipx)
-            sl.Checkbox(label="Log x", value=PlotState.logx)
-        with sl.Column():
-            sl.Checkbox(label="Flip y", value=PlotState.flipy)
-            sl.Checkbox(label="Log y", value=PlotState.logy)
-    sl.Select(
-        label="Color",
-        values=columns,
-        value=PlotState.color,
-    )
+    with Card(margin=0):
+        with Columns([1, 1]):
+            with sl.Column():
+                sl.Switch(label="Flip x", value=PlotState.flipx)
+                sl.Switch(label="Log x", value=PlotState.logx)
+            with sl.Column():
+                sl.Switch(label="Flip y", value=PlotState.flipy)
+                sl.Switch(label="Log y", value=PlotState.logy)
 
 
 @sl.component()
 def statistics_menu():
     df = State.df.value
     columns = list(map(str, df.columns))
-    with Columns([1, 1]):
-        sl.Select(
-            "Column x",
-            values=columns,
-            value=PlotState.x,
+    with Card(margin=0):
+        with Columns([1, 1]):
+            sl.Select(
+                "Column x",
+                values=columns,
+                value=PlotState.x,
+            )
+            if State.view.value == "histogram2d":
+                sl.Select(
+                    "Column y",
+                    values=columns,
+                    value=PlotState.y,
+                )
+        if State.view.value == "histogram2d":
+            sl.Select(
+                label="Colorscale",
+                values=PlotState.Lookup["colorscales"],
+                value=PlotState.colorscale,
+            )
+    with Card(margin=0):
+        with Columns([1, 1]):
+            with sl.Column():
+                sl.Switch(label="Log x", value=PlotState.logx)
+                sl.Switch(label="Flip x", value=PlotState.flipx)
+            with sl.Column():
+                sl.Switch(label="Log y", value=PlotState.logy)
+                if State.view.value == "histogram2d":
+                    sl.Switch(label="Flip y", value=PlotState.flipy)
+    with Card(margin=0):
+        sl.SliderInt(
+            label="Number of Bins",
+            value=PlotState.nbins,
+            step=10,
+            min=10,
+            max=2000,
         )
         if State.view.value == "histogram2d":
             sl.Select(
-                "Column y",
-                values=columns,
-                value=PlotState.y,
+                label="Binning type",
+                values=PlotState.Lookup["bintypes"],
+                value=PlotState.bintype,
             )
-    with Columns([1, 1]):
-        with sl.Column():
-            sl.Checkbox(label="Log x", value=PlotState.logx)
-            sl.Checkbox(label="Flip x", value=PlotState.flipx)
-        with sl.Column():
-            sl.Checkbox(label="Log y", value=PlotState.logy)
-            if State.view.value == "histogram2d":
-                sl.Checkbox(label="Flip y", value=PlotState.flipy)
-    sl.SliderInt(
-        label="Number of Bins",
-        value=PlotState.nbins,
-        step=10,
-        min=10,
-        max=2000,
-    )
-    if State.view.value == "histogram2d":
-        sl.Select(
-            label="Binning type",
-            values=PlotState.Lookup["bintypes"],
-            value=PlotState.bintype,
-        )
-        if str(PlotState.bintype.value) != "count":
+            if str(PlotState.bintype.value) != "count":
+                sl.Select(
+                    label="Column to Bin",
+                    values=columns,
+                    value=PlotState.color,
+                )
             sl.Select(
-                label="Column to Bin",
-                values=columns,
-                value=PlotState.color,
+                label="Binning scale",
+                values=PlotState.Lookup["binscales"],
+                value=PlotState.binscale,
             )
-        sl.Select(
-            label="Binning scale",
-            values=PlotState.Lookup["binscales"],
-            value=PlotState.binscale,
-        )
-    else:
-        sl.Select(
-            label="Normalization",
-            values=PlotState.Lookup["norms"],
-            value=PlotState.norm,
-        )
+        else:
+            sl.Select(
+                label="Normalization",
+                values=PlotState.Lookup["norms"],
+                value=PlotState.norm,
+            )
 
 
 @sl.component()
@@ -146,14 +163,14 @@ def plot3d_menu():
         )
     with Columns([1, 1, 1]):
         with sl.Column():
-            sl.Checkbox(label="Flip x", value=PlotState.flipx)
-            sl.Checkbox(label="Log x", value=PlotState.logx)
+            sl.Switch(label="Flip x", value=PlotState.flipx)
+            sl.Switch(label="Log x", value=PlotState.logx)
         with sl.Column():
-            sl.Checkbox(label="Flip y", value=PlotState.flipy)
-            sl.Checkbox(label="Log y", value=PlotState.logy)
+            sl.Switch(label="Flip y", value=PlotState.flipy)
+            sl.Switch(label="Log y", value=PlotState.logy)
         with sl.Column():
-            sl.Checkbox(label="Flip z", value=PlotState.flipz)
-            sl.Checkbox(label="Log z", value=PlotState.logz)
+            sl.Switch(label="Flip z", value=PlotState.flipz)
+            sl.Switch(label="Log z", value=PlotState.logz)
 
 
 @sl.component()

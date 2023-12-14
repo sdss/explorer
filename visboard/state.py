@@ -32,10 +32,13 @@ class State:
 
 
 class PlotState:
-    color = sl.reactive("fe_h")
-    subset = sl.reactive(10000)
+    # x,y,z/color
     x = sl.reactive("teff")
     y = sl.reactive("logg")
+    color = sl.reactive("fe_h")
+
+    # plot parameters/settings
+    colorscale = sl.reactive("viridis")
     logx = sl.reactive(False)
     logy = sl.reactive(False)
     flipx = sl.reactive(False)
@@ -46,14 +49,28 @@ class PlotState:
     bintype = sl.reactive("mean")
     binscale = sl.reactive(None)
     norm = sl.reactive(None)
+
+    # all lookup data for types
     Lookup = dict(
         norms=[
             None, "percent", "probability", "density", "probability density"
         ],
-        bintypes=["count", "mean", "median", "mode", "min", "max"],
+        bintypes=["count", "mean", "median", "min", "max"],
+        colorscales=[
+            "inferno",
+            "viridis",
+            "jet",
+            "solar",
+            "plotly3",
+            "sunset",
+            "sunsetdark",
+            "tropic",
+            "delta",
+            "twilight",
+        ],
         binscales=[None, "log1p", "log10"],
     )
 
-    # 3d
+    # 3d settings
     logz = sl.reactive(False)
     flipz = sl.reactive(False)
