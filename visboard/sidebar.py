@@ -100,15 +100,6 @@ def statistics_menu():
                 value=PlotState.colorscale,
             )
     with Card(margin=0):
-        with Columns([1, 1]):
-            with sl.Column():
-                sl.Switch(label="Log x", value=PlotState.logx)
-                sl.Switch(label="Flip x", value=PlotState.flipx)
-            with sl.Column():
-                sl.Switch(label="Log y", value=PlotState.logy)
-                if State.view.value == "histogram2d":
-                    sl.Switch(label="Flip y", value=PlotState.flipy)
-    with Card(margin=0):
         sl.SliderInt(
             label="Number of Bins",
             value=PlotState.nbins,
@@ -139,6 +130,15 @@ def statistics_menu():
                 values=PlotState.Lookup["norms"],
                 value=PlotState.norm,
             )
+    with Card(margin=0):
+        with Columns([1, 1]):
+            with sl.Column():
+                sl.Switch(label="Log x", value=PlotState.logx)
+                sl.Switch(label="Flip x", value=PlotState.flipx)
+            with sl.Column():
+                sl.Switch(label="Log y", value=PlotState.logy)
+                if State.view.value == "histogram2d":
+                    sl.Switch(label="Flip y", value=PlotState.flipy)
 
 
 @sl.component()
