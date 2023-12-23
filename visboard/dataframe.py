@@ -1,6 +1,6 @@
 import solara as sl
+import vaex as vx  # noqa
 
-import vaex as vx
 from state import State, PlotState
 
 

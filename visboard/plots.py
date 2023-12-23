@@ -1,7 +1,9 @@
-import solara as sl
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
+
+import solara as sl
+import solara.lab as lab
 from solara.express import CrossFilteredFigurePlotly  # noqa: this thing literally does not function with vaex frames
 
 from state import State, PlotState
@@ -91,6 +93,9 @@ def scatter():
         x=x,
         y=y,
         mode="markers",
+        hovertemplate=f"<b>{PlotState.x.value}</b>:" + " %{x:.6f}<br>" +
+        f"<b>{PlotState.y.value}</b>:" + " %{y:.6f}<br>" +
+        f"<b>{PlotState.color.value}</b>:" + " %{marker.color:.6f}",
         marker=dict(
             color=c,
             colorbar=dict(title=PlotState.color.value),
@@ -206,6 +211,9 @@ def histogram():
 def histogram2d():
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "filter-histogram2d")
+
+    # clickdata
+    clickdata, set_clickdata = sl.use_state(dict())
 
     dff = df
     if filter:
@@ -326,8 +334,10 @@ def histogram2d():
     )
     if PlotState.flipx.value:
         fig.update_xaxes(autorange="reversed")
-    return sl.FigurePlotly(
+
+    fig = sl.FigurePlotly(
         fig,
+        on_click=set_clickdata,
         dependencies=[
             filter,
             PlotState.nbins.value,
@@ -343,3 +353,27 @@ def histogram2d():
             PlotState.bintype.value,
         ],
     )
+
+    def select_bin():
+        # point to current click data
+        data = clickdata
+
+        print(data)
+
+        set_filter(None)
+        return
+
+    def deselect_bin():
+        set_filter(None)
+        return
+
+    with lab.ClickMenu(activator=fig) as menu:
+        with sl.Column(gap="0px"):
+            [
+                sl.Button("Select bin as subset",
+                          text=True,
+                          on_click=select_bin),
+                sl.Button("Clear selection", text=True, on_click=deselect_bin),
+            ]
+
+    return fig
