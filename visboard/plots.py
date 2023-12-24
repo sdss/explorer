@@ -118,8 +118,6 @@ def scatter():
     )
 
     def on_selection(data):
-        print(df[PlotState.x.value].isin(data["points"]["xs"])
-              & df[PlotState.y.value].isin(data["points"]["ys"]))
         set_filter((df[PlotState.x.value].isin(data["points"]["xs"])
                     & df[PlotState.y.value].isin(data["points"]["ys"])))
 
@@ -212,9 +210,6 @@ def histogram2d():
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "filter-histogram2d")
 
-    # clickdata
-    clickdata, set_clickdata = sl.use_state(dict())
-
     dff = df
     if filter:
         dff = df[filter]
@@ -232,13 +227,17 @@ def histogram2d():
         )
 
     bintype = str(PlotState.bintype.value)
+    xlims = None
+    ylims = None
+    if xlims is None and ylims is None:
+        limits = [dff.minmax(PlotState.x.value), dff.minmax(PlotState.y.value)]
+    else:
+        limits = [xlims, ylims]
+
     if bintype == "count":
         y = dff.count(
             binby=[expr_x, expr_y],
-            limits=[
-                dff.minmax(PlotState.x.value),
-                dff.minmax(PlotState.y.value)
-            ],
+            limits=limits,
             shape=PlotState.nbins.value,
             array_type="xarray",
         )
@@ -246,10 +245,7 @@ def histogram2d():
         y = dff.mean(
             expr,
             binby=[expr_x, expr_y],
-            limits=[
-                dff.minmax(PlotState.x.value),
-                dff.minmax(PlotState.y.value)
-            ],
+            limits=limits,
             shape=PlotState.nbins.value,
             array_type="xarray",
         )
@@ -281,10 +277,7 @@ def histogram2d():
         y = dff.min(
             expr,
             binby=[expr_x, expr_y],
-            limits=[
-                dff.minmax(PlotState.x.value),
-                dff.minmax(PlotState.y.value)
-            ],
+            limits=limits,
             shape=PlotState.nbins.value,
             array_type="xarray",
         )
@@ -292,10 +285,7 @@ def histogram2d():
         y = dff.max(
             expr,
             binby=[expr_x, expr_y],
-            limits=[
-                dff.minmax(PlotState.x.value),
-                dff.minmax(PlotState.y.value)
-            ],
+            limits=limits,
             shape=PlotState.nbins.value,
             array_type="xarray",
         )
@@ -335,45 +325,52 @@ def histogram2d():
     if PlotState.flipx.value:
         fig.update_xaxes(autorange="reversed")
 
-    fig = sl.FigurePlotly(
-        fig,
-        on_click=set_clickdata,
-        dependencies=[
-            filter,
-            PlotState.nbins.value,
-            PlotState.x.value,
-            PlotState.y.value,
-            PlotState.color.value,
-            PlotState.colorscale.value,
-            PlotState.logx.value,
-            PlotState.logy.value,
-            PlotState.flipx.value,
-            PlotState.flipy.value,
-            PlotState.binscale.value,
-            PlotState.bintype.value,
-        ],
-    )
+    def select_bin(data):
+        x_be = np.histogram_bin_edges(expr_x.evaluate(),
+                                      bins=PlotState.nbins.value)
+        xs = data["points"]["xs"][0]
+        qx = np.abs(x_be - xs)
+        px = np.sort(np.abs(x_be - xs))[0:2]
+        ox = [qx == ps for ps in px]
+        xi = np.logical_or(ox[0], ox[1])
 
-    def select_bin():
-        # point to current click data
-        data = clickdata
-
-        print(data)
-
-        set_filter(None)
+        y_be = np.histogram_bin_edges(expr_y.evaluate(),
+                                      bins=PlotState.nbins.value)
+        ys = data["points"]["ys"][0]
+        qy = np.abs(y_be - ys)
+        py = np.sort(np.abs(y_be - ys))[0:2]
+        oy = [qy == ps for ps in py]
+        yi = np.logical_or(oy[0], oy[1])
+        xlims = x_be[xi]
+        ylims = y_be[yi]
         return
 
     def deselect_bin():
-        set_filter(None)
+        xlims = None
+        ylims = None
         return
 
-    with lab.ClickMenu(activator=fig) as menu:
-        with sl.Column(gap="0px"):
-            [
-                sl.Button("Select bin as subset",
-                          text=True,
-                          on_click=select_bin),
-                sl.Button("Clear selection", text=True, on_click=deselect_bin),
-            ]
+    with sl.Column() as main:
+        sl.FigurePlotly(
+            fig,
+            on_click=select_bin,
+            dependencies=[
+                filter,
+                xlims,
+                ylims,
+                PlotState.nbins.value,
+                PlotState.x.value,
+                PlotState.y.value,
+                PlotState.color.value,
+                PlotState.colorscale.value,
+                PlotState.logx.value,
+                PlotState.logy.value,
+                PlotState.flipx.value,
+                PlotState.flipy.value,
+                PlotState.binscale.value,
+                PlotState.bintype.value,
+            ],
+        )
+        sl.Button("Reset", on_click=deselect_bin())
 
-    return fig
+    return

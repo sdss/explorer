@@ -1,7 +1,7 @@
 import solara as sl
 import solara.lab as lab
 
-from state import State, PlotState
+from state import State
 from dataframe import DFView, NoDF
 from plots import show_plot
 from sidebar import sidebar

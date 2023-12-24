@@ -100,11 +100,17 @@ def statistics_menu():
                 value=PlotState.colorscale,
             )
     with Card(margin=0):
+        if State.view.value == "histogram2d":
+            min = 2
+            step = 2
+        else:
+            min = 10
+            step = 10
         sl.SliderInt(
             label="Number of Bins",
             value=PlotState.nbins,
-            step=10,
-            min=10,
+            step=step,
+            min=min,
             max=2000,
         )
         if State.view.value == "histogram2d":
