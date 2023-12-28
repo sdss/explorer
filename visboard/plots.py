@@ -225,10 +225,10 @@ def histogram2d():
             label=
             "Selected columns are catagorical! Incompatible with histogram2d plot.",
         )
-
     bintype = str(PlotState.bintype.value)
-    xlims = None
-    ylims = None
+
+    xlims, set_xlims = sl.use_state(None)
+    ylims, set_ylims = sl.use_state(None)
     if xlims is None and ylims is None:
         limits = [dff.minmax(PlotState.x.value), dff.minmax(PlotState.y.value)]
     else:
@@ -341,13 +341,13 @@ def histogram2d():
         py = np.sort(np.abs(y_be - ys))[0:2]
         oy = [qy == ps for ps in py]
         yi = np.logical_or(oy[0], oy[1])
-        xlims = x_be[xi]
-        ylims = y_be[yi]
+        set_xlims(x_be[xi])
+        set_ylims(y_be[yi])
         return
 
     def deselect_bin():
-        xlims = None
-        ylims = None
+        set_xlims(None)
+        set_ylims(None)
         return
 
     with sl.Column() as main:
@@ -371,6 +371,6 @@ def histogram2d():
                 PlotState.bintype.value,
             ],
         )
-        sl.Button("Reset", on_click=deselect_bin())
+        sl.Button("Reset", on_click=deselect_bin)
 
-    return
+    return main
