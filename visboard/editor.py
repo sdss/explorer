@@ -6,6 +6,7 @@ from solara.alias import rv
 from state import State
 
 
+@sl.component()
 def ExprEditor():
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "filter-expression")

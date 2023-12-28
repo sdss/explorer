@@ -1,7 +1,3 @@
-"""
-Sidebar
-"""
-
 import solara as sl
 
 from solara.components.columns import Columns

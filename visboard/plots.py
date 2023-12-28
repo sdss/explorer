@@ -69,14 +69,21 @@ def scatter():
     dff = df
     if filter:
         dff = df[filter]
+
+    # get cols
+    x = dff[PlotState.x.value]
+    y = dff[PlotState.y.value]
+    c = dff[PlotState.color.value]
+    ids = dff["sdss_id"]
+
+    # trim to renderable length
     if len(dff) > 10000:
-        x = dff[PlotState.x.value][:10_000]
-        y = dff[PlotState.y.value][:10_000]
-        c = dff[PlotState.color.value][:10_000]
-    else:
-        x = dff[PlotState.x.value]
-        y = dff[PlotState.y.value]
-        c = dff[PlotState.color.value]
+        x = x[:10_000]
+        y = y[:10_000]
+        c = c[:10_000]
+        ids = ids[:10_000]
+
+    # Check for catagorical (unrenderable in scatter)
     x_cat = check_catagorical(x)
     y_cat = check_catagorical(y)
     if x_cat or y_cat:
@@ -88,14 +95,17 @@ def scatter():
     x = x.values
     y = y.values
     c = c.values
+    ids = ids.values
 
     fig = go.Figure(data=go.Scattergl(
         x=x,
         y=y,
         mode="markers",
+        customdata=ids,
         hovertemplate=f"<b>{PlotState.x.value}</b>:" + " %{x:.6f}<br>" +
         f"<b>{PlotState.y.value}</b>:" + " %{y:.6f}<br>" +
-        f"<b>{PlotState.color.value}</b>:" + " %{marker.color:.6f}",
+        f"<b>{PlotState.color.value}</b>:" + " %{marker.color:.6f}<br>" +
+        "<b>ID</b>:" + " %{customdata:.d}",
         marker=dict(
             color=c,
             colorbar=dict(title=PlotState.color.value),
