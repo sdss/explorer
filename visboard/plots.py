@@ -10,6 +10,11 @@ from state import State, PlotState
 from util import check_catagorical
 
 
+def check_stride(df, expr):
+    return (df.minmax(expr)[1] -
+            df.minmax(expr)[0]) / PlotState.nbins.value < 1
+
+
 @sl.component
 def show_plot(type):
     if State.df.value is not None:
@@ -169,6 +174,9 @@ def histogram():
             # TODO: raise issue about vaex being unable to count catagorical data
             y.append(float(expr.str.count(i).sum()))
     else:
+        # check stride
+        check_stride(dff, expr)
+        # make x (bin centers) and y (counts)
         x = dff.bin_centers(
             expression=expr,
             limits=dff.minmax(PlotState.x.value),

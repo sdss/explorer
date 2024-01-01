@@ -1,9 +1,37 @@
 from typing import cast
 
 import solara as sl
-from solara.alias import rv
+import reacton.ipyvuetify as rv
 
 from state import State
+
+
+@sl.component()
+def SumCard():
+    df = State.df.value
+    filter, set_filter = sl.use_cross_filter(id(df), "summary")
+
+    dff = df
+    filtered = False
+    if filter is not None:
+        filtered = True
+        dff = df[filter]
+    if filtered:
+        title = "Filtered"
+    else:
+        title = "Showing all"
+    progress = len(dff) / len(df) * 100
+
+    with sl.Card(title=title, margin=0) as main:
+        sl.ProgressLinear(value=progress, color="blue")
+        with rv.CardText():
+            if filtered:
+                summary = f"{len(dff):,} / {len(df):,}"
+            else:
+                summary = f"{len(dff):,}"
+            rv.Icon(children=["mdi-filter"],
+                    style_="opacity: 0.1" if not filtered else "")
+            rv.Html(tag="h3", children=[summary], style_="display: inline")
 
 
 @sl.component()
@@ -55,7 +83,7 @@ def ExprEditor():
                                                                     "") != ""
 
             # pass all checks, then set the filter
-            set_filter(dff["(" + expression + ")"])
+            set_filter(df["(" + expression + ")"])
             print("expreditor:valid")
             return True
 

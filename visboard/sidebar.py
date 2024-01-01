@@ -6,7 +6,7 @@ from solara.components.dataframe import SummaryCard, FilterCard
 from solara.components.file_drop import FileDrop
 
 from state import State, PlotState
-from editor import ExprEditor
+from editor import ExprEditor, SumCard
 
 
 @sl.component()
@@ -179,15 +179,9 @@ def plot3d_menu():
 def plot_control_menu():
     df = State.df.value
     if df is not None:
-        SummaryCard(df)
+        SumCard()
         sl.PivotTableCard(df, x=["telescope"], y=["release"])
         ExprEditor()
-        # TODO: find out why it can't be doubly set with the expression as well.
-        # sl.PivotTableCard(
-        #    df,
-        #    x=["telescope"],
-        #    y=["release"],
-        # )
         if State.view.value == "scatter":
             scatter_menu()
         elif "histogram" in str(State.view.value):
