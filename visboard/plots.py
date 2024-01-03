@@ -26,6 +26,8 @@ def show_plot(type):
             elif type == "scatter":
                 # scatterplot()
                 scatter()
+            elif type == "skyplot":
+                skyplot()
         else:
             sl.ProgressLinear(True, color="purple")
     else:
@@ -392,3 +394,72 @@ def histogram2d():
         sl.Button("Reset", on_click=deselect_bin)
 
     return main
+
+
+@sl.component
+def skyplot():
+    df = State.df.value
+    filter, set_filter = sl.use_cross_filter(id(df), "scattergeo")
+    dff = df
+    if filter:
+        dff = dff[filter]
+
+    if PlotState.geo_coords.value == "ra/dec":
+        lon = dff["ra"][:5_000]
+        lat = dff["dec"][:5_000]
+        lon_label = "Right Ascension"
+        lat_label = "Declination"
+        print("sky:radec")
+        projection = "aitoff"
+    else:
+        lon = dff["l"][:5_000]
+        lat = dff["b"][:5_000]
+        lon_label = "Galactic Longitude"
+        lat_label = "Galactic Latitude"
+        print("sky:galcoords")
+        projection = "mollweide"
+    c = dff[PlotState.color.value][:5_000]
+    ids = dff["sdss_id"][:5_000]
+    fig = go.Figure(data=go.Scattergeo(
+        lat=lat.values,
+        lon=lon.values,
+        mode="markers",
+        customdata=ids.values,
+        hovertemplate=f"<b>{lon_label}</b>:" + " %{lon:.6f}<br>" +
+        f"<b>{lat_label}</b>:" + " %{lat:.6f}<br>" +
+        f"<b>{PlotState.color.value}</b>:" + " %{marker.color:.6f}<br>" +
+        "<b>ID</b>:" + " %{customdata:.d}",
+        marker=dict(
+            color=c.values,
+            colorbar=dict(title=PlotState.color.value),
+            colorscale=PlotState.colorscale.value,
+        ),
+    ), )
+    if PlotState.flipx.value:
+        fig.update_xaxes(autorange="reversed")
+    if PlotState.flipy.value:
+        fig.update_yaxes(autorange="reversed")
+    fig.update_layout(
+        width=1000,
+        height=1000,
+    )
+    fig.update_geos(
+        projection_type=projection,
+        visible=False,
+        lonaxis_showgrid=True,
+        lonaxis_dtick=5,
+        lonaxis_tick0=0,
+        lataxis_showgrid=True,
+        lataxis_dtick=5,
+        lataxis_tick0=0,
+    )
+    return sl.FigurePlotly(
+        fig,
+        dependencies=[
+            PlotState.geo_coords.value,
+            PlotState.color.value,
+            PlotState.colorscale.value,
+            PlotState.flipx.value,
+            PlotState.flipy.value,
+        ],
+    )

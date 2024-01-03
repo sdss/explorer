@@ -37,6 +37,33 @@ def dataset_menu():
 
 
 @sl.component()
+def sky_menu():
+    df = State.df.value
+    columns = list(map(str, df.columns))
+    with Card(margin=0):
+        with sl.Row():
+            sl.ToggleButtonsSingle(value=PlotState.geo_coords,
+                                   values=["ra/dec", "galactic lon/lat"])
+        with sl.Row():
+            sl.Select(
+                label="Color",
+                values=columns,
+                value=PlotState.color,
+            )
+            sl.Select(
+                label="Colorscale",
+                values=PlotState.Lookup["colorscales"],
+                value=PlotState.colorscale,
+            )
+    with Card(margin=0):
+        with Columns([1, 1]):
+            with sl.Column():
+                sl.Switch(label="Flip x", value=PlotState.flipx)
+            with sl.Column():
+                sl.Switch(label="Flip y", value=PlotState.flipy)
+
+
+@sl.component()
 def scatter_menu():
     df = State.df.value
     columns = list(map(str, df.columns))
@@ -186,8 +213,8 @@ def plot_control_menu():
             scatter_menu()
         elif "histogram" in str(State.view.value):
             statistics_menu()
-        elif State.view.value == "3d":
-            plot3d_menu()
+        elif State.view.value == "skyplot":
+            sky_menu()
     else:
         sl.Info(
             "No data loaded, click on the sample dataset button to load a sample dataset, or upload a file."

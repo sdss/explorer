@@ -30,6 +30,9 @@ class State:
     def reset():
         State.df.value = None
 
+    class Lookup:
+        views = ["histogram", "histogram2d", "scatter", "skyplot"]
+
 
 class PlotState:
     # x,y,z/color
@@ -49,6 +52,9 @@ class PlotState:
     bintype = sl.reactive("mean")
     binscale = sl.reactive(None)
     norm = sl.reactive(None)
+
+    # aitoff geo settings
+    geo_coords = sl.reactive("ra/dec")
 
     # all lookup data for types
     Lookup = dict(

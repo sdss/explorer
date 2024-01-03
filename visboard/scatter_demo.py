@@ -24,7 +24,7 @@ def Page():
             sl.Select(
                 label="Plot Type",
                 value=State.view,
-                values=["histogram", "histogram2d", "scatter"],
+                values=State.Lookup.views,
             )
             if df is not None:
                 if State.view.value in ["scatter"]:
