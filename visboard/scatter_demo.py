@@ -1,5 +1,6 @@
 import solara as sl
 import solara.lab as lab
+import reacton.ipyvuetify as rv
 
 from state import State
 from dataframe import DFView, NoDF
@@ -11,11 +12,23 @@ from sidebar import sidebar
 def Page():
     df = State.df.value
 
+    # PAGE TITLE
+    title = "[NOT FOR PUBLIC] Visboard"
+    sl.Title(title)
+    with sl.AppBar():
+        sl.AppBarTitle(children=title)
+        sl.Button(
+            label=None,
+            on_click=State.change_theme,
+            icon_name="mdi-moon-waning-crescent"
+            if State.theme.value else "mdi-white-balance-sunny",
+            style=State.style.value,
+        )
     # SIDEBAR
     sidebar()
     # TABS
     with lab.Tabs(grow=True):
-        with lab.Tab("Table"):
+        with lab.Tab("Table", style=State.style.value):
             if df is not None:
                 DFView()
             else:
@@ -42,7 +55,8 @@ def Page():
 @sl.component
 def Layout(children):
     route, routes = sl.use_route()
-    return sl.AppLayout(children=children)
+
+    return sl.AppLayout(children=children, toolbar_dark=State.theme.value)
 
 
 if __name__ == "__main__":

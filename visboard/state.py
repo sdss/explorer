@@ -2,6 +2,7 @@ from typing import Optional, cast
 
 import solara as sl
 import vaex as vx
+import reacton.ipyvuetify as rv
 
 try:
     df_sample = vx.open("/home/riley/uni/rproj/data/astra-clean.parquet")
@@ -12,6 +13,8 @@ except:  # noqa
 class State:
     view = sl.reactive("histogram")
     df = sl.reactive(cast(Optional[vx.DataFrame], None))
+    theme = sl.reactive(False)
+    style = sl.reactive(cast(str, None))
 
     @staticmethod
     def load_sample():
@@ -29,6 +32,14 @@ class State:
     @staticmethod
     def reset():
         State.df.value = None
+
+    @staticmethod
+    def change_theme():
+        State.theme.value = not State.theme.value
+        if State.theme.value:
+            State.style.value = "grey-darken-4"
+        else:
+            State.style.value = None
 
     class Lookup:
         views = ["histogram", "histogram2d", "scatter", "skyplot"]
