@@ -205,16 +205,37 @@ def plot3d_menu():
 @sl.component()
 def plot_control_menu():
     df = State.df.value
+
+    filter, set_filter = sl.use_cross_filter(id(df), "download")
+    if filter:
+        dff = df[filter]
+    else:
+        dff = df
+
+    def get_data():
+        dfp = dff.to_pandas_df()
+        return dfp.to_csv(index=False)
+
     if df is not None:
+        # summary + expressions
         SumCard()
-        sl.PivotTableCard(df, x=["telescope"], y=["release"])
         ExprEditor()
+
+        # plot controls
         if State.view.value == "scatter":
             scatter_menu()
         elif "histogram" in str(State.view.value):
             statistics_menu()
         elif State.view.value == "skyplot":
             sky_menu()
+        sl.FileDownload(
+            get_data,
+            filename="apogeenet_filtered.csv",
+            label="Download table",
+        )
+
+        # pivot table
+        sl.PivotTableCard(df, x=["telescope"], y=["release"])
     else:
         sl.Info(
             "No data loaded, click on the sample dataset button to load a sample dataset, or upload a file."
