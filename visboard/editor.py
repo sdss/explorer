@@ -42,6 +42,7 @@ def ExprEditor():
     if filter is not None:
         dff = dff[filter]
     expression, set_expression = sl.use_state(cast(str, None))
+    print("expreditor:fullrerun")
 
     def work():
         print("expreditor:rerun")
@@ -81,6 +82,9 @@ def ExprEditor():
                                                                      "") != ""
                     assert expr[0].strip().replace(")", "").replace("(",
                                                                     "") != ""
+            import numpy as np
+
+            assert np.count_nonzero(df["(" + expression + ")"].evaluate()) > 0
 
             # pass all checks, then set the filter
             set_filter(df["(" + expression + ")"])
