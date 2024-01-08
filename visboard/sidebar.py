@@ -134,7 +134,7 @@ def statistics_menu():
             value=PlotState.nbins,
             step=step,
             min=min,
-            max=2000,
+            max=500,
         )
         if State.view.value == "histogram2d":
             sl.Select(
@@ -162,10 +162,12 @@ def statistics_menu():
     with Card(margin=0):
         with Columns([1, 1]):
             with sl.Column():
-                sl.Switch(label="Log x", value=PlotState.logx)
+                if State.view.value == "histogram":
+                    sl.Switch(label="Log x", value=PlotState.logx)
                 sl.Switch(label="Flip x", value=PlotState.flipx)
             with sl.Column():
-                sl.Switch(label="Log y", value=PlotState.logy)
+                if State.view.value == "histogram":
+                    sl.Switch(label="Log y", value=PlotState.logy)
                 if State.view.value == "histogram2d":
                     sl.Switch(label="Flip y", value=PlotState.flipy)
 

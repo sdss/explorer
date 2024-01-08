@@ -29,7 +29,7 @@ def DFView() -> None:
             PlotState.color.value,
         ]]
         sl.Markdown(f"## Data ({len(dff):,} points)")
-        sl.DataFrame(dff)
+        # sl.DataFrame(dff)
     else:
         Loading()
 

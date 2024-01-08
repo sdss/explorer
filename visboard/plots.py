@@ -1,6 +1,7 @@
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
+import reacton.ipyvuetify as rv
 
 import solara as sl
 import solara.lab as lab
@@ -10,9 +11,15 @@ from state import State, PlotState
 from util import check_catagorical
 
 
-def check_stride(df, expr):
-    return (df.minmax(expr)[1] -
-            df.minmax(expr)[0]) / PlotState.nbins.value < 1
+def update_relayout(fig, relayout):
+    if relayout is not None:
+        if "xaxis.range[0]" in relayout.keys():
+            fig.update_xaxes(
+                range=[relayout["xaxis.range[0]"], relayout["xaxis.range[1]"]])
+        if "yaxis.range[0]" in relayout.keys():
+            fig.update_yaxes(
+                range=[relayout["yaxis.range[0]"], relayout["yaxis.range[1]"]])
+    return fig
 
 
 @sl.component
@@ -63,8 +70,12 @@ def scatter3d():
         fig.update_xaxes(autorange="reversed")
     if PlotState.flipy.value:
         fig.update_yaxes(autorange="reversed")
-    fig.update_layout(xaxis_title=PlotState.x.value,
-                      yaxis_title=PlotState.y.value)
+    fig.update_layout(
+        xaxis_title=PlotState.x.value,
+        height=600,
+        autosize=True,
+        yaxis_title=PlotState.y.value,
+    )
     return sl.FigurePlotly(fig)
 
 
@@ -72,6 +83,7 @@ def scatter3d():
 def scatter():
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "filter-scatter")
+    relayout, set_relayout = sl.use_state(None)
 
     dff = df
     if filter:
@@ -130,9 +142,30 @@ def scatter():
     fig.update_layout(
         xaxis_title=PlotState.x.value,
         yaxis_title=PlotState.y.value,
-        width=1000,
-        height=1000,
+        height=600,
+        autosize=True,
     )
+    # reset the ranges based on the relayout
+    fig = update_relayout(fig, relayout)
+
+    def reset_lims():
+        set_relayout(None)
+
+    sl.use_thread(
+        reset_lims,
+        dependencies=[
+            PlotState.x.value,
+            PlotState.y.value,
+            PlotState.logx.value,
+            PlotState.logy.value,
+            PlotState.flipx.value,
+            PlotState.flipy.value,
+        ],
+    )
+
+    def relayout_callback(data):
+        if data is not None:
+            set_relayout(data["relayout_data"])
 
     def on_selection(data):
         set_filter((df[PlotState.x.value].isin(data["points"]["xs"])
@@ -145,6 +178,7 @@ def scatter():
         fig,
         on_selection=on_selection,
         on_deselect=deselect,
+        on_relayout=relayout_callback,
         dependencies=[
             filter,
             PlotState.x.value,
@@ -163,6 +197,7 @@ def scatter():
 def histogram():
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "filter-histogram")
+    relayout, set_relayout = sl.use_state(None)
 
     dff = df
     if filter:
@@ -176,8 +211,6 @@ def histogram():
             # TODO: raise issue about vaex being unable to count catagorical data
             y.append(float(expr.str.count(i).sum()))
     else:
-        # check stride
-        check_stride(dff, expr)
         # make x (bin centers) and y (counts)
         x = dff.bin_centers(
             expression=expr,
@@ -189,6 +222,7 @@ def histogram():
             limits=dff.minmax(PlotState.x.value),
             shape=PlotState.nbins.value,
         )
+
     if check_catagorical(expr):
         logx = False
     else:
@@ -208,11 +242,39 @@ def histogram():
     fig.update_layout(
         xaxis_title=PlotState.x.value,
         yaxis_title="Frequency",
+        font=dict(size=16),
+        height=600,
+        autosize=True,
     )
+
     if PlotState.flipx.value:
         fig.update_xaxes(autorange="reversed")
-    return sl.FigurePlotly(
+
+    # reset the ranges based on the relayout
+    fig = update_relayout(fig, relayout)
+
+    def reset_lims():
+        set_relayout(None)
+
+    sl.use_thread(
+        reset_lims,
+        dependencies=[
+            PlotState.x.value,
+            PlotState.y.value,
+            PlotState.logx.value,
+            PlotState.logy.value,
+            PlotState.flipx.value,
+            PlotState.flipy.value,
+        ],
+    )
+
+    def relayout_callback(data):
+        if data is not None:
+            set_relayout(data["relayout_data"])
+
+    fig_el = sl.FigurePlotly(
         fig,
+        on_relayout=relayout_callback,
         dependencies=[
             filter,
             PlotState.nbins.value,
@@ -224,11 +286,14 @@ def histogram():
         ],
     )
 
+    return fig_el
+
 
 @sl.component
 def histogram2d():
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "filter-histogram2d")
+    relayout, set_relayout = sl.use_state(None)
 
     dff = df
     if filter:
@@ -339,11 +404,29 @@ def histogram2d():
             "y": PlotState.y.value,
             "color": PlotState.binscale.value,
         },
-        width=1000,
-        height=1000,
     )
     if PlotState.flipx.value:
         fig.update_xaxes(autorange="reversed")
+
+    # reset the ranges based on the relayout
+    fig = update_relayout(fig, relayout)
+
+    def reset_lims():
+        set_relayout(None)
+
+    sl.use_thread(
+        reset_lims,
+        dependencies=[
+            PlotState.x.value,
+            PlotState.y.value,
+            PlotState.flipx.value,
+            PlotState.flipy.value,
+        ],
+    )
+
+    def relayout_callback(data):
+        if data is not None:
+            set_relayout(data["relayout_data"])
 
     def select_bin(data):
         x_be = np.histogram_bin_edges(expr_x.evaluate(),
@@ -370,16 +453,18 @@ def histogram2d():
         set_ylims(None)
         return
 
+    fig.update_layout(font=dict(size=16), height=800, autosize=True)
+
     with sl.Column() as main:
         sl.FigurePlotly(
             fig,
             on_click=select_bin,
+            on_relayout=relayout_callback,
             dependencies=[
                 filter,
                 xlims,
                 ylims,
                 PlotState.nbins.value,
-                PlotState.x.value,
                 PlotState.y.value,
                 PlotState.color.value,
                 PlotState.colorscale.value,
@@ -400,6 +485,8 @@ def histogram2d():
 def skyplot():
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "scattergeo")
+    relayout, set_relayout = sl.use_state(None)
+
     dff = df
     if filter:
         dff = dff[filter]
@@ -436,16 +523,31 @@ def skyplot():
             colorscale=PlotState.colorscale.value,
         ),
     ), )
+    # add "label" trace
+    dtick = 30
+    x = list(range(-180, 180 + dtick, dtick))
+    y = list(range(-90, 90 + dtick, dtick))
+    xpos = 0
+    ypos = 0
+    fig.add_trace(
+        go.Scattergeo({
+            "lon": x[1:-1] + [xpos] * (len(y) - 2),
+            "lat": [ypos] * (len(x) - 2) + y[1:-1],
+            "showlegend": False,
+            "text": x[1:-1] + y[1:-1],
+            "mode": "text",
+        }))
     if PlotState.flipx.value:
         fig.update_xaxes(autorange="reversed")
     if PlotState.flipy.value:
         fig.update_yaxes(autorange="reversed")
     fig.update_layout(
-        width=1000,
-        height=1000,
+        height=600,
+        autosize=True,
     )
     fig.update_geos(
         projection_type=projection,
+        bgcolor="#ccc",
         visible=False,
         lonaxis_showgrid=True,
         lonaxis_dtick=5,
@@ -454,8 +556,30 @@ def skyplot():
         lataxis_dtick=5,
         lataxis_tick0=0,
     )
+
+    # reset the ranges based on the relayout
+    fig = update_relayout(fig, relayout)
+
+    def reset_lims():
+        set_relayout(None)
+
+    sl.use_thread(
+        reset_lims,
+        dependencies=[
+            PlotState.x.value,
+            PlotState.y.value,
+            PlotState.flipx.value,
+            PlotState.flipy.value,
+        ],
+    )
+
+    def relayout_callback(data):
+        if data is not None:
+            set_relayout(data["relayout_data"])
+
     return sl.FigurePlotly(
         fig,
+        on_relayout=relayout_callback,
         dependencies=[
             filter,
             PlotState.geo_coords.value,
