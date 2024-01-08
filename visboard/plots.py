@@ -403,23 +403,24 @@ def skyplot():
     dff = df
     if filter:
         dff = dff[filter]
+    dff = dff[:10_000]
 
     if PlotState.geo_coords.value == "ra/dec":
-        lon = dff["ra"][:5_000]
-        lat = dff["dec"][:5_000]
+        lon = dff["ra"]
+        lat = dff["dec"]
         lon_label = "Right Ascension"
         lat_label = "Declination"
         print("sky:radec")
         projection = "aitoff"
     else:
-        lon = dff["l"][:5_000]
-        lat = dff["b"][:5_000]
+        lon = dff["l"]
+        lat = dff["b"]
         lon_label = "Galactic Longitude"
         lat_label = "Galactic Latitude"
         print("sky:galcoords")
         projection = "mollweide"
-    c = dff[PlotState.color.value][:5_000]
-    ids = dff["sdss_id"][:5_000]
+    c = dff[PlotState.color.value]
+    ids = dff["sdss_id"]
     fig = go.Figure(data=go.Scattergeo(
         lat=lat.values,
         lon=lon.values,
@@ -456,6 +457,7 @@ def skyplot():
     return sl.FigurePlotly(
         fig,
         dependencies=[
+            filter,
             PlotState.geo_coords.value,
             PlotState.color.value,
             PlotState.colorscale.value,
