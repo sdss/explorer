@@ -42,7 +42,7 @@ def ExprEditor():
     if filter is not None:
         dff = dff[filter]
     expression, set_expression = sl.use_state(cast(str, None))
-    print("expreditor:fullrerun")
+    error, set_error = sl.use_state(cast(str, None))
 
     def work():
         print("expreditor:rerun")
@@ -53,7 +53,8 @@ def ExprEditor():
                 set_filter(None)
                 return None
             modifiers = [">", "<", "=", "!"]
-            assert any(modifier in expression for modifier in modifiers)
+            assert any(modifier in expression for modifier in
+                       modifiers), "expression requires comparative modifier"
 
             # get expression in parts
             exprlist = []
@@ -66,34 +67,38 @@ def ExprEditor():
                         if len(exprs) == 1:
                             break
             if "&" in expression:
-                assert all(b in expression for b in ["(", ")"])
+                assert all(b in expression
+                           for b in ["(", ")"]), "expression needs brackets"
 
             for expr in exprlist:
                 if len(expr) == 2:
-                    assert (expr[0].strip().replace(")", "").replace("(", "")
-                            in dff.get_column_names())
-                    assert expr[-1].strip().replace(")", "").replace("(",
-                                                                     "") != ""
+                    assert (
+                        expr[0].strip().replace(")", "").replace("(", "")
+                        in dff.get_column_names()), "first part must be column"
+                    assert (expr[-1].strip().replace(")", "").replace("(", "")
+                            != ""), "second part must be numeric"
                 else:
                     print("expreditor:3part")
                     assert (expr[1].strip().replace(")", "").replace("(", "")
-                            in dff.get_column_names())
-                    assert expr[-1].strip().replace(")", "").replace("(",
-                                                                     "") != ""
-                    assert expr[0].strip().replace(")", "").replace("(",
-                                                                    "") != ""
+                            in dff.get_column_names()), "3part"
+                    assert (expr[-1].strip().replace(")", "").replace("(", "")
+                            != ""), "3part"
+                    assert (expr[0].strip().replace(")", "").replace("(", "")
+                            != ""), "3part"
             import numpy as np
 
-            assert np.count_nonzero(df["(" + expression + ")"].evaluate()) > 0
+            assert (np.count_nonzero(df["(" + expression + ")"].evaluate())
+                    > 10), "expression too precise (results in length < 10)"
 
             # pass all checks, then set the filter
             set_filter(df["(" + expression + ")"])
             print("expreditor:valid")
             return True
 
-        except AssertionError:
+        except AssertionError as e:
             set_filter(None)
             print("expreditor:invalid")
+            set_error(e)
             return False
 
     result: sl.Result[bool] = sl.use_thread(work, dependencies=[expression])
@@ -119,7 +124,7 @@ def ExprEditor():
                 )
             else:
                 sl.Error(
-                    label="Invalid expression entered.",
+                    label=f"Invalid expression entered: {error}",
                     icon=True,
                     dense=True,
                     outlined=False,
