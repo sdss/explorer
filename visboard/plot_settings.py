@@ -101,7 +101,7 @@ def statistics_menu(plotstate):
                 value=plotstate.nbins,
                 step=10,
                 min=10,
-                max=1000,
+                max=1e3,
             )
             sl.Select(
                 label="Normalization",

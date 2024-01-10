@@ -15,28 +15,18 @@ def ViewCard(type, del_func):
         else:
             state = PlotState()
             with rv.CardText():
-                # btn = sl.Button(icon_name="mdi-settings")
-                # with Menu(activator=btn, close_on_content_click=False):
-                with rv.ExpansionPanels(accordion=True):
-                    with rv.ExpansionPanel():
-                        with rv.ExpansionPanelHeader():
-                            rv.Html(
-                                tag="h3",
-                                children=[
-                                    rv.Icon(children=["mdi-settings"]),
-                                    "Settings",
-                                ],
-                                style_="display: inline",
-                            )
-                        with rv.ExpansionPanelContent():
-                            show_settings(type, state)
-                            sl.Button(
-                                icon_name="mdi-delete",
-                                color="red",
-                                block=True,
-                                on_click=del_func,
-                            )
-                show_plot(type, state)
+                btn = sl.Button(icon_name="mdi-settings", block=True)
+                with Menu(activator=btn, close_on_content_click=False):
+                    with sl.Card(margin=0):
+                        show_settings(type, state)
+                        sl.Button(
+                            icon_name="mdi-delete",
+                            color="red",
+                            block=True,
+                            on_click=del_func,
+                        )
+                with sl.Column():
+                    show_plot(type, state)
 
     return main
 
@@ -114,7 +104,7 @@ def ObjectGrid():
             grid_layout=grid_layout,
             on_grid_layout=set_grid_layout,
             resizable=True,
-            draggable=True,
+            draggable=False,
         )
     print(grid_layout)
     print(len(objects), " : ", objects)

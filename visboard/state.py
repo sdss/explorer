@@ -2,7 +2,6 @@ from typing import Optional, cast
 
 import solara as sl
 import vaex as vx
-import reacton.ipyvuetify as rv
 
 try:
     df_sample = vx.open("/home/riley/uni/rproj/data/astra-clean.parquet")
