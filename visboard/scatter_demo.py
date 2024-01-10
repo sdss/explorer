@@ -6,6 +6,7 @@ from state import State
 from dataframe import DFView, NoDF
 from plots import show_plot
 from sidebar import sidebar
+from grid import ObjectGrid
 
 
 @sl.component
@@ -26,30 +27,35 @@ def Page():
         )
     # SIDEBAR
     sidebar()
+    # MAIN GRID
+    if df is not None:
+        ObjectGrid()
+    else:
+        NoDF()
     # TABS
-    with lab.Tabs(grow=True):
-        with lab.Tab("Table", style=State.style.value):
-            if df is not None:
-                DFView()
-            else:
-                NoDF()
-        with lab.Tab("Graph"):
-            sl.Select(
-                label="Plot Type",
-                value=State.view,
-                values=State.Lookup.views,
-            )
-            if df is not None:
-                if State.view.value in ["scatter"]:
-                    if len(df) > 10000:
-                        sl.Warning(
-                            label=
-                            "Only plotting first 10,000 points. Please use a filter.",
-                            icon=True,
-                        )
-                show_plot(State.view.value)
-            else:
-                NoDF()
+    # with lab.Tabs(grow=True):
+    #    with lab.Tab("Table", style=State.style.value):
+    #        if df is not None:
+    #            DFView()
+    #        else:
+    #            NoDF()
+    #    with lab.Tab("Graph"):
+    #        sl.Select(
+    #            label="Plot Type",
+    #            value=State.view,
+    #            values=State.Lookup.views,
+    #        )
+    #        if df is not None:
+    #            if State.view.value in ["scatter"]:
+    #                if len(df) > 10000:
+    #                    sl.Warning(
+    #                        label=
+    #                        "Only plotting first 10,000 points. Please use a filter.",
+    #                        icon=True,
+    #                    )
+    #            show_plot(State.view.value)
+    #        else:
+    #            NoDF()
 
 
 @sl.component

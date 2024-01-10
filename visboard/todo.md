@@ -15,18 +15,15 @@
 
 **assertion error message information (except as e, assert cond, info)**
 
-**CORE FEATURE: change menu to draggable grid with add object button**
-  - ability to add objects 
-  - this will require moving x-axis and other plot property selections DIRECTLY into a new state instance within a card/grid
-    - we can do this via dialog, menu, or other
+***FIX: except the click and hold events when over the plotly object (somehow)***
 
 **CORE FEATURE: quick filters (i.e. all flags zero, high snr, certain telescope subsets, etc)**
 
 **CORE FEATURE: allow for further input order variety in expreditor**
   - 3 part expressions dont work currently, must be converted.
   - 2 part expression in any order (i.e., make it so 1500 < teff and teff > 1500 can be input.)
-
-**allow for catagorical comparisons in expreditor**
+  **allow for catagorical comparisons in expreditor**
+  **allow for equality/inequality comparisons in expreditor**
 
 **CORE FEATURE: application settings in top right**
 

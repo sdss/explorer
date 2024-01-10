@@ -46,48 +46,50 @@ class State:
 
 
 class PlotState:
-    # x,y,z/color
-    x = sl.reactive("teff")
-    y = sl.reactive("logg")
-    color = sl.reactive("fe_h")
+    """
+    Combination of reactive states which instantiate a specific plot's settings/properties
+    """
 
-    # plot parameters/settings
-    colorscale = sl.reactive("viridis")
-    logx = sl.reactive(False)
-    logy = sl.reactive(False)
-    flipx = sl.reactive(False)
-    flipy = sl.reactive(False)
+    def __init__(self):
+        # x,y,z/color
+        self.x = sl.use_reactive("teff")
+        self.y = sl.use_reactive("logg")
+        self.color = sl.use_reactive("fe_h")
 
-    # statistics
-    nbins = sl.reactive(10)
-    bintype = sl.reactive("mean")
-    binscale = sl.reactive(None)
-    norm = sl.reactive(None)
+        # plot parameters/settings
+        self.colorscale = sl.use_reactive("viridis")
+        self.logx = sl.use_reactive(False)
+        self.logy = sl.use_reactive(False)
+        self.flipx = sl.use_reactive(False)
+        self.flipy = sl.use_reactive(False)
 
-    # aitoff geo settings
-    geo_coords = sl.reactive("ra/dec")
+        # statistics
+        self.nbins = sl.use_reactive(10)
+        self.bintype = sl.use_reactive("mean")
+        self.binscale = sl.use_reactive(None)
+        self.norm = sl.use_reactive(None)
 
-    # all lookup data for types
-    Lookup = dict(
-        norms=[
-            None, "percent", "probability", "density", "probability density"
-        ],
-        bintypes=["count", "mean", "median", "min", "max"],
-        colorscales=[
-            "inferno",
-            "viridis",
-            "jet",
-            "solar",
-            "plotly3",
-            "sunset",
-            "sunsetdark",
-            "tropic",
-            "delta",
-            "twilight",
-        ],
-        binscales=[None, "log1p", "log10"],
-    )
+        # aitoff geo settings
+        self.geo_coords = sl.use_reactive("ra/dec")
 
-    # 3d settings
-    logz = sl.reactive(False)
-    flipz = sl.reactive(False)
+        # all lookup data for types
+        self.Lookup = dict(
+            norms=[
+                None, "percent", "probability", "density",
+                "probability density"
+            ],
+            bintypes=["count", "mean", "median", "min", "max"],
+            colorscales=[
+                "inferno",
+                "viridis",
+                "jet",
+                "solar",
+                "plotly3",
+                "sunset",
+                "sunsetdark",
+                "tropic",
+                "delta",
+                "twilight",
+            ],
+            binscales=[None, "log1p", "log10"],
+        )

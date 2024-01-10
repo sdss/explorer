@@ -2,7 +2,6 @@ import solara as sl
 
 from solara.components.columns import Columns
 from solara.components.card import Card
-from solara.components.dataframe import SummaryCard, FilterCard
 from solara.components.file_drop import FileDrop
 
 from state import State, PlotState
@@ -37,175 +36,7 @@ def dataset_menu():
 
 
 @sl.component()
-def sky_menu():
-    df = State.df.value
-    columns = list(map(str, df.columns))
-    with Card(margin=0):
-        with sl.Row():
-            sl.ToggleButtonsSingle(value=PlotState.geo_coords,
-                                   values=["ra/dec", "galactic lon/lat"])
-        with sl.Row():
-            sl.Select(
-                label="Color",
-                values=columns,
-                value=PlotState.color,
-            )
-            sl.Select(
-                label="Colorscale",
-                values=PlotState.Lookup["colorscales"],
-                value=PlotState.colorscale,
-            )
-    with Card(margin=0):
-        with Columns([1, 1]):
-            with sl.Column():
-                sl.Switch(label="Flip x", value=PlotState.flipx)
-            with sl.Column():
-                sl.Switch(label="Flip y", value=PlotState.flipy)
-
-
-@sl.component()
-def scatter_menu():
-    df = State.df.value
-    columns = list(map(str, df.columns))
-    with Card(margin=0):
-        with Columns([1, 1]):
-            sl.Select(
-                "Column x",
-                values=columns,
-                value=PlotState.x,
-            )
-            sl.Select(
-                "Column y",
-                values=columns,
-                value=PlotState.y,
-            )
-        sl.Select(
-            label="Color",
-            values=columns,
-            value=PlotState.color,
-        )
-        sl.Select(
-            label="Colorscale",
-            values=PlotState.Lookup["colorscales"],
-            value=PlotState.colorscale,
-        )
-    with Card(margin=0):
-        with Columns([1, 1]):
-            with sl.Column():
-                sl.Switch(label="Flip x", value=PlotState.flipx)
-                sl.Switch(label="Log x", value=PlotState.logx)
-            with sl.Column():
-                sl.Switch(label="Flip y", value=PlotState.flipy)
-                sl.Switch(label="Log y", value=PlotState.logy)
-
-
-@sl.component()
-def statistics_menu():
-    df = State.df.value
-    columns = list(map(str, df.columns))
-    with Card(margin=0):
-        with Columns([1, 1]):
-            sl.Select(
-                "Column x",
-                values=columns,
-                value=PlotState.x,
-            )
-            if State.view.value == "histogram2d":
-                sl.Select(
-                    "Column y",
-                    values=columns,
-                    value=PlotState.y,
-                )
-        if State.view.value == "histogram2d":
-            sl.Select(
-                label="Colorscale",
-                values=PlotState.Lookup["colorscales"],
-                value=PlotState.colorscale,
-            )
-    with Card(margin=0):
-        if State.view.value == "histogram2d":
-            min = 2
-            step = 2
-        else:
-            min = 10
-            step = 10
-        sl.SliderInt(
-            label="Number of Bins",
-            value=PlotState.nbins,
-            step=step,
-            min=min,
-            max=500,
-        )
-        if State.view.value == "histogram2d":
-            sl.Select(
-                label="Binning type",
-                values=PlotState.Lookup["bintypes"],
-                value=PlotState.bintype,
-            )
-            if str(PlotState.bintype.value) != "count":
-                sl.Select(
-                    label="Column to Bin",
-                    values=columns,
-                    value=PlotState.color,
-                )
-            sl.Select(
-                label="Binning scale",
-                values=PlotState.Lookup["binscales"],
-                value=PlotState.binscale,
-            )
-        else:
-            sl.Select(
-                label="Normalization",
-                values=PlotState.Lookup["norms"],
-                value=PlotState.norm,
-            )
-    with Card(margin=0):
-        with Columns([1, 1]):
-            with sl.Column():
-                if State.view.value == "histogram":
-                    sl.Switch(label="Log x", value=PlotState.logx)
-                sl.Switch(label="Flip x", value=PlotState.flipx)
-            with sl.Column():
-                if State.view.value == "histogram":
-                    sl.Switch(label="Log y", value=PlotState.logy)
-                if State.view.value == "histogram2d":
-                    sl.Switch(label="Flip y", value=PlotState.flipy)
-
-
-@sl.component()
-def plot3d_menu():
-    df = State.df.value
-    columns = list(map(str, df.columns))
-    with Columns([1, 1, 1]):
-        sl.Select(
-            "Column x",
-            values=columns,
-            value=PlotState.x,
-        )
-        sl.Select(
-            "Column y",
-            values=columns,
-            value=PlotState.y,
-        )
-        sl.Select(
-            "Column z",
-            values=columns,
-            value=PlotState.c,
-        )
-    with Columns([1, 1, 1]):
-        with sl.Column():
-            sl.Switch(label="Flip x", value=PlotState.flipx)
-            sl.Switch(label="Log x", value=PlotState.logx)
-        with sl.Column():
-            sl.Switch(label="Flip y", value=PlotState.flipy)
-            sl.Switch(label="Log y", value=PlotState.logy)
-        with sl.Column():
-            sl.Switch(label="Flip z", value=PlotState.flipz)
-            sl.Switch(label="Log z", value=PlotState.logz)
-
-
-@sl.component()
-def plot_control_menu():
+def control_menu():
     df = State.df.value
 
     filter, set_filter = sl.use_cross_filter(id(df), "download")
@@ -215,7 +46,7 @@ def plot_control_menu():
         dff = df
 
     def get_data():
-        dfp = dff.to_pandas_df()
+        dfp = dff.to_pandas()
         return dfp.to_csv(index=False)
 
     if df is not None:
@@ -223,21 +54,15 @@ def plot_control_menu():
         SumCard()
         ExprEditor()
 
-        # plot controls
-        if State.view.value == "scatter":
-            scatter_menu()
-        elif "histogram" in str(State.view.value):
-            statistics_menu()
-        elif State.view.value == "skyplot":
-            sky_menu()
-        sl.FileDownload(
-            get_data,
-            filename="apogeenet_filtered.csv",
-            label="Download table",
-        )
-
         # pivot table
         sl.PivotTableCard(df, x=["telescope"], y=["release"])
+
+        with sl.Row(style={"align-items": "center"}):
+            sl.FileDownload(
+                get_data,
+                filename="apogeenet_filtered.csv",
+                label="Download table",
+            )
     else:
         sl.Info(
             "No data loaded, click on the sample dataset button to load a sample dataset, or upload a file."
@@ -250,4 +75,4 @@ def sidebar():
         with sl.Card("Controls", margin=0, elevation=0):
             with sl.Column():
                 dataset_menu()
-                plot_control_menu()
+                control_menu()

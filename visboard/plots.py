@@ -4,10 +4,9 @@ import plotly.graph_objects as go
 import reacton.ipyvuetify as rv
 
 import solara as sl
-import solara.lab as lab
 from solara.express import CrossFilteredFigurePlotly  # noqa: this thing literally does not function with vaex frames
 
-from state import State, PlotState
+from state import State
 from util import check_catagorical
 
 
@@ -23,18 +22,19 @@ def update_relayout(fig, relayout):
 
 
 @sl.component
-def show_plot(type):
+def show_plot(type, plotstate):
+    # failsafe conditional checks
     if State.df.value is not None:
-        if PlotState.x.value is not None and PlotState.y.value is not None:
+        if plotstate.x.value is not None and plotstate.y.value is not None:
             if type == "histogram":
-                histogram()
+                histogram(plotstate)
             elif type == "histogram2d":
-                histogram2d()
+                histogram2d(plotstate)
             elif type == "scatter":
                 # scatterplot()
-                scatter()
+                scatter(plotstate)
             elif type == "skyplot":
-                skyplot()
+                skyplot(plotstate)
         else:
             sl.ProgressLinear(True, color="purple")
     else:
@@ -42,45 +42,44 @@ def show_plot(type):
 
 
 @sl.component
-def scatter3d():
+def scatter3d(plotstate):
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "filter-plot3d")
 
     dff = df
     if filter:
         dff = df[filter]
-    selection = np.random.choice(int(len(dff)), PlotState.subset.value)
-    x = np.array(dff[PlotState.x.value].values)[selection]
-    y = np.array(dff[PlotState.y.value].values)[selection]
-    z = np.array(dff[PlotState.color.value].values)[selection]
+    selection = np.random.choice(int(len(dff)), plotstate.subset.value)
+    x = np.array(dff[plotstate.x.value].values)[selection]
+    y = np.array(dff[plotstate.y.value].values)[selection]
+    z = np.array(dff[plotstate.color.value].values)[selection]
 
     fig = px.scatter_3d(
         x=x,
         y=y,
         z=z,
-        log_x=PlotState.logx.value,
-        log_y=PlotState.logy.value,
+        log_x=plotstate.logx.value,
+        log_y=plotstate.logy.value,
         labels={
-            "x": PlotState.x.value,
-            "y": PlotState.y.value,
-            "z": PlotState.color.value,
+            "x": plotstate.x.value,
+            "y": plotstate.y.value,
+            "z": plotstate.color.value,
         },
     )
-    if PlotState.flipx.value:
+    if plotstate.flipx.value:
         fig.update_xaxes(autorange="reversed")
-    if PlotState.flipy.value:
+    if plotstate.flipy.value:
         fig.update_yaxes(autorange="reversed")
     fig.update_layout(
-        xaxis_title=PlotState.x.value,
-        height=600,
+        xaxis_title=plotstate.x.value,
         autosize=True,
-        yaxis_title=PlotState.y.value,
+        yaxis_title=plotstate.y.value,
     )
     return sl.FigurePlotly(fig)
 
 
 @sl.component
-def scatter():
+def scatter(plotstate):
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "filter-scatter")
     relayout, set_relayout = sl.use_state(None)
@@ -90,9 +89,9 @@ def scatter():
         dff = df[filter]
 
     # get cols
-    x = dff[PlotState.x.value]
-    y = dff[PlotState.y.value]
-    c = dff[PlotState.color.value]
+    x = dff[plotstate.x.value]
+    y = dff[plotstate.y.value]
+    c = dff[plotstate.color.value]
     ids = dff["sdss_id"]
 
     # trim to renderable length
@@ -121,28 +120,27 @@ def scatter():
         y=y,
         mode="markers",
         customdata=ids,
-        hovertemplate=f"<b>{PlotState.x.value}</b>:" + " %{x:.6f}<br>" +
-        f"<b>{PlotState.y.value}</b>:" + " %{y:.6f}<br>" +
-        f"<b>{PlotState.color.value}</b>:" + " %{marker.color:.6f}<br>" +
+        hovertemplate=f"<b>{plotstate.x.value}</b>:" + " %{x:.6f}<br>" +
+        f"<b>{plotstate.y.value}</b>:" + " %{y:.6f}<br>" +
+        f"<b>{plotstate.color.value}</b>:" + " %{marker.color:.6f}<br>" +
         "<b>ID</b>:" + " %{customdata:.d}",
         marker=dict(
             color=c,
-            colorbar=dict(title=PlotState.color.value),
-            colorscale=PlotState.colorscale.value,
+            colorbar=dict(title=plotstate.color.value),
+            colorscale=plotstate.colorscale.value,
         ),
     ), )
-    if PlotState.flipx.value:
+    if plotstate.flipx.value:
         fig.update_xaxes(autorange="reversed")
-    if PlotState.flipy.value:
+    if plotstate.flipy.value:
         fig.update_yaxes(autorange="reversed")
-    if PlotState.logx.value:
+    if plotstate.logx.value:
         fig.update_xaxes(type="log")
-    if PlotState.logy.value:
+    if plotstate.logy.value:
         fig.update_yaxes(type="log")
     fig.update_layout(
-        xaxis_title=PlotState.x.value,
-        yaxis_title=PlotState.y.value,
-        height=600,
+        xaxis_title=plotstate.x.value,
+        yaxis_title=plotstate.y.value,
         autosize=True,
     )
     # reset the ranges based on the relayout
@@ -154,12 +152,12 @@ def scatter():
     sl.use_thread(
         reset_lims,
         dependencies=[
-            PlotState.x.value,
-            PlotState.y.value,
-            PlotState.logx.value,
-            PlotState.logy.value,
-            PlotState.flipx.value,
-            PlotState.flipy.value,
+            plotstate.x.value,
+            plotstate.y.value,
+            plotstate.logx.value,
+            plotstate.logy.value,
+            plotstate.flipx.value,
+            plotstate.flipy.value,
         ],
     )
 
@@ -168,8 +166,8 @@ def scatter():
             set_relayout(data["relayout_data"])
 
     def on_selection(data):
-        set_filter((df[PlotState.x.value].isin(data["points"]["xs"])
-                    & df[PlotState.y.value].isin(data["points"]["ys"])))
+        set_filter((df[plotstate.x.value].isin(data["points"]["xs"])
+                    & df[plotstate.y.value].isin(data["points"]["ys"])))
 
     def deselect(data):
         set_filter(None)
@@ -181,20 +179,20 @@ def scatter():
         on_relayout=relayout_callback,
         dependencies=[
             filter,
-            PlotState.x.value,
-            PlotState.y.value,
-            PlotState.color.value,
-            PlotState.colorscale.value,
-            PlotState.logx.value,
-            PlotState.logy.value,
-            PlotState.flipx.value,
-            PlotState.flipy.value,
+            plotstate.x.value,
+            plotstate.y.value,
+            plotstate.color.value,
+            plotstate.colorscale.value,
+            plotstate.logx.value,
+            plotstate.logy.value,
+            plotstate.flipx.value,
+            plotstate.flipy.value,
         ],
     )
 
 
 @sl.component
-def histogram():
+def histogram(plotstate):
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "filter-histogram")
     relayout, set_relayout = sl.use_state(None)
@@ -202,7 +200,7 @@ def histogram():
     dff = df
     if filter:
         dff = df[filter]
-    expr = dff[PlotState.x.value]
+    expr = dff[plotstate.x.value]
 
     if check_catagorical(expr):
         x = expr.unique()
@@ -214,40 +212,39 @@ def histogram():
         # make x (bin centers) and y (counts)
         x = dff.bin_centers(
             expression=expr,
-            limits=dff.minmax(PlotState.x.value),
-            shape=PlotState.nbins.value,
+            limits=dff.minmax(plotstate.x.value),
+            shape=plotstate.nbins.value,
         )
         y = dff.count(
-            binby=PlotState.x.value,
-            limits=dff.minmax(PlotState.x.value),
-            shape=PlotState.nbins.value,
+            binby=plotstate.x.value,
+            limits=dff.minmax(plotstate.x.value),
+            shape=plotstate.nbins.value,
         )
 
     if check_catagorical(expr):
         logx = False
     else:
-        logx = PlotState.logx.value
+        logx = plotstate.logx.value
 
     fig = px.histogram(
         x=x,
         y=y,
-        nbins=PlotState.nbins.value,
+        nbins=plotstate.nbins.value,
         log_x=logx,
-        log_y=PlotState.logy.value,
-        histnorm=PlotState.norm.value,
+        log_y=plotstate.logy.value,
+        histnorm=plotstate.norm.value,
         labels={
-            "x": PlotState.x.value,
+            "x": plotstate.x.value,
         },
     )
     fig.update_layout(
-        xaxis_title=PlotState.x.value,
+        xaxis_title=plotstate.x.value,
         yaxis_title="Frequency",
         font=dict(size=16),
-        height=600,
         autosize=True,
     )
 
-    if PlotState.flipx.value:
+    if plotstate.flipx.value:
         fig.update_xaxes(autorange="reversed")
 
     # reset the ranges based on the relayout
@@ -259,12 +256,12 @@ def histogram():
     sl.use_thread(
         reset_lims,
         dependencies=[
-            PlotState.x.value,
-            PlotState.y.value,
-            PlotState.logx.value,
-            PlotState.logy.value,
-            PlotState.flipx.value,
-            PlotState.flipy.value,
+            plotstate.x.value,
+            plotstate.y.value,
+            plotstate.logx.value,
+            plotstate.logy.value,
+            plotstate.flipx.value,
+            plotstate.flipy.value,
         ],
     )
 
@@ -277,12 +274,12 @@ def histogram():
         on_relayout=relayout_callback,
         dependencies=[
             filter,
-            PlotState.nbins.value,
-            PlotState.x.value,
-            PlotState.logx.value,
-            PlotState.logy.value,
-            PlotState.flipx.value,
-            PlotState.norm.value,
+            plotstate.nbins.value,
+            plotstate.x.value,
+            plotstate.logx.value,
+            plotstate.logy.value,
+            plotstate.flipx.value,
+            plotstate.norm.value,
         ],
     )
 
@@ -290,7 +287,7 @@ def histogram():
 
 
 @sl.component
-def histogram2d():
+def histogram2d(plotstate):
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "filter-histogram2d")
     relayout, set_relayout = sl.use_state(None)
@@ -299,9 +296,9 @@ def histogram2d():
     if filter:
         dff = df[filter]
 
-    expr_x = dff[PlotState.x.value]
-    expr_y = dff[PlotState.y.value]
-    expr = dff[PlotState.color.value]
+    expr_x = dff[plotstate.x.value]
+    expr_y = dff[plotstate.y.value]
+    expr = dff[plotstate.color.value]
     x_cat = check_catagorical(expr_x)
     y_cat = check_catagorical(expr_y)
     if x_cat or y_cat:
@@ -310,12 +307,12 @@ def histogram2d():
             label=
             "Selected columns are catagorical! Incompatible with histogram2d plot.",
         )
-    bintype = str(PlotState.bintype.value)
+    bintype = str(plotstate.bintype.value)
 
     xlims, set_xlims = sl.use_state(None)
     ylims, set_ylims = sl.use_state(None)
     if xlims is None and ylims is None:
-        limits = [dff.minmax(PlotState.x.value), dff.minmax(PlotState.y.value)]
+        limits = [dff.minmax(plotstate.x.value), dff.minmax(plotstate.y.value)]
     else:
         limits = [xlims, ylims]
 
@@ -323,7 +320,7 @@ def histogram2d():
         y = dff.count(
             binby=[expr_x, expr_y],
             limits=limits,
-            shape=PlotState.nbins.value,
+            shape=plotstate.nbins.value,
             array_type="xarray",
         )
     elif bintype == "mean":
@@ -331,7 +328,7 @@ def histogram2d():
             expr,
             binby=[expr_x, expr_y],
             limits=limits,
-            shape=PlotState.nbins.value,
+            shape=plotstate.nbins.value,
             array_type="xarray",
         )
     elif bintype == "median":
@@ -343,27 +340,27 @@ def histogram2d():
         #    expr,
         #    binby=[expr_x, expr_y],
         #    limits=[
-        #        dff.minmax(PlotState.x.value),
-        #        dff.minmax(PlotState.y.value)
+        #        dff.minmax(plotstate.x.value),
+        #        dff.minmax(plotstate.y.value)
         #    ],
-        #    shape=PlotState.nbins.value,
+        #    shape=plotstate.nbins.value,
         # )
     # elif bintype == "mode":
     #    y = dff.mode(
     #        expr,
     #        binby=[expr_x, expr_y],
     #        limits=[
-    #            dff.minmax(PlotState.x.value),
-    #            dff.minmax(PlotState.y.value)
+    #            dff.minmax(plotstate.x.value),
+    #            dff.minmax(plotstate.y.value)
     #        ],
-    #        shape=PlotState.nbins.value,
+    #        shape=plotstate.nbins.value,
     #    )
     elif bintype == "min":
         y = dff.min(
             expr,
             binby=[expr_x, expr_y],
             limits=limits,
-            shape=PlotState.nbins.value,
+            shape=plotstate.nbins.value,
             array_type="xarray",
         )
     elif bintype == "max":
@@ -371,11 +368,11 @@ def histogram2d():
             expr,
             binby=[expr_x, expr_y],
             limits=limits,
-            shape=PlotState.nbins.value,
+            shape=plotstate.nbins.value,
             array_type="xarray",
         )
 
-    binscale = str(PlotState.binscale.value)
+    binscale = str(plotstate.binscale.value)
     if binscale == "log1p":
         y = np.log1p(y)
     elif binscale == "log10":
@@ -388,7 +385,7 @@ def histogram2d():
     cmax = float(np.max(y).values)
     y = y.fillna(-999)
 
-    if PlotState.flipy.value:
+    if plotstate.flipy.value:
         origin = "upper"
     else:
         origin = "lower"
@@ -398,14 +395,14 @@ def histogram2d():
         zmin=cmin,
         zmax=cmax,
         origin=origin,
-        color_continuous_scale=PlotState.colorscale.value,
+        color_continuous_scale=plotstate.colorscale.value,
         labels={
-            "x": PlotState.x.value,
-            "y": PlotState.y.value,
-            "color": PlotState.binscale.value,
+            "x": plotstate.x.value,
+            "y": plotstate.y.value,
+            "color": plotstate.binscale.value,
         },
     )
-    if PlotState.flipx.value:
+    if plotstate.flipx.value:
         fig.update_xaxes(autorange="reversed")
 
     # reset the ranges based on the relayout
@@ -417,10 +414,10 @@ def histogram2d():
     sl.use_thread(
         reset_lims,
         dependencies=[
-            PlotState.x.value,
-            PlotState.y.value,
-            PlotState.flipx.value,
-            PlotState.flipy.value,
+            plotstate.x.value,
+            plotstate.y.value,
+            plotstate.flipx.value,
+            plotstate.flipy.value,
         ],
     )
 
@@ -430,7 +427,7 @@ def histogram2d():
 
     def select_bin(data):
         x_be = np.histogram_bin_edges(expr_x.evaluate(),
-                                      bins=PlotState.nbins.value)
+                                      bins=plotstate.nbins.value)
         xs = data["points"]["xs"][0]
         qx = np.abs(x_be - xs)
         px = np.sort(np.abs(x_be - xs))[0:2]
@@ -438,7 +435,7 @@ def histogram2d():
         xi = np.logical_or(ox[0], ox[1])
 
         y_be = np.histogram_bin_edges(expr_y.evaluate(),
-                                      bins=PlotState.nbins.value)
+                                      bins=plotstate.nbins.value)
         ys = data["points"]["ys"][0]
         qy = np.abs(y_be - ys)
         py = np.sort(np.abs(y_be - ys))[0:2]
@@ -453,7 +450,7 @@ def histogram2d():
         set_ylims(None)
         return
 
-    fig.update_layout(font=dict(size=16), height=800, autosize=True)
+    fig.update_layout(font=dict(size=16), autosize=True)
 
     with sl.Column() as main:
         sl.FigurePlotly(
@@ -464,16 +461,16 @@ def histogram2d():
                 filter,
                 xlims,
                 ylims,
-                PlotState.nbins.value,
-                PlotState.y.value,
-                PlotState.color.value,
-                PlotState.colorscale.value,
-                PlotState.logx.value,
-                PlotState.logy.value,
-                PlotState.flipx.value,
-                PlotState.flipy.value,
-                PlotState.binscale.value,
-                PlotState.bintype.value,
+                plotstate.nbins.value,
+                plotstate.y.value,
+                plotstate.color.value,
+                plotstate.colorscale.value,
+                plotstate.logx.value,
+                plotstate.logy.value,
+                plotstate.flipx.value,
+                plotstate.flipy.value,
+                plotstate.binscale.value,
+                plotstate.bintype.value,
             ],
         )
         sl.Button("Reset", on_click=deselect_bin)
@@ -482,7 +479,7 @@ def histogram2d():
 
 
 @sl.component
-def skyplot():
+def skyplot(plotstate):
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "scattergeo")
     relayout, set_relayout = sl.use_state(None)
@@ -492,7 +489,7 @@ def skyplot():
         dff = dff[filter]
     dff = dff[:10_000]
 
-    if PlotState.geo_coords.value == "ra/dec":
+    if plotstate.geo_coords.value == "ra/dec":
         lon = dff["ra"]
         lat = dff["dec"]
         lon_label = "Right Ascension"
@@ -506,7 +503,7 @@ def skyplot():
         lat_label = "Galactic Latitude"
         print("sky:galcoords")
         projection = "mollweide"
-    c = dff[PlotState.color.value]
+    c = dff[plotstate.color.value]
     ids = dff["sdss_id"]
     fig = go.Figure(data=go.Scattergeo(
         lat=lat.values,
@@ -515,12 +512,12 @@ def skyplot():
         customdata=ids.values,
         hovertemplate=f"<b>{lon_label}</b>:" + " %{lon:.6f}<br>" +
         f"<b>{lat_label}</b>:" + " %{lat:.6f}<br>" +
-        f"<b>{PlotState.color.value}</b>:" + " %{marker.color:.6f}<br>" +
+        f"<b>{plotstate.color.value}</b>:" + " %{marker.color:.6f}<br>" +
         "<b>ID</b>:" + " %{customdata:.d}",
         marker=dict(
             color=c.values,
-            colorbar=dict(title=PlotState.color.value),
-            colorscale=PlotState.colorscale.value,
+            colorbar=dict(title=plotstate.color.value),
+            colorscale=plotstate.colorscale.value,
         ),
     ), )
     # add "label" trace
@@ -537,14 +534,11 @@ def skyplot():
             "text": x[1:-1] + y[1:-1],
             "mode": "text",
         }))
-    if PlotState.flipx.value:
+    if plotstate.flipx.value:
         fig.update_xaxes(autorange="reversed")
-    if PlotState.flipy.value:
+    if plotstate.flipy.value:
         fig.update_yaxes(autorange="reversed")
-    fig.update_layout(
-        height=600,
-        autosize=True,
-    )
+    fig.update_layout(autosize=True, )
     fig.update_geos(
         projection_type=projection,
         bgcolor="#ccc",
@@ -566,10 +560,10 @@ def skyplot():
     sl.use_thread(
         reset_lims,
         dependencies=[
-            PlotState.x.value,
-            PlotState.y.value,
-            PlotState.flipx.value,
-            PlotState.flipy.value,
+            plotstate.x.value,
+            plotstate.y.value,
+            plotstate.flipx.value,
+            plotstate.flipy.value,
         ],
     )
 
@@ -582,10 +576,10 @@ def skyplot():
         on_relayout=relayout_callback,
         dependencies=[
             filter,
-            PlotState.geo_coords.value,
-            PlotState.color.value,
-            PlotState.colorscale.value,
-            PlotState.flipx.value,
-            PlotState.flipy.value,
+            plotstate.geo_coords.value,
+            plotstate.color.value,
+            plotstate.colorscale.value,
+            plotstate.flipx.value,
+            plotstate.flipy.value,
         ],
     )
