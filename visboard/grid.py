@@ -15,6 +15,8 @@ def ViewCard(type, del_func):
         else:
             state = PlotState()
             with rv.CardText():
+                with sl.Column():
+                    show_plot(type, state)
                 btn = sl.Button(icon_name="mdi-settings", block=True)
                 with Menu(activator=btn, close_on_content_click=False):
                     with sl.Card(margin=0):
@@ -25,8 +27,6 @@ def ViewCard(type, del_func):
                             block=True,
                             on_click=del_func,
                         )
-                with sl.Column():
-                    show_plot(type, state)
 
     return main
 
@@ -44,7 +44,7 @@ def ObjectGrid():
         if len(grid_layout) == 0:
             prev = {
                 "x": 0,
-                "y": -10,
+                "y": -12,
                 "w": 12,
                 "h": 12,
                 "i": -1,
@@ -104,7 +104,7 @@ def ObjectGrid():
             grid_layout=grid_layout,
             on_grid_layout=set_grid_layout,
             resizable=True,
-            draggable=False,
+            draggable=True,
         )
     print(grid_layout)
     print(len(objects), " : ", objects)
