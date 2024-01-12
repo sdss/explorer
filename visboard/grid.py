@@ -1,3 +1,4 @@
+from typing import Callable, Dict, List
 import solara as sl
 from solara.lab import Menu
 import reacton.ipyvuetify as rv
@@ -5,6 +6,17 @@ import reacton.ipyvuetify as rv
 from plots import show_plot
 from plot_settings import show_settings
 from state import PlotState
+
+
+@sl.component_vue(vue_path="vue/gridlayout_toolbar.vue")
+def GridDraggableToolbar(
+    items: List,
+    grid_layout: List[Dict],
+    on_grid_layout: Callable,
+    draggable: bool = True,
+    resizable: bool = True,
+):
+    pass
 
 
 @sl.component

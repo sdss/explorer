@@ -2,7 +2,7 @@ import solara as sl
 import solara.lab as lab
 import reacton.ipyvuetify as rv
 
-from state import State
+from state import State, PlotState
 from dataframe import DFView, NoDF
 from plots import show_plot
 from sidebar import sidebar
