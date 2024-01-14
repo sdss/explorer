@@ -542,7 +542,6 @@ def skyplot(plotstate):
     fig.update_geos(
         projection_type=projection,
         bgcolor="#ccc",
-        scale=1,
         visible=False,
         lonaxis_showgrid=True,
         lonaxis_dtick=5,

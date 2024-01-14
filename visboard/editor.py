@@ -1,3 +1,4 @@
+from io import StringIO
 from typing import cast
 
 import solara as sl
@@ -6,7 +7,7 @@ import reacton.ipyvuetify as rv
 from state import State
 
 
-@sl.component()
+@sl.component
 def SumCard():
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "summary")
@@ -34,14 +35,14 @@ def SumCard():
             rv.Html(tag="h3", children=[summary], style_="display: inline")
 
 
-@sl.component()
+@sl.component
 def ExprEditor():
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "filter-expression")
     dff = df
     if filter is not None:
         dff = dff[filter]
-    expression, set_expression = sl.use_state(cast(str, None))
+    expression, set_expression = sl.use_state("")
     error, set_error = sl.use_state(cast(str, None))
 
     def work():
@@ -52,7 +53,7 @@ def ExprEditor():
                 print("expreditor:empty")
                 set_filter(None)
                 return None
-            modifiers = [">", "<", "=", "!"]
+            modifiers = [">=", "<=", "!=", ">", "<", "=="]
             assert any(modifier in expression for modifier in
                        modifiers), "expression requires comparative modifier"
 
@@ -63,35 +64,50 @@ def ExprEditor():
                 for expr in exprs:
                     expr = expr.split(modifier)
                     if len(expr) == 2 or len(expr) == 3:
+                        expr.append(modifier)
                         exprlist.append(expr)
                         if len(exprs) == 1:
                             break
-            if "&" in expression:
-                assert all(b in expression
-                           for b in ["(", ")"]), "expression needs brackets"
 
+            completed_expression = []
             for expr in exprlist:
-                if len(expr) == 2:
-                    assert (
-                        expr[0].strip().replace(")", "").replace("(", "")
-                        in dff.get_column_names()), "first part must be column"
-                    assert (expr[-1].strip().replace(")", "").replace("(", "")
-                            != ""), "second part must be numeric"
+                if len(expr) == 3:
+                    mod = expr[-1].strip().replace(")", "").replace("(", "")
+                    if (expr[0].strip().replace(")", "").replace("(", "")
+                            in dff.get_column_names()):
+                        col = expr[0].strip().replace(")", "").replace("(", "")
+                        num = expr[1].strip().replace(")", "").replace("(", "")
+                    elif (expr[1].strip().replace(")", "").replace("(", "")
+                          in dff.get_column_names()):
+                        col = expr[1].strip().replace(")", "").replace("(", "")
+                        num = expr[0].strip().replace(")", "").replace("(", "")
+                    else:
+                        assert False, "one part must be a data column"
+                    completed_expression.append(f"({col}{mod}{num})")
                 else:
-                    print("expreditor:3part")
-                    assert (expr[1].strip().replace(")", "").replace("(", "")
-                            in dff.get_column_names()), "3part"
-                    assert (expr[-1].strip().replace(")", "").replace("(", "")
-                            != ""), "3part"
+                    assert (
+                        expr[1].strip().replace(")", "").replace("(", "")
+                        in dff.get_column_names()), "middle must be a column"
+
                     assert (expr[0].strip().replace(")", "").replace("(", "")
-                            != ""), "3part"
+                            != ""), "ends must be numeric"
+                    assert (expr[2].strip().replace(")", "").replace("(", "")
+                            != ""), "ends must be numeric"
+                    col = expr[1].strip().replace(")", "").replace("(", "")
+                    low = expr[0].strip().replace(")", "").replace("(", "")
+                    high = expr[2].strip().replace(")", "").replace("(", "")
+                    completed_expression.append(
+                        f"(({col} > {low}) & ({col} < {high}))")
             import numpy as np
 
-            assert (np.count_nonzero(df["(" + expression + ")"].evaluate())
-                    > 10), "expression too precise (results in length < 10)"
+            completed_expression = " & ".join(completed_expression)
 
+            assert (np.count_nonzero(df["(" + completed_expression +
+                                        ")"].evaluate())
+                    > 10), "expression too precise (results in length < 10)"
             # pass all checks, then set the filter
-            set_filter(df["(" + expression + ")"])
+            print(completed_expression)
+            set_filter(df["(" + completed_expression + ")"])
             print("expreditor:valid")
             return True
 
@@ -103,7 +119,7 @@ def ExprEditor():
 
     result: sl.Result[bool] = sl.use_thread(work, dependencies=[expression])
 
-    with sl.Card(margin=0) as main:
+    with sl.Card(title="Expression editor", margin=0) as main:
         sl.InputText(label="Enter an expression",
                      value=expression,
                      on_value=set_expression)
