@@ -1,6 +1,9 @@
+from typing import cast, Optional
+
 import solara as sl
 import vaex as vx  # noqa
 
+import reacton.ipyvuetify as rv
 from state import State, PlotState
 
 
@@ -15,7 +18,27 @@ def Loading() -> None:
 def DFView() -> None:
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), name="filter-tableview")
+    column, set_column = sl.use_state(cast(Optional[str], None))
+    order, set_order = sl.use_state(cast(bool, None))
     dff = df
+
+    def on_ascend(column):
+        set_order(True)
+        set_column(column)
+
+    def on_descend(column):
+        set_order(False)
+        set_column(column)
+
+    column_actions = [
+        sl.ColumnAction(icon="mdi-sort-ascending",
+                        name="Sort ascending",
+                        on_click=on_ascend),
+        sl.ColumnAction(icon="mdi-sort-descending",
+                        name="Sort descending",
+                        on_click=on_descend),
+    ]
+
     if df is not None:
         if filter:
             dff = dff[filter]
@@ -24,12 +47,14 @@ def DFView() -> None:
             "gaia_dr3_source_id",
             "telescope",
             "release",
-            PlotState.x.value,
-            PlotState.y.value,
-            PlotState.color.value,
+            "teff",
+            "logg",
+            "fe_h",
         ]]
-        sl.Markdown(f"## Data ({len(dff):,} points)")
-        # sl.DataFrame(dff)
+        if column is not None and order is not None:
+            dff = dff.sort(dff[column], ascending=order)
+        sl.DataTable(dff, column_actions=column_actions)
+
     else:
         Loading()
 

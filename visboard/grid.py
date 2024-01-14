@@ -6,6 +6,7 @@ import reacton.ipyvuetify as rv
 from plots import show_plot
 from plot_settings import show_settings
 from state import PlotState
+from dataframe import DFView
 
 
 @sl.component_vue(vue_path="vue/gridlayout_toolbar.vue")
@@ -23,7 +24,9 @@ def GridDraggableToolbar(
 def ViewCard(type, del_func):
     with rv.Card(style_=" width: 100%; height: 100%") as main:
         if type == "table":
-            return
+            with rv.CardText():
+                with sl.Column():
+                    DFView()
         else:
             state = PlotState()
             with rv.CardText():
@@ -54,22 +57,16 @@ def ObjectGrid():
 
     def add_view(objects, type):
         if len(grid_layout) == 0:
-            prev = {
-                "x": 0,
-                "y": -12,
-                "w": 12,
-                "h": 12,
-                "i": -1,
-                "moved": False
-            }
+            prev = {"x": 0, "y": -12, "h": 12, "i": -1, "moved": False}
         else:
             prev = grid_layout[-1]
         grid_layout.append({
             "x": prev["x"],
             "y": prev["y"] + prev["h"] + 4,
-            "w": prev["w"],
-            "h": prev["h"],
+            "w": 8,
+            "h": 16 if type == "table" else 12,
             "i": prev["i"] + 1,
+            "moved": False,
         })
 
         set_objects(
@@ -88,6 +85,9 @@ def ObjectGrid():
     def add_skyplot():
         add_view(objects, "skyplot")
 
+    def add_table():
+        add_view(objects, "table")
+
     def reset_layout():
         set_grid_layout([])
         set_objects([])
@@ -103,7 +103,7 @@ def ObjectGrid():
                                       on_click=add_histogram),
                             sl.Button(label="aggregated",
                                       on_click=add_histogram2d),
-                            sl.Button(label="table"),
+                            sl.Button(label="table", on_click=add_table),
                             sl.Button(label="scatter", on_click=add_scatter),
                             sl.Button(label="skyplot", on_click=add_skyplot),
                         ]
