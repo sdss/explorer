@@ -159,6 +159,7 @@ def scatter(plotstate):
         xaxis_title=plotstate.x.value,
         yaxis_title=plotstate.y.value,
         autosize=True,
+        height=700,
     )
     # reset the ranges based on the relayout
     fig = update_relayout(fig, relayout)
@@ -509,15 +510,15 @@ def skyplot(plotstate):
     if plotstate.geo_coords.value == "ra/dec":
         lon = dff["ra"]
         lat = dff["dec"]
-        lon_label = "Right Ascension"
-        lat_label = "Declination"
+        lon_label = "RA"
+        lat_label = "DEC"
         print("sky:radec")
         projection = "aitoff"
     else:
         lon = dff["l"]
         lat = dff["b"]
-        lon_label = "Galactic Longitude"
-        lat_label = "Galactic Latitude"
+        lon_label = "l"
+        lat_label = "b"
         print("sky:galcoords")
         projection = "mollweide"
     c = dff[plotstate.color.value]
@@ -555,7 +556,7 @@ def skyplot(plotstate):
         fig.update_xaxes(autorange="reversed")
     if plotstate.flipy.value:
         fig.update_yaxes(autorange="reversed")
-    fig.update_layout(autosize=True, )
+    fig.update_layout(autosize=True, height=700)
     fig.update_geos(
         projection_type=projection,
         bgcolor="#ccc",

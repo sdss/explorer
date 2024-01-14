@@ -60,11 +60,18 @@ def ObjectGrid():
             prev = {"x": 0, "y": -12, "h": 12, "i": -1, "moved": False}
         else:
             prev = grid_layout[-1]
+        # set height based on type
+        if type == "table":
+            height = 16
+        elif type == "skyplot" or type == "scatter":
+            height = 20
+        else:
+            height = 12
         grid_layout.append({
             "x": prev["x"],
             "y": prev["y"] + prev["h"] + 4,
             "w": 8,
-            "h": 16 if type == "table" else 12,
+            "h": height,
             "i": prev["i"] + 1,
             "moved": False,
         })
