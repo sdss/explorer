@@ -18,6 +18,23 @@ def update_relayout(fig, relayout):
         if "yaxis.range[0]" in relayout.keys():
             fig.update_yaxes(
                 range=[relayout["yaxis.range[0]"], relayout["yaxis.range[1]"]])
+
+        # LONGITUDE
+        if "geo.projection.rotation.lon" in relayout.keys():
+            fig.update_geos(
+                projection_rotation_lon=relayout["geo.projection.rotation.lon"]
+            )
+        if "geo.center.lon" in relayout.keys():
+            fig.update_geos(center_lon=relayout["geo.center.lon"])
+        # LATITUDE
+        if "geo.projection.rotation.lat" in relayout.keys():
+            fig.update_geos(
+                projection_rotation_lat=relayout["geo.projection.rotation.lat"]
+            )
+        if "geo.center.lat" in relayout.keys():
+            fig.update_geos(center_lat=relayout["geo.center.lat"])
+        if "geo.projection.scale" in relayout.keys():
+            fig.update_geos(projection_scale=relayout["geo.projection.scale"])
     return fig
 
 
@@ -550,6 +567,7 @@ def skyplot(plotstate):
         lataxis_dtick=5,
         lataxis_tick0=0,
     )
+    fig.update_layout(margin={"t": 30, "b": 10, "l": 0, "r": 0})
 
     # reset the ranges based on the relayout
     fig = update_relayout(fig, relayout)
@@ -560,8 +578,7 @@ def skyplot(plotstate):
     sl.use_thread(
         reset_lims,
         dependencies=[
-            plotstate.x.value,
-            plotstate.y.value,
+            plotstate.geo_coords.value,
             plotstate.flipx.value,
             plotstate.flipy.value,
         ],
@@ -569,6 +586,7 @@ def skyplot(plotstate):
 
     def relayout_callback(data):
         if data is not None:
+            print(data)
             set_relayout(data["relayout_data"])
 
     return sl.FigurePlotly(
