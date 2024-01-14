@@ -3,8 +3,7 @@ from typing import cast, Optional
 import solara as sl
 import vaex as vx  # noqa
 
-import reacton.ipyvuetify as rv
-from state import State, PlotState
+from state import State
 
 
 @sl.component
@@ -53,10 +52,14 @@ def DFView() -> None:
         ]]
         if column is not None and order is not None:
             dff = dff.sort(dff[column], ascending=order)
-        sl.DataTable(dff, column_actions=column_actions)
+        sl.DataTable(
+            dff,
+            items_per_page=10,  # tablestate.height.value,
+            column_actions=column_actions,
+        )
 
     else:
-        Loading()
+        NoDF()
 
 
 @sl.component

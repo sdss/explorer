@@ -1,4 +1,6 @@
 import numpy as np
+from functools import reduce
+import operator
 import plotly.express as px
 import plotly.graph_objects as go
 import reacton.ipyvuetify as rv
@@ -100,23 +102,62 @@ def scatter(plotstate):
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "filter-scatter")
     relayout, set_relayout = sl.use_state(None)
+    xfilter, set_xfilter = sl.use_state(None)
+    yfilter, set_yfilter = sl.use_state(None)
 
-    dff = df
-    if filter:
-        dff = df[filter]
-
+    # filter to current relayout
+    print(plotstate.reactive.value)
+    if plotstate.reactive.value == "on":
+        if relayout is not None:
+            if "xaxis.range[0]" in relayout.keys():
+                min = relayout["xaxis.range[0]"]
+                max = relayout["xaxis.range[1]"]
+                set_xfilter(df[
+                    f"(({plotstate.x.value} > {min}) & ({plotstate.x.value} < {max}))"]
+                            )
+            if "yaxis.range[0]" in relayout.keys():
+                min = relayout["yaxis.range[0]"]
+                max = relayout["yaxis.range[1]"]
+                set_yfilter(df[
+                    f"(({plotstate.y.value} > {min}) & ({plotstate.y.value} < {max}))"]
+                            )
+            local_filters = [xfilter, yfilter]
+            if local_filters[0] is not None and local_filters[1] is not None:
+                if filter:
+                    superfilter = reduce(operator.and_, local_filters, filter)
+                    dff = df[superfilter]
+                else:
+                    superfilter = reduce(operator.and_, local_filters[1:],
+                                         local_filters[0])
+                    dff = df[superfilter]
+            else:
+                if filter:
+                    dff = df[filter]
+                else:
+                    dff = df
+        else:
+            if filter:
+                dff = df[filter]
+            else:
+                dff = df
+    else:
+        if filter:
+            dff = df[filter]
+        else:
+            dff = df
     # get cols
+    print(len(dff))
     x = dff[plotstate.x.value]
     y = dff[plotstate.y.value]
     c = dff[plotstate.color.value]
     ids = dff["sdss_id"]
 
     # trim to renderable length
-    if len(dff) > 10000:
-        x = x[:10_000]
-        y = y[:10_000]
-        c = c[:10_000]
-        ids = ids[:10_000]
+    if len(dff) > 20000:
+        x = x[:20_000]
+        y = y[:20_000]
+        c = c[:20_000]
+        ids = ids[:20_000]
 
     # Check for catagorical (unrenderable in scatter)
     x_cat = check_catagorical(x)
@@ -197,6 +238,8 @@ def scatter(plotstate):
         on_relayout=relayout_callback,
         dependencies=[
             filter,
+            xfilter,
+            yfilter,
             plotstate.x.value,
             plotstate.y.value,
             plotstate.color.value,
@@ -512,14 +555,12 @@ def skyplot(plotstate):
         lat = dff["dec"]
         lon_label = "RA"
         lat_label = "DEC"
-        print("sky:radec")
         projection = "aitoff"
     else:
         lon = dff["l"]
         lat = dff["b"]
         lon_label = "l"
         lat_label = "b"
-        print("sky:galcoords")
         projection = "mollweide"
     c = dff[plotstate.color.value]
     ids = dff["sdss_id"]
@@ -587,7 +628,6 @@ def skyplot(plotstate):
 
     def relayout_callback(data):
         if data is not None:
-            print(data)
             set_relayout(data["relayout_data"])
 
     return sl.FigurePlotly(

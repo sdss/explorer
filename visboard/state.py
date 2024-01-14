@@ -61,6 +61,7 @@ class PlotState:
         self.logy = sl.use_reactive(False)
         self.flipx = sl.use_reactive(False)
         self.flipy = sl.use_reactive(False)
+        self.reactive = sl.use_reactive("on")
 
         # statistics
         self.nbins = sl.use_reactive(10)
@@ -92,3 +93,13 @@ class PlotState:
             ],
             binscales=[None, "log1p", "log10"],
         )
+
+
+class TableState:
+    """
+    Adaptive state object for the table view, holding unique properties to that table view.
+
+    """
+
+    def __init__(self, height):
+        self.height = sl.use_reactive(height)

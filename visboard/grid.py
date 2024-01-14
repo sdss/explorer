@@ -5,7 +5,7 @@ import reacton.ipyvuetify as rv
 
 from plots import show_plot
 from plot_settings import show_settings
-from state import PlotState
+from state import PlotState, TableState
 from dataframe import DFView
 
 
@@ -17,6 +17,7 @@ def GridDraggableToolbar(
     draggable: bool = True,
     resizable: bool = True,
 ):
+    # TODO: make this work without modifying solara source
     pass
 
 
@@ -62,7 +63,7 @@ def ObjectGrid():
             prev = grid_layout[-1]
         # set height based on type
         if type == "table":
-            height = 16
+            height = 10
         elif type == "skyplot" or type == "scatter":
             height = 20
         else:
@@ -100,24 +101,24 @@ def ObjectGrid():
         set_objects([])
 
     with sl.Column() as main:
-        with sl.Columns([7, 1]):
-            btn = sl.Button("Add View", icon_name="mdi-image-plus")
-            with sl.Column():
-                with Menu(activator=btn):
-                    with sl.Column(gap="0px"):
-                        [
-                            sl.Button(label="histogram",
-                                      on_click=add_histogram),
-                            sl.Button(label="aggregated",
-                                      on_click=add_histogram2d),
-                            sl.Button(label="table", on_click=add_table),
-                            sl.Button(label="scatter", on_click=add_scatter),
-                            sl.Button(label="skyplot", on_click=add_skyplot),
-                        ]
-            with sl.Column():
-                sl.Button(color="yellow",
-                          icon_name="mdi-refresh",
-                          on_click=reset_layout)
+        with sl.Row():
+            btn = sl.Button("Add View",
+                            outlined=False,
+                            icon_name="mdi-image-plus")
+            with Menu(activator=btn):
+                with sl.Column(gap="0px"):
+                    [
+                        sl.Button(label="histogram", on_click=add_histogram),
+                        sl.Button(label="aggregated",
+                                  on_click=add_histogram2d),
+                        sl.Button(label="table", on_click=add_table),
+                        sl.Button(label="scatter", on_click=add_scatter),
+                        sl.Button(label="skyplot", on_click=add_skyplot),
+                    ]
+            rv.Spacer()
+            sl.Button(color="yellow",
+                      icon_name="mdi-refresh",
+                      on_click=reset_layout)
         sl.GridDraggable(
             items=objects,
             grid_layout=grid_layout,

@@ -1,4 +1,5 @@
 import solara as sl
+from typing import cast
 
 from solara.components.columns import Columns
 from solara.components.card import Card
@@ -81,6 +82,11 @@ def scatter_menu(plotstate):
                 with sl.Column():
                     sl.Switch(label="Flip y", value=plotstate.flipy)
                     sl.Switch(label="Log y", value=plotstate.logy)
+            sl.Markdown("### Reactive plotting")
+            sl.ToggleButtonsSingle(
+                values=["on", "off"],
+                value=plotstate.reactive,
+            )
 
 
 @sl.component()
