@@ -12,14 +12,26 @@ from state import State
 from util import check_catagorical
 
 
-def update_relayout(fig, relayout):
+def update_relayout(fig, relayout, plotstate):
     if relayout is not None:
         if "xaxis.range[0]" in relayout.keys():
-            fig.update_xaxes(
-                range=[relayout["xaxis.range[0]"], relayout["xaxis.range[1]"]])
+            range = [relayout["xaxis.range[0]"], relayout["xaxis.range[1]"]]
+            if plotstate.flipx.value:
+                range = [np.max(range), np.min(range)]
+            else:
+                range = [np.min(range), np.max(range)]
+            if plotstate.logx.value:
+                range = np.log10(range)
+            fig.update_xaxes(range=range)
         if "yaxis.range[0]" in relayout.keys():
-            fig.update_yaxes(
-                range=[relayout["yaxis.range[0]"], relayout["yaxis.range[1]"]])
+            range = [relayout["yaxis.range[0]"], relayout["yaxis.range[1]"]]
+            if plotstate.flipy.value:
+                range = [np.max(range), np.min(range)]
+            else:
+                range = [np.min(range), np.max(range)]
+            if plotstate.logy.value:
+                range = np.log10(range)
+            fig.update_yaxes(range=range)
 
         # LONGITUDE
         if "geo.projection.rotation.lon" in relayout.keys():
@@ -105,21 +117,30 @@ def scatter(plotstate):
     xfilter, set_xfilter = sl.use_state(None)
     yfilter, set_yfilter = sl.use_state(None)
 
+    # filter
+    if filter:
+        dff = df[filter]
+    else:
+        dff = df
+
+    # get minmax for reset
+    xmm = dff.minmax(plotstate.x.value)
+    ymm = dff.minmax(plotstate.y.value)
+
     # filter to current relayout
-    print(plotstate.reactive.value)
     if plotstate.reactive.value == "on":
         if relayout is not None:
             if "xaxis.range[0]" in relayout.keys():
                 min = relayout["xaxis.range[0]"]
                 max = relayout["xaxis.range[1]"]
                 set_xfilter(df[
-                    f"(({plotstate.x.value} > {min}) & ({plotstate.x.value} < {max}))"]
+                    f"(({plotstate.x.value} > {np.min((min,max))}) & ({plotstate.x.value} < {np.max((min,max))}))"]
                             )
             if "yaxis.range[0]" in relayout.keys():
                 min = relayout["yaxis.range[0]"]
                 max = relayout["yaxis.range[1]"]
                 set_yfilter(df[
-                    f"(({plotstate.y.value} > {min}) & ({plotstate.y.value} < {max}))"]
+                    f"(({plotstate.y.value} > {np.min((min,max))}) & ({plotstate.y.value} < {np.max((min,max))}))"]
                             )
             local_filters = [xfilter, yfilter]
             if local_filters[0] is not None and local_filters[1] is not None:
@@ -145,8 +166,8 @@ def scatter(plotstate):
             dff = df[filter]
         else:
             dff = df
+
     # get cols
-    print(len(dff))
     x = dff[plotstate.x.value]
     y = dff[plotstate.y.value]
     c = dff[plotstate.color.value]
@@ -188,7 +209,15 @@ def scatter(plotstate):
             colorscale=plotstate.colorscale.value,
         ),
     ), )
+    fig.update_layout(
+        xaxis_title=plotstate.x.value,
+        yaxis_title=plotstate.y.value,
+        height=700,
+        autosize=True,
+    )
+    # flip and log
     if plotstate.flipx.value:
+        # TODO: fix the flip on dynamic render (cant use autorange have to used manual logic aijijhitjhij)
         fig.update_xaxes(autorange="reversed")
     if plotstate.flipy.value:
         fig.update_yaxes(autorange="reversed")
@@ -196,17 +225,21 @@ def scatter(plotstate):
         fig.update_xaxes(type="log")
     if plotstate.logy.value:
         fig.update_yaxes(type="log")
-    fig.update_layout(
-        xaxis_title=plotstate.x.value,
-        yaxis_title=plotstate.y.value,
-        autosize=True,
-        height=700,
-    )
+
+    # change autorange min-max to allow for a reset to max range
+    # TODO: need to add
+    fig.update_xaxes(autorangeoptions_minallowed=xmm[0],
+                     autorangeoptions_maxallowed=xmm[1])
+    fig.update_yaxes(autorangeoptions_minallowed=ymm[0],
+                     autorangeoptions_maxallowed=ymm[1])
     # reset the ranges based on the relayout
-    fig = update_relayout(fig, relayout)
+    print(relayout)
+    fig = update_relayout(fig, relayout, plotstate)
 
     def reset_lims():
         set_relayout(None)
+        set_xfilter(None)
+        set_yfilter(None)
 
     sl.use_thread(
         reset_lims,
@@ -281,6 +314,7 @@ def histogram(plotstate):
             limits=dff.minmax(plotstate.x.value),
             shape=plotstate.nbins.value,
         )
+    print(dff.minmax(plotstate.x.value))
 
     if check_catagorical(expr):
         logx = False
@@ -309,7 +343,7 @@ def histogram(plotstate):
         fig.update_xaxes(autorange="reversed")
 
     # reset the ranges based on the relayout
-    fig = update_relayout(fig, relayout)
+    fig = update_relayout(fig, relayout, plotstate)
 
     def reset_lims():
         set_relayout(None)
@@ -467,7 +501,7 @@ def histogram2d(plotstate):
         fig.update_xaxes(autorange="reversed")
 
     # reset the ranges based on the relayout
-    fig = update_relayout(fig, relayout)
+    fig = update_relayout(fig, relayout, plotstate)
 
     def reset_lims():
         set_relayout(None)
@@ -612,7 +646,7 @@ def skyplot(plotstate):
     fig.update_layout(margin={"t": 30, "b": 10, "l": 0, "r": 0})
 
     # reset the ranges based on the relayout
-    fig = update_relayout(fig, relayout)
+    fig = update_relayout(fig, relayout, plotstate)
 
     def reset_lims():
         set_relayout(None)

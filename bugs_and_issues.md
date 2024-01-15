@@ -9,6 +9,8 @@
 
 **needed features:**
   - range sliders? specifically for the imshow plot to allow for higher resolution
+  - change from nbins to binsize
+  - underlying scatter visualization
 
 **my fixes to likely common bugs**
   - must wrap entered expressions in brackets for cross filters, otherwise the AND operation fails.

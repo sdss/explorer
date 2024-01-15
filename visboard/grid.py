@@ -126,6 +126,4 @@ def ObjectGrid():
             resizable=True,
             draggable=True,
         )
-    print(grid_layout)
-    print(len(objects), " : ", objects)
     return main
