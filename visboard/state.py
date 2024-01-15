@@ -4,9 +4,9 @@ import solara as sl
 import vaex as vx
 
 try:
-    df_sample = vx.open("/home/riley/uni/rproj/data/astra-clean.parquet")
+    df_sample = vx.open("./astra-clean.parquet")
 except:  # noqa
-    df_sample = None
+    df_sample = vx.example()
 
 
 class State:
