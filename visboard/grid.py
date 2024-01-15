@@ -1,24 +1,38 @@
-from typing import Callable, Dict, List
+import traitlets as t
+import os
+
 import solara as sl
 from solara.lab import Menu
 import reacton.ipyvuetify as rv
+import reacton as r
+import ipyvuetify as v
+import ipywidgets as widgets
 
 from plots import show_plot
 from plot_settings import show_settings
-from state import PlotState, TableState
+from state import PlotState
 from dataframe import DFView
 
 
-@sl.component_vue(vue_path="vue/gridlayout_toolbar.vue")
-def GridDraggableToolbar(
-    items: List,
-    grid_layout: List[Dict],
-    on_grid_layout: Callable,
-    draggable: bool = True,
-    resizable: bool = True,
-):
-    # TODO: make this work without modifying solara source
-    pass
+class GridLayout(v.VuetifyTemplate):
+    """
+    A draggable & resizable grid layout which can be dragged via a toolbar.
+
+    Arguably, this should use solara, but it doesn't function correctly with "component_vue" decorator.
+    """
+
+    template_file = os.path.join(os.path.dirname(__file__),
+                                 "vue/gridlayout_toolbar.vue")
+    gridlayout_loaded = t.Bool(False).tag(sync=True)
+    items = t.Union([t.List(), t.Dict()],
+                    default_value=[]).tag(sync=True,
+                                          **widgets.widget_serialization)
+    grid_layout = t.List(default_value=[]).tag(sync=True)
+    draggable = t.CBool(True).tag(sync=True)
+    resizable = t.CBool(True).tag(sync=True)
+
+
+GridDraggableToolbar = r.core.ComponentWidget(GridLayout)
 
 
 @sl.component
@@ -119,7 +133,8 @@ def ObjectGrid():
             sl.Button(color="yellow",
                       icon_name="mdi-refresh",
                       on_click=reset_layout)
-        sl.GridDraggable(
+        print(grid_layout)
+        GridDraggableToolbar(
             items=objects,
             grid_layout=grid_layout,
             on_grid_layout=set_grid_layout,
