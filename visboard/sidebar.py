@@ -1,4 +1,6 @@
 import solara as sl
+import numpy as np
+import reacton.ipyvuetify as rv
 
 from solara.components.columns import Columns
 from solara.components.card import Card
@@ -53,6 +55,7 @@ def control_menu():
         # summary + expressions
         SumCard()
         ExprEditor()
+        QuickFilterMenu()
 
         # pivot table
         sl.PivotTableCard(df, x=["telescope"], y=["release"])
@@ -67,6 +70,59 @@ def control_menu():
         sl.Info(
             "No data loaded, click on the sample dataset button to load a sample dataset, or upload a file."
         )
+
+
+@sl.component()
+def QuickFilterMenu():
+    """
+    Apply quick filters via check boxes.
+    """
+    df = State.df.value
+    flag_cols = df.get_column_names(regex="flag")
+    _filter, set_filter = sl.use_cross_filter(id(df), "quickflags")
+
+    # Quick filter states
+    flag_nonzero, set_flag_nonzero = sl.use_state(False)
+    flag_snr50, set_flag_snr50 = sl.use_state(False)
+
+    def work():
+        # all false
+        quickfilter = []
+        if np.all(np.logical_not([flag_nonzero])):
+            set_filter(None)
+            return
+        # flag out all nonzero
+        if flag_nonzero:
+            for flag in flag_cols:
+                quickfilter.append(f"({flag} == 0)")
+        if flag_snr50:
+            quickfilter.append("(snr > 50)")
+        quickfilter = "(" + " & ".join(quickfilter) + ")"
+        print(quickfilter)
+        set_filter(df[quickfilter])
+
+    sl.use_thread(
+        work,
+        dependencies=[flag_nonzero, flag_snr50],
+    )
+
+    with rv.Card(style_="height: 100%; width: 100%;") as main:
+        with rv.ExpansionPanels(accordion=True):
+            with rv.ExpansionPanel():
+                with rv.ExpansionPanelHeader():
+                    rv.Icon(children=["mdi-filter-plus-outline"])
+                    with rv.CardTitle(children=["Quick filters"]):
+                        pass
+                with rv.ExpansionPanelContent():
+                    sl.Checkbox(
+                        label="All flags zero",
+                        value=flag_nonzero,
+                        on_value=set_flag_nonzero,
+                    )
+                    sl.Checkbox(label="SNR > 50",
+                                value=flag_snr50,
+                                on_value=set_flag_snr50)
+    return main
 
 
 @sl.component()
