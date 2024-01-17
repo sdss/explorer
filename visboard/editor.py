@@ -50,11 +50,9 @@ def ExprEditor():
     error, set_error = sl.use_state(cast(str, None))
 
     def work():
-        print("expreditor:rerun")
         try:
             # TODO: this is hella spaghetti how fix
             if expression is None or expression == "":
-                print("expreditor:empty")
                 set_filter(None)
                 return None
             modifiers = [">=", "<=", "!=", ">", "<", "=="]
@@ -110,14 +108,11 @@ def ExprEditor():
                                         ")"].evaluate())
                     > 10), "expression too precise (results in length < 10)"
             # pass all checks, then set the filter
-            print(completed_expression)
             set_filter(df["(" + completed_expression + ")"])
-            print("expreditor:valid")
             return True
 
         except AssertionError as e:
             set_filter(None)
-            print("expreditor:invalid")
             set_error(e)
             return False
 

@@ -234,7 +234,6 @@ def scatter(plotstate):
     fig.update_yaxes(autorangeoptions_minallowed=ymm[0],
                      autorangeoptions_maxallowed=ymm[1])
     # reset the ranges based on the relayout
-    print(relayout)
     fig = update_relayout(fig, relayout, plotstate)
 
     def reset_lims():
@@ -315,7 +314,6 @@ def histogram(plotstate):
             limits=dff.minmax(plotstate.x.value),
             shape=plotstate.nbins.value,
         )
-    print(dff.minmax(plotstate.x.value))
 
     if check_catagorical(expr):
         logx = False

@@ -55,6 +55,7 @@ def DFView() -> None:
         sl.DataTable(
             dff,
             items_per_page=10,  # tablestate.height.value,
+            scrollable=True,
             column_actions=column_actions,
         )
 

@@ -18,7 +18,7 @@ class GridLayout(v.VuetifyTemplate):
     """
     A draggable & resizable grid layout which can be dragged via a toolbar.
 
-    Arguably, this should use solara, but it doesn't function correctly with "component_vue" decorator.
+    Arguably, this should use solara's components directly, but it doesn't function correctly with "component_vue" decorator.
     """
 
     template_file = os.path.join(os.path.dirname(__file__),
@@ -38,14 +38,12 @@ GridDraggableToolbar = r.core.ComponentWidget(GridLayout)
 @sl.component
 def ViewCard(type, del_func):
     with rv.Card(style_=" width: 100%; height: 100%") as main:
-        if type == "table":
-            with rv.CardText():
-                with sl.Column():
+        state = PlotState()
+        with rv.CardText():
+            with sl.Column():
+                if type == "table":
                     DFView()
-        else:
-            state = PlotState()
-            with rv.CardText():
-                with sl.Column():
+                else:
                     show_plot(type, state)
                 btn = sl.Button(icon_name="mdi-settings", block=True)
                 with Menu(activator=btn, close_on_content_click=False):
@@ -67,8 +65,8 @@ def ObjectGrid():
     grid_layout, set_grid_layout = sl.use_state([])
 
     def delete_card(i):
-        set_grid_layout(grid_layout[0:i] + objects[i:])
-        set_objects(objects[0:i] + objects[i:])
+        set_grid_layout(grid_layout)
+        set_objects(objects)
 
     def add_view(objects, type):
         if len(grid_layout) == 0:
@@ -91,9 +89,8 @@ def ObjectGrid():
             "moved": False,
         })
 
-        set_objects(
-            objects +
-            [ViewCard(type, lambda: delete_card(grid_layout[-1]["i"]))])
+        set_objects(objects +
+                    [ViewCard(type, lambda: delete_card(prev["i"] + 1))])
 
     def add_histogram():
         add_view(objects, "histogram")
@@ -133,7 +130,6 @@ def ObjectGrid():
             sl.Button(color="yellow",
                       icon_name="mdi-refresh",
                       on_click=reset_layout)
-        print(grid_layout)
         GridDraggableToolbar(
             items=objects,
             grid_layout=grid_layout,
