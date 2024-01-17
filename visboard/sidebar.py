@@ -1,3 +1,7 @@
+import re
+from functools import reduce
+import operator
+
 import solara as sl
 import numpy as np
 import reacton.ipyvuetify as rv
@@ -78,7 +82,13 @@ def QuickFilterMenu():
     Apply quick filters via check boxes.
     """
     df = State.df.value
-    flag_cols = df.get_column_names(regex="flag")
+    cols = df.get_column_names()
+    flag_cols = []
+    for col in cols:
+        if re.search("flag", col):
+            flag_cols.append(col)
+    # TODO: find out how flags work, currently using 3 cols as plceholders:
+    flag_cols = ["result_flags", "flag_bad", "flag_warn"]
     _filter, set_filter = sl.use_cross_filter(id(df), "quickflags")
 
     # Quick filter states
@@ -87,20 +97,24 @@ def QuickFilterMenu():
 
     def work():
         # all false
-        quickfilter = []
-        if np.all(np.logical_not([flag_nonzero])):
+        filters = []
+        flags = [flag_nonzero, flag_snr50]
+        if np.all(np.logical_not(flags)):
             set_filter(None)
             return
         # flag out all nonzero
         if flag_nonzero:
             for flag in flag_cols:
-                quickfilter.append(f"({flag} == 0)")
+                # two types of flag
+                print(f"({flag} == 0)")
+                filters.append(df[f"({flag} == 0)"])
         if flag_snr50:
-            quickfilter.append("(snr > 50)")
-        quickfilter = "(" + " & ".join(quickfilter) + ")"
-        print(quickfilter)
-        set_filter(df[quickfilter])
+            filters.append(df["(snr > 50)"])
+        concat_filter = reduce(operator.and_, filters[1:], filters[0])
+        set_filter(concat_filter)
+        return
 
+    # apply thread to filtering logic so it only runs on rerenders
     sl.use_thread(
         work,
         dependencies=[flag_nonzero, flag_snr50],

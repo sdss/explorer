@@ -12,11 +12,15 @@ def SumCard():
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "summary")
 
-    dff = df
-    filtered = False
-    if filter is not None:
+    # filter logic
+    if filter:
         filtered = True
         dff = df[filter]
+    else:
+        filtered = False
+        dff = df
+
+    # title logic
     if filtered:
         title = "Filtered"
     else:

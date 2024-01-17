@@ -129,6 +129,7 @@ def scatter(plotstate):
 
     # filter to current relayout
     if plotstate.reactive.value == "on":
+        # TODO: this logic sequence is cursed and high complexity fix it
         if relayout is not None:
             if "xaxis.range[0]" in relayout.keys():
                 min = relayout["xaxis.range[0]"]
