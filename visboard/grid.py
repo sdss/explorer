@@ -35,8 +35,32 @@ class GridLayout(v.VuetifyTemplate):
 GridDraggableToolbar = r.core.ComponentWidget(GridLayout)
 
 
+class GridState:
+    """
+    Class holding current state of grid.
+    """
+
+    objects = sl.reactive([])
+    grid_layout = sl.reactive([])
+    index = 0
+
+
 @sl.component
-def ViewCard(type, del_func):
+def ViewCard(type, i):
+
+    def remove(i):
+        # find where in grid_layout has this item no i
+        q = int()
+        for n, obj in enumerate(GridState.grid_layout.value):
+            if obj["i"] == i:
+                q = n
+                break
+        # cut at that spot
+        # GridState.objects.value = (GridState.objects.value[:q] +
+        #                           GridState.objects.value[q + 1:])
+        GridState.grid_layout.value = (GridState.grid_layout.value[:q] +
+                                       GridState.grid_layout.value[q + 1:])
+
     with rv.Card(style_=" width: 100%; height: 100%") as main:
         state = PlotState()
         with rv.CardText():
@@ -45,7 +69,7 @@ def ViewCard(type, del_func):
                     DFView()
                 else:
                     show_plot(type, state)
-                btn = sl.Button(icon_name="mdi-settings", block=True)
+                btn = sl.Button(icon_name="mdi-settings", outlined=False)
                 with Menu(activator=btn, close_on_content_click=False):
                     with sl.Card(margin=0):
                         show_settings(type, state)
@@ -53,7 +77,7 @@ def ViewCard(type, del_func):
                             icon_name="mdi-delete",
                             color="red",
                             block=True,
-                            on_click=del_func,
+                            on_click=lambda: remove(i),
                         )
 
     return main
@@ -61,18 +85,15 @@ def ViewCard(type, del_func):
 
 @sl.component
 def ObjectGrid():
-    objects, set_objects = sl.use_state([])
-    grid_layout, set_grid_layout = sl.use_state([])
 
-    def delete_card(i):
-        set_grid_layout(grid_layout)
-        set_objects(objects)
+    def set_grid_layout(data):
+        GridState.grid_layout.value = data
 
-    def add_view(objects, type):
-        if len(grid_layout) == 0:
-            prev = {"x": 0, "y": -12, "h": 12, "i": -1, "moved": False}
+    def add_view(type):
+        if len(GridState.grid_layout.value) == 0:
+            prev = {"x": 0, "y": -12, "h": 12, "moved": False}
         else:
-            prev = grid_layout[-1]
+            prev = GridState.grid_layout.value[-1]
         # set height based on type
         if type == "table":
             height = 10
@@ -80,36 +101,38 @@ def ObjectGrid():
             height = 20
         else:
             height = 12
-        grid_layout.append({
+        i = GridState.index
+        GridState.grid_layout.value.append({
             "x": prev["x"],
             "y": prev["y"] + prev["h"] + 4,
             "w": 8,
             "h": height,
-            "i": prev["i"] + 1,
+            "i": i,
             "moved": False,
         })
+        GridState.index += 1
 
-        set_objects(objects +
-                    [ViewCard(type, lambda: delete_card(prev["i"] + 1))])
+        GridState.objects.value = GridState.objects.value + [ViewCard(type, i)]
 
     def add_histogram():
-        add_view(objects, "histogram")
+        add_view("histogram")
 
     def add_histogram2d():
-        add_view(objects, "histogram2d")
+        add_view("histogram2d")
 
     def add_scatter():
-        add_view(objects, "scatter")
+        add_view("scatter")
 
     def add_skyplot():
-        add_view(objects, "skyplot")
+        add_view("skyplot")
 
     def add_table():
-        add_view(objects, "table")
+        add_view("table")
 
     def reset_layout():
-        set_grid_layout([])
-        set_objects([])
+        GridState.index = 0
+        GridState.grid_layout.value = []
+        GridState.objects.value = []
 
     with sl.Column() as main:
         with sl.Row():
@@ -131,8 +154,8 @@ def ObjectGrid():
                       icon_name="mdi-refresh",
                       on_click=reset_layout)
         GridDraggableToolbar(
-            items=objects,
-            grid_layout=grid_layout,
+            items=GridState.objects.value,
+            grid_layout=GridState.grid_layout.value,
             on_grid_layout=set_grid_layout,
             resizable=True,
             draggable=True,
