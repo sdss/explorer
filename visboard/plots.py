@@ -131,6 +131,10 @@ def scatter(plotstate):
     if plotstate.reactive.value == "on":
         # TODO: this logic sequence is cursed and high complexity fix it
         if relayout is not None:
+            print(relayout)
+            if "xaxis.autorange" in relayout.keys():
+                set_xfilter(None)
+                set_yfilter(None)
             if "xaxis.range[0]" in relayout.keys():
                 min = relayout["xaxis.range[0]"]
                 max = relayout["xaxis.range[1]"]

@@ -55,9 +55,7 @@ def ViewCard(type, i):
             if obj["i"] == i:
                 q = n
                 break
-        # cut at that spot
-        # GridState.objects.value = (GridState.objects.value[:q] +
-        #                           GridState.objects.value[q + 1:])
+        # cut layout at that spot, objects not cut because of how vue selects item to render
         GridState.grid_layout.value = (GridState.grid_layout.value[:q] +
                                        GridState.grid_layout.value[q + 1:])
 

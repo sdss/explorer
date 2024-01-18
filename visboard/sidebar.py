@@ -106,7 +106,6 @@ def QuickFilterMenu():
         if flag_nonzero:
             for flag in flag_cols:
                 # two types of flag
-                print(f"({flag} == 0)")
                 filters.append(df[f"({flag} == 0)"])
         if flag_snr50:
             filters.append(df["(snr > 50)"])

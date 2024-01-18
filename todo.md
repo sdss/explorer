@@ -1,34 +1,42 @@
+# LOADERS
 **fix the damn autoloading of multiple (2 loaders generated, dont want first)**
+  - dont know what to do about this
 
-**add func to convert ( a < X < b) to (a < x) & (X < b)**
-  - vaex's expression doesn't support this type of expression, need to translate it.
 
-**fix the crash on unloading dataset**
-- this might be low priority, but i think its important to figure out why it crashes when the amount of renders is reduced in the way i've implemented it on the sidebar
-- specifically crashes in hist2d*
+# SOLARA VAEX
 
-**add subset functionality**
+## FEATURES
 
-**make the plots automatically resize**
+**feat: add subset functionality**
+- i.e, the ability to add multiple expression sets and toggle them on and off
 
-**prevent rerender when only light dependencies are updated (i.e, layout, etc)**
-
-**assertion error message information (except as e, assert cond, info)**
-
-***FIX: except the click and hold events when over the plotly object (somehow)***
-
-**CORE FEATURE: quick filters (i.e. all flags zero, high snr, certain telescope subsets, etc)**
-
-**CORE FEATURE: allow for further input order variety in expreditor**
-  - 3 part expressions dont work currently, must be converted.
-  - 2 part expression in any order (i.e., make it so 1500 < teff and teff > 1500 can be input.)
-  **allow for catagorical comparisons in expreditor**
-  **allow for equality/inequality comparisons in expreditor**
+***FEATURE: add selection to histogram and skyplot***
 
 **CORE FEATURE: application settings in top right**
 
-**heatmap skyplot? (as opposed)**
+## FIXES
+**fix: crash on hook issues**
+  - there are some condition hooks in plotting functions that need to be sorted out else the app will crash due to hook mismanagement every time a plot is say del'd from rendering
 
-**REALLY HARD TO IMPLEMENT FEATURE: scatterplot relayout adaptive rerendering**
+
+**make the plots automatically resize**
+  - plotly makes me want to go jump into a lake
+
+**prevent rerender when only light dependencies are updated (i.e, layout, etc)**
+
+***FIX: except the click and hold events when over the plotly object (somehow)***
+  - DONE: need to fix position of resize click drag icon due to toolbar messing wit it
+
+***FIX: relayout bugging when any axes are logarithmic or flipped***
+
+## LOFTY GOALS
+
+
+
+**REALLY HARD TO IMPLEMENT FEATURE: scatterplot relayout adaptive rerendering underlying trace**
   - there is a max the browser can render, say 5k
   - when the layout changes, change the subset being shown and update with a new one according to what can be visible on-screen.
+  - this is implemented, but when you pan, its janky because not everything is shown
+  - i want to implement say a soft heatmap trace beneath the scatter points outside the shown range or vice versa to give indications of density.
+    **heatmap skyplot?**
+      - doesn't seem like there's a trace for one
