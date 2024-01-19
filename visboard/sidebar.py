@@ -70,6 +70,7 @@ def control_menu():
                 filename="apogeenet_filtered.csv",
                 label="Download table",
             )
+
     else:
         sl.Info(
             "No data loaded, click on the sample dataset button to load a sample dataset, or upload a file."

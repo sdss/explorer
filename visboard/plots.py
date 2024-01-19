@@ -118,6 +118,8 @@ def scatter(plotstate):
     xfilter, set_xfilter = sl.use_state(None)
     yfilter, set_yfilter = sl.use_state(None)
     menudata, set_menudata = sl.use_state(False)
+    clicked, set_clicked = sl.use_state(False)
+    id, set_id = sl.use_state(None)
 
     # filter
     if filter:
@@ -237,6 +239,7 @@ def scatter(plotstate):
                      autorangeoptions_maxallowed=xmm[1])
     fig.update_yaxes(autorangeoptions_minallowed=ymm[0],
                      autorangeoptions_maxallowed=ymm[1])
+    """Relayout handlers"""
     # reset the ranges based on the relayout
     fig = update_relayout(fig, relayout, plotstate)
 
@@ -261,6 +264,8 @@ def scatter(plotstate):
         if data is not None:
             set_relayout(data["relayout_data"])
 
+    """Selection handlers"""
+
     def on_selection(data):
         set_filter((df[plotstate.x.value].isin(data["points"]["xs"])
                     & df[plotstate.y.value].isin(data["points"]["ys"])))
@@ -268,32 +273,47 @@ def scatter(plotstate):
     def deselect(data):
         set_filter(None)
 
-    def toggle_menu(data):
-        id = df[plotstate.x.value].isin(
-            data["points"]["xs"]) & df[plotstate.y.value].isin(
-                data["points"]["ys"])
-        print(id)
+    """
+    Context Menu handlers
+    """
 
-        if menudata:
+    def on_click(data):
+        set_clicked(True)
+
+    def on_hover(data):
+        set_clicked(False)
+        set_menudata(True)
+        set_id(df[df[plotstate.x.value].isin(data["points"]["xs"])
+                  & df[plotstate.y.value].isin(data["points"]["ys"])])
+
+    def on_unhover(data):
+        if not clicked:
             set_menudata(False)
-
-    def close_context_menu():
-        set_menudata(False)
 
     def open_jdaviz():
         close_context_menu()
-        wb.open("https://www.google.com")
+        wb.open("http://localhost:8866/")
 
     def download_spectra():
         close_context_menu()
-        wb.open("https://www.bing.com")
+        # TODO: change to directly use ID
+        objid = id["sdss_id"].values[0]
+        wb.open(
+            "https://data.sdss5.org/sas/ipl-3/spectro/apogee/redux/1.2/stars/apo25m/69/69001/apStar-1.2-apo25m-2M06245477+1727054.fits"
+        )
+
+    def close_context_menu():
+        set_menudata(False)
+        set_clicked(False)
 
     fig = sl.FigurePlotly(
         fig,
+        on_hover=on_hover,
+        on_click=on_click,
+        on_unhover=on_unhover,
         on_selection=on_selection,
         on_deselect=deselect,
         on_relayout=relayout_callback,
-        on_click=toggle_menu,
         dependencies=[
             filter,
             xfilter,
@@ -308,26 +328,25 @@ def scatter(plotstate):
             plotstate.flipy.value,
         ],
     )
-    with lab.ContextMenu(
-            activator=fig,
-            open_value=menudata,
-            on_open_value=set_menudata,
-    ):
-        sl.Column(
-            gap="0px",
-            children=[
-                sl.Button(
-                    label="Download spectra",
-                    icon_name="mdi-file-chart-outline",
-                    on_click=download_spectra,
-                ),
-                sl.Button(
-                    label="Open in Jdaviz",
-                    icon_name="mdi-chart-line",
-                    on_click=open_jdaviz,
-                ),
-            ],
-        )
+    with lab.ContextMenu(activator=fig, ):
+        if clicked & menudata:
+            sl.Column(
+                gap="0px",
+                children=[
+                    sl.Button(
+                        label="Download spectra",
+                        icon_name="mdi-file-chart-outline",
+                        on_click=download_spectra,
+                        small=True,
+                    ),
+                    sl.Button(
+                        label="Open in Jdaviz",
+                        icon_name="mdi-chart-line",
+                        on_click=open_jdaviz,
+                        small=True,
+                    ),
+                ],
+            )
 
     return
 
