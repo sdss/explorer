@@ -4,7 +4,7 @@ import solara as sl
 import vaex as vx
 
 try:
-    df_sample = vx.open("./astra-clean.parquet")
+    df_sample = vx.open("./astra-clean.parquet", shuffle=True)
 except:  # noqa
     df_sample = vx.example()
 
@@ -69,8 +69,9 @@ class PlotState:
         self.binscale = sl.use_reactive(None)
         self.norm = sl.use_reactive(None)
 
-        # aitoff geo settings
+        # skyplot settings
         self.geo_coords = sl.use_reactive("ra/dec")
+        self.projection = sl.use_reactive("hammer")
 
         # all lookup data for types
         self.Lookup = dict(
@@ -92,6 +93,15 @@ class PlotState:
                 "twilight",
             ],
             binscales=[None, "log1p", "log10"],
+            projections=[
+                "albers",
+                "aitoff",
+                "azimuthal equal area",
+                "equal earth",
+                "hammer",
+                "mollweide",
+                "mt flat polar quartic",
+            ],
         )
 
 

@@ -52,6 +52,7 @@ def DFView() -> None:
         ]]
         if column is not None and order is not None:
             dff = dff.sort(dff[column], ascending=order)
+        # TODO: add column add/remove functionality
         sl.DataTable(
             dff,
             items_per_page=10,  # tablestate.height.value,

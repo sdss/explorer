@@ -1,4 +1,5 @@
 import numpy as np
+import webbrowser as wb
 from functools import reduce
 import operator
 import plotly.express as px
@@ -6,7 +7,7 @@ import plotly.graph_objects as go
 import reacton.ipyvuetify as rv
 
 import solara as sl
-from solara.express import CrossFilteredFigurePlotly  # noqa: this thing literally does not function with vaex frames
+from solara import lab
 
 from state import State
 from util import check_catagorical
@@ -116,6 +117,7 @@ def scatter(plotstate):
     relayout, set_relayout = sl.use_state(None)
     xfilter, set_xfilter = sl.use_state(None)
     yfilter, set_yfilter = sl.use_state(None)
+    menudata, set_menudata = sl.use_state(False)
 
     # filter
     if filter:
@@ -131,7 +133,6 @@ def scatter(plotstate):
     if plotstate.reactive.value == "on":
         # TODO: this logic sequence is cursed and high complexity fix it
         if relayout is not None:
-            print(relayout)
             if "xaxis.autorange" in relayout.keys():
                 set_xfilter(None)
                 set_yfilter(None)
@@ -217,7 +218,6 @@ def scatter(plotstate):
     fig.update_layout(
         xaxis_title=plotstate.x.value,
         yaxis_title=plotstate.y.value,
-        height=700,
         autosize=True,
     )
     # flip and log
@@ -268,11 +268,32 @@ def scatter(plotstate):
     def deselect(data):
         set_filter(None)
 
-    return sl.FigurePlotly(
+    def toggle_menu(data):
+        id = df[plotstate.x.value].isin(
+            data["points"]["xs"]) & df[plotstate.y.value].isin(
+                data["points"]["ys"])
+        print(id)
+
+        if menudata:
+            set_menudata(False)
+
+    def close_context_menu():
+        set_menudata(False)
+
+    def open_jdaviz():
+        close_context_menu()
+        wb.open("https://www.google.com")
+
+    def download_spectra():
+        close_context_menu()
+        wb.open("https://www.bing.com")
+
+    fig = sl.FigurePlotly(
         fig,
         on_selection=on_selection,
         on_deselect=deselect,
         on_relayout=relayout_callback,
+        on_click=toggle_menu,
         dependencies=[
             filter,
             xfilter,
@@ -287,6 +308,28 @@ def scatter(plotstate):
             plotstate.flipy.value,
         ],
     )
+    with lab.ContextMenu(
+            activator=fig,
+            open_value=menudata,
+            on_open_value=set_menudata,
+    ):
+        sl.Column(
+            gap="0px",
+            children=[
+                sl.Button(
+                    label="Download spectra",
+                    icon_name="mdi-file-chart-outline",
+                    on_click=download_spectra,
+                ),
+                sl.Button(
+                    label="Open in Jdaviz",
+                    icon_name="mdi-chart-line",
+                    on_click=open_jdaviz,
+                ),
+            ],
+        )
+
+    return
 
 
 @sl.component
@@ -407,12 +450,13 @@ def histogram2d(plotstate):
         )
     bintype = str(plotstate.bintype.value)
 
-    xlims, set_xlims = sl.use_state(None)
-    ylims, set_ylims = sl.use_state(None)
-    if xlims is None and ylims is None:
-        limits = [dff.minmax(plotstate.x.value), dff.minmax(plotstate.y.value)]
-    else:
-        limits = [xlims, ylims]
+    # xlims, set_xlims = sl.use_state(None)
+    # ylims, set_ylims = sl.use_state(None)
+    # if xlims is None and ylims is None:
+    #    limits = [dff.minmax(plotstate.x.value), dff.minmax(plotstate.y.value)]
+    # else:
+    #    limits = [xlims, ylims]
+    limits = [dff.minmax(plotstate.x.value), dff.minmax(plotstate.y.value)]
 
     if bintype == "count":
         y = dff.count(
@@ -499,6 +543,7 @@ def histogram2d(plotstate):
             "y": plotstate.y.value,
             "color": plotstate.binscale.value,
         },
+        template="plotly_dark",
     )
     if plotstate.flipx.value:
         fig.update_xaxes(autorange="reversed")
@@ -524,6 +569,7 @@ def histogram2d(plotstate):
             set_relayout(data["relayout_data"])
 
     def select_bin(data):
+        return
         x_be = np.histogram_bin_edges(expr_x.evaluate(),
                                       bins=plotstate.nbins.value)
         xs = data["points"]["xs"][0]
@@ -544,6 +590,7 @@ def histogram2d(plotstate):
         return
 
     def deselect_bin():
+        return
         set_xlims(None)
         set_ylims(None)
         return
@@ -557,8 +604,8 @@ def histogram2d(plotstate):
             on_relayout=relayout_callback,
             dependencies=[
                 filter,
-                xlims,
-                ylims,
+                # xlims,
+                # ylims,
                 plotstate.nbins.value,
                 plotstate.y.value,
                 plotstate.color.value,
@@ -571,7 +618,7 @@ def histogram2d(plotstate):
                 plotstate.bintype.value,
             ],
         )
-        sl.Button("Reset", on_click=deselect_bin)
+        # sl.Button("Reset", on_click=deselect_bin)
 
     return main
 
@@ -585,20 +632,24 @@ def skyplot(plotstate):
     dff = df
     if filter:
         dff = dff[filter]
-    dff = dff[:10_000]
+    dff = dff[:3_000]
 
+    # get correct col based on coords setting
+    dtick = 30  # for tickers
     if plotstate.geo_coords.value == "ra/dec":
         lon = dff["ra"]
         lat = dff["dec"]
         lon_label = "RA"
         lat_label = "DEC"
-        projection = "aitoff"
+        x = list(range(-180, 180 + dtick, dtick))
     else:
         lon = dff["l"]
         lat = dff["b"]
         lon_label = "l"
         lat_label = "b"
-        projection = "mollweide"
+        x = list(range(0, 360 + dtick, dtick))
+    y = list(range(-90, 90 + dtick, dtick))
+
     c = dff[plotstate.color.value]
     ids = dff["sdss_id"]
     fig = go.Figure(data=go.Scattergeo(
@@ -616,10 +667,7 @@ def skyplot(plotstate):
             colorscale=plotstate.colorscale.value,
         ),
     ), )
-    # add "label" trace
-    dtick = 30
-    x = list(range(-180, 180 + dtick, dtick))
-    y = list(range(-90, 90 + dtick, dtick))
+
     xpos = 0
     ypos = 0
     fig.add_trace(
@@ -634,9 +682,8 @@ def skyplot(plotstate):
         fig.update_xaxes(autorange="reversed")
     if plotstate.flipy.value:
         fig.update_yaxes(autorange="reversed")
-    fig.update_layout(autosize=True, height=700)
     fig.update_geos(
-        projection_type=projection,
+        projection_type=plotstate.projection.value,
         bgcolor="#ccc",
         visible=False,
         lonaxis_showgrid=True,
@@ -647,6 +694,7 @@ def skyplot(plotstate):
         lataxis_tick0=0,
     )
     fig.update_layout(margin={"t": 30, "b": 10, "l": 0, "r": 0})
+    fig.update_layout(autosize=True, )
 
     # reset the ranges based on the relayout
     fig = update_relayout(fig, relayout, plotstate)
@@ -667,12 +715,25 @@ def skyplot(plotstate):
         if data is not None:
             set_relayout(data["relayout_data"])
 
+    def on_select(data):
+        print("X\n--------")
+        points = data["points"]["xs"]
+        print(points)
+        print("Y\n--------")
+        print(data["points"]["ys"])
+
+    def on_deselect(data):
+        set_filter(None)
+
     return sl.FigurePlotly(
         fig,
+        on_selection=on_select,
+        on_deselect=on_deselect,
         on_relayout=relayout_callback,
         dependencies=[
             filter,
             plotstate.geo_coords.value,
+            plotstate.projection.value,
             plotstate.color.value,
             plotstate.colorscale.value,
             plotstate.flipx.value,

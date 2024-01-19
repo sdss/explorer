@@ -119,7 +119,7 @@ def QuickFilterMenu():
         dependencies=[flag_nonzero, flag_snr50],
     )
 
-    with rv.Card(style_="height: 100%; width: 100%;") as main:
+    with rv.Card(elevation=2, style_="height: 100%; width: 100%;") as main:
         with rv.ExpansionPanels(accordion=True):
             with rv.ExpansionPanel():
                 with rv.ExpansionPanelHeader():

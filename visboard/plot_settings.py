@@ -28,6 +28,11 @@ def sky_menu(plotstate):
             with sl.Column():
                 sl.ToggleButtonsSingle(value=plotstate.geo_coords,
                                        values=["ra/dec", "galactic lon/lat"])
+                sl.Select(
+                    label="Projection",
+                    value=plotstate.projection,
+                    values=plotstate.Lookup["projections"],
+                )
             with sl.Row():
                 sl.Select(
                     label="Color",

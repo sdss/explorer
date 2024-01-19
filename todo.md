@@ -7,6 +7,14 @@
 
 ## FEATURES
 
+**FEATURE: log colorscale**
+
+**FEAT: download via context menu on scatterplots**
+for download: needs which ipl and which id (very easy)
+'
+**FEAT: jdaviz via context menu**
+on another server, prestarted for a demo with a temp spectra
+
 **feat: add subset functionality**
 - i.e, the ability to add multiple expression sets and toggle them on and off
 
@@ -14,18 +22,14 @@
 
 **CORE FEATURE: application settings in top right**
 
+
 ## FIXES
 **fix: crash on hook issues**
   - there are some condition hooks in plotting functions that need to be sorted out else the app will crash due to hook mismanagement every time a plot is say del'd from rendering
 
-
 **make the plots automatically resize**
   - plotly makes me want to go jump into a lake
-
-**prevent rerender when only light dependencies are updated (i.e, layout, etc)**
-
-***FIX: except the click and hold events when over the plotly object (somehow)***
-  - DONE: need to fix position of resize click drag icon due to toolbar messing wit it
+  - out of scope someone else do it for me
 
 ***FIX: relayout bugging when any axes are logarithmic or flipped***
 

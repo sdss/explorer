@@ -1,4 +1,5 @@
 import traitlets as t
+from typing import List, Dict, Union, Callable
 import os
 
 import solara as sl
@@ -95,8 +96,6 @@ def ObjectGrid():
         # set height based on type
         if type == "table":
             height = 10
-        elif type == "skyplot" or type == "scatter":
-            height = 20
         else:
             height = 12
         i = GridState.index
