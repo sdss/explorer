@@ -18,6 +18,8 @@
 - NOTE: the dynamic redraw for `scatter` is disorienting and really weird
   - it can be disabled in the settings of the view panel.
   - I've implemented it mainly as a proof of concept for dynamic redrawing in this tech stack, similar to [holoviz/datashader](https://github.com/holoviz/datashader)
+- scatter selections don't deselect
+- **BREAKING:** the skyplot is really really laggy for some reason now, i think the amount of hooks is breaking it
 **needed features:**
   - range sliders? specifically for the imshow plot to allow for higher resolution
   - change from nbins to binsize

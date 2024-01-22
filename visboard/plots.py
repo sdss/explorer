@@ -268,10 +268,12 @@ def scatter(plotstate):
     """Selection handlers"""
 
     def on_selection(data):
-        set_filter((df[plotstate.x.value].isin(data["points"]["xs"])
-                    & df[plotstate.y.value].isin(data["points"]["ys"])))
+        print(len(data["points"]["xs"]))
+        if len(data["points"]["xs"]) > 0:
+            set_filter((df[plotstate.x.value].isin(data["points"]["xs"])
+                        & df[plotstate.y.value].isin(data["points"]["ys"])))
 
-    def deselect(data):
+    def on_deselect(data):
         set_filter(None)
 
     """
@@ -298,7 +300,7 @@ def scatter(plotstate):
     def download_spectra():
         # TODO: change to directly use ID
         if sdssid is not None:
-            print(df[sdssid]["sdss_id"].values[0], df[sdssid][""])
+            print(df[sdssid]["sdss_id"].values[0])
         else:
             raise ValueError("SDSS ID was none on scatter hover.")
         wb.open("https://www.google.com")
@@ -314,7 +316,7 @@ def scatter(plotstate):
         on_click=on_click,
         on_unhover=on_unhover,
         on_selection=on_selection,
-        on_deselect=deselect,
+        on_deselect=on_deselect,
         on_relayout=relayout_callback,
         dependencies=[
             filter,
@@ -374,13 +376,20 @@ def histogram(plotstate):
         # make x (bin centers) and y (counts)
         x = dff.bin_centers(
             expression=expr,
-            limits=dff.minmax(plotstate.x.value),
+            limits=[
+                np.float32(dff.min(plotstate.x.value)),
+                np.float32(dff.max(plotstate.x.value)),
+            ],
             shape=plotstate.nbins.value,
         )
         binsize = x[1] - x[0]
         y = dff.count(
             binby=plotstate.x.value,
-            limits=dff.minmax(plotstate.x.value),
+            # limits=dff.minmax(plotstate.x.value),
+            limits=[
+                np.float32(dff.min(plotstate.x.value)),
+                np.float32(dff.max(plotstate.x.value)),
+            ],
             shape=plotstate.nbins.value,
         )
 
@@ -430,11 +439,14 @@ def histogram(plotstate):
 
     def on_selection(data):
         print(data)
-        set_filter(
-            df[f"({plotstate.x.value} <= {data['points']['xs'][-1] + binsize})"]
-            &
-            df[f"({plotstate.x.value} >= {data['points']['xs'][0] - binsize})"]
-        )
+        filters = list()
+        if len(data["points"]["xs"]) > 0:
+            for cent in np.unique(data["points"]["xs"]):
+                filters.append(
+                    df[f"({plotstate.x.value} <= {cent + binsize})"]
+                    & df[f"({plotstate.x.value} >= {cent - binsize})"])
+            filters = reduce(operator.or_, filters[1:], filters[0])
+            set_filter(filters)
 
     def on_deselect(data):
         set_filter(None)
@@ -491,7 +503,16 @@ def histogram2d(plotstate):
     #    limits = [dff.minmax(plotstate.x.value), dff.minmax(plotstate.y.value)]
     # else:
     #    limits = [xlims, ylims]
-    limits = [dff.minmax(plotstate.x.value), dff.minmax(plotstate.y.value)]
+    limits = [
+        [
+            np.float32(dff.min(plotstate.x.value)),
+            np.float32(dff.max(plotstate.x.value)),
+        ],
+        [
+            np.float32(dff.min(plotstate.y.value)),
+            np.float32(dff.max(plotstate.y.value)),
+        ],
+    ]
 
     if bintype == "count":
         y = dff.count(
@@ -760,7 +781,10 @@ def skyplot(plotstate):
     """Selection handlers"""
 
     def on_select(data):
-        pass
+        print(data["points"]["point_indexes"])
+        if len(data["points"]["xs"]) > 0:
+            print(type(df == dff[data["points"]["point_indexes"]]))
+            set_filter(df[df == dff[data["points"]["point_indexes"]]])
 
     def on_deselect(data):
         set_filter(None)
