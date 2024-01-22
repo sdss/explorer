@@ -64,7 +64,7 @@ class PlotState:
         self.reactive = sl.use_reactive("on")
 
         # statistics
-        self.nbins = sl.use_reactive(10)
+        self.nbins = sl.use_reactive(200)
         self.bintype = sl.use_reactive("mean")
         self.binscale = sl.use_reactive(None)
         self.norm = sl.use_reactive(None)

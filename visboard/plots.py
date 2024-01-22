@@ -377,6 +377,7 @@ def histogram(plotstate):
             limits=dff.minmax(plotstate.x.value),
             shape=plotstate.nbins.value,
         )
+        binsize = x[1] - x[0]
         y = dff.count(
             binby=plotstate.x.value,
             limits=dff.minmax(plotstate.x.value),
@@ -427,12 +428,25 @@ def histogram(plotstate):
         ],
     )
 
+    def on_selection(data):
+        print(data)
+        set_filter(
+            df[f"({plotstate.x.value} <= {data['points']['xs'][-1] + binsize})"]
+            &
+            df[f"({plotstate.x.value} >= {data['points']['xs'][0] - binsize})"]
+        )
+
+    def on_deselect(data):
+        set_filter(None)
+
     def relayout_callback(data):
         if data is not None:
             set_relayout(data["relayout_data"])
 
     fig_el = sl.FigurePlotly(
         fig,
+        on_selection=on_selection,
+        on_deselect=on_deselect,
         on_relayout=relayout_callback,
         dependencies=[
             filter,
