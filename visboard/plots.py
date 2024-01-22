@@ -1,13 +1,14 @@
-import numpy as np
+import operator
 import webbrowser as wb
 from functools import reduce
-import operator
+
+import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import reacton.ipyvuetify as rv
-
 import solara as sl
 from solara import lab
+from vaex.cache import on
 
 from state import State
 from util import check_catagorical
@@ -117,9 +118,9 @@ def scatter(plotstate):
     relayout, set_relayout = sl.use_state(None)
     xfilter, set_xfilter = sl.use_state(None)
     yfilter, set_yfilter = sl.use_state(None)
-    menudata, set_menudata = sl.use_state(False)
+    hovered, set_hovered = sl.use_state(False)
     clicked, set_clicked = sl.use_state(False)
-    id, set_id = sl.use_state(None)
+    sdssid, set_sdssid = sl.use_state(None)
 
     # filter
     if filter:
@@ -282,28 +283,29 @@ def scatter(plotstate):
 
     def on_hover(data):
         set_clicked(False)
-        set_menudata(True)
-        set_id(df[df[plotstate.x.value].isin(data["points"]["xs"])
-                  & df[plotstate.y.value].isin(data["points"]["ys"])])
+        set_hovered(True)
+        set_sdssid(df[plotstate.x.value].isin(data["points"]["xs"])
+                   & df[plotstate.y.value].isin(data["points"]["ys"]))
 
     def on_unhover(data):
         if not clicked:
-            set_menudata(False)
+            set_hovered(False)
 
     def open_jdaviz():
-        close_context_menu()
         wb.open("http://localhost:8866/")
+        close_context_menu()
 
     def download_spectra():
-        close_context_menu()
         # TODO: change to directly use ID
-        objid = id["sdss_id"].values[0]
-        wb.open(
-            "https://data.sdss5.org/sas/ipl-3/spectro/apogee/redux/1.2/stars/apo25m/69/69001/apStar-1.2-apo25m-2M06245477+1727054.fits"
-        )
+        if sdssid is not None:
+            print(df[sdssid]["sdss_id"].values[0], df[sdssid][""])
+        else:
+            raise ValueError("SDSS ID was none on scatter hover.")
+        wb.open("https://www.google.com")
+        close_context_menu()
 
     def close_context_menu():
-        set_menudata(False)
+        set_hovered(False)
         set_clicked(False)
 
     fig = sl.FigurePlotly(
@@ -328,8 +330,8 @@ def scatter(plotstate):
             plotstate.flipy.value,
         ],
     )
-    with lab.ContextMenu(activator=fig, ):
-        if clicked & menudata:
+    with lab.ContextMenu(activator=fig):
+        if clicked & hovered:
             sl.Column(
                 gap="0px",
                 children=[
@@ -646,12 +648,15 @@ def histogram2d(plotstate):
 def skyplot(plotstate):
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "scattergeo")
+    menu_open, set_menu_open = sl.use_state(False)
     relayout, set_relayout = sl.use_state(None)
+    hovered, set_hovered = sl.use_state(False)
+    sdssid, set_sdssid = sl.use_state(None)
 
     dff = df
     if filter:
         dff = dff[filter]
-    dff = dff[:3_000]
+    dff = dff[:1_000]
 
     # get correct col based on coords setting
     dtick = 30  # for tickers
@@ -706,13 +711,17 @@ def skyplot(plotstate):
         bgcolor="#ccc",
         visible=False,
         lonaxis_showgrid=True,
-        lonaxis_dtick=5,
         lonaxis_tick0=0,
         lataxis_showgrid=True,
-        lataxis_dtick=5,
         lataxis_tick0=0,
     )
-    fig.update_layout(margin={"t": 30, "b": 10, "l": 0, "r": 0})
+    fig.update_layout(showlegend=False,
+                      margin={
+                          "t": 30,
+                          "b": 10,
+                          "l": 0,
+                          "r": 0
+                      })
     fig.update_layout(autosize=True, )
 
     # reset the ranges based on the relayout
@@ -734,18 +743,44 @@ def skyplot(plotstate):
         if data is not None:
             set_relayout(data["relayout_data"])
 
+    """Selection handlers"""
+
     def on_select(data):
-        print("X\n--------")
-        points = data["points"]["xs"]
-        print(points)
-        print("Y\n--------")
-        print(data["points"]["ys"])
+        pass
 
     def on_deselect(data):
         set_filter(None)
 
-    return sl.FigurePlotly(
+    """
+    Context Menu handlers
+    """
+
+    def on_hover(data):
+        set_hovered(True)
+        set_menu_open(False)
+        set_sdssid(dff[data["points"]["point_indexes"][0]])
+
+    def on_unhover(data):
+        if not menu_open:
+            set_hovered(False)
+
+    def open_jdaviz():
+        wb.open("http://localhost:8866/")
+        close_context_menu()
+
+    def download_spectra():
+        # TODO: change to directly use ID
+        print(sdssid[0])
+        wb.open("https://www.bing.com")
+        close_context_menu()
+
+    def close_context_menu():
+        set_hovered(False)
+
+    fig = sl.FigurePlotly(
         fig,
+        on_hover=on_hover,
+        on_unhover=on_unhover,
         on_selection=on_select,
         on_deselect=on_deselect,
         on_relayout=relayout_callback,
@@ -759,3 +794,25 @@ def skyplot(plotstate):
             plotstate.flipy.value,
         ],
     )
+    with lab.ContextMenu(activator=fig,
+                         open_value=menu_open,
+                         on_open_value=set_menu_open):
+        if hovered & menu_open:
+            sl.Column(
+                gap="0px",
+                children=[
+                    sl.Button(
+                        label="Download spectra",
+                        icon_name="mdi-file-chart-outline",
+                        on_click=download_spectra,
+                        small=True,
+                    ),
+                    sl.Button(
+                        label="Open in Jdaviz",
+                        icon_name="mdi-chart-line",
+                        on_click=open_jdaviz,
+                        small=True,
+                    ),
+                ],
+            )
+    return
