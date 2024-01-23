@@ -223,6 +223,7 @@ def scatter(plotstate):
         yaxis_title=plotstate.y.value,
         autosize=True,
     )
+    fig.update_layout(template="plotly_dark")
     # flip and log
     if plotstate.flipx.value:
         # TODO: fix the flip on dynamic render (cant use autorange have to used manual logic aijijhitjhij)
@@ -415,6 +416,7 @@ def histogram(plotstate):
         font=dict(size=16),
         autosize=True,
     )
+    fig.update_layout(template="plotly_dark")
 
     if plotstate.flipx.value:
         fig.update_xaxes(autorange="reversed")
@@ -757,7 +759,8 @@ def skyplot(plotstate):
                           "l": 0,
                           "r": 0
                       })
-    fig.update_layout(autosize=True, )
+    fig.update_layout(autosize=True)
+    fig.update_layout(template="plotly_dark")
 
     # reset the ranges based on the relayout
     fig = update_relayout(fig, relayout, plotstate)

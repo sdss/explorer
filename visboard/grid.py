@@ -131,7 +131,7 @@ def ObjectGrid():
         GridState.grid_layout.value = []
         GridState.objects.value = []
 
-    with sl.Column() as main:
+    with sl.Column(style={"width": "100%"}):
         with sl.Row():
             btn = sl.Button("Add View",
                             outlined=False,
@@ -157,4 +157,4 @@ def ObjectGrid():
             resizable=True,
             draggable=True,
         )
-    return main
+    return

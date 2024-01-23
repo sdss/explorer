@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-solara run main.py --production
+solara run --theme-variant dark --production main.py

@@ -22,6 +22,34 @@ on another server, prestarted for a demo with a temp spectra
 
 **CORE FEATURE: application settings in top right**
 
+add route to jdaviz (find out how to)
+
+give singularity and docker a whirl
+
+add multi-dataset functionality (long term)
+
+***DEPLOYMENT ON UTAH***
+make a singularity.
+the utah VM is free from feb 15
+
+** MIHT BE ABLE TO ADD RESIZE VIA THE RESIZE CALLBACK OF THE GRID ITEM OBJECTS I NTHE VUE GRID LAYOUYT**
+
+
+**ADD routes to diff datasets (only changes state file) and loading properties**
+
+**LOFTY GOAL:** make a wiki clone of the confluence for a local running host via xwiki
+
+# make filters clear when it is derendered
+
+## andy suggestions
+
+create parquet for 2 other pipes (ASPCAP, The Cannon)
+
+styling
+
+deployment on singularity applet thingy
+
+
 
 ## FIXES
 **fix: crash on hook issues**
@@ -44,3 +72,5 @@ on another server, prestarted for a demo with a temp spectra
   - i want to implement say a soft heatmap trace beneath the scatter points outside the shown range or vice versa to give indications of density.
     **heatmap skyplot?**
       - doesn't seem like there's a trace for one
+
+# 

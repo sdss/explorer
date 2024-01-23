@@ -66,8 +66,8 @@ def DFView() -> None:
 
 @sl.component
 def NoDF() -> None:
-    sl.Info(
-        label=
-        "No dataset loaded. Import or select a dataset using the sidebar.",
-        icon=True,
-    )
+    with sl.Columns([1]):
+        sl.Info(
+            label="No dataset loaded.",
+            icon=True,
+        )

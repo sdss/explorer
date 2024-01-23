@@ -1,4 +1,5 @@
 import solara as sl
+import reacton.ipyvuetify as rv
 
 from state import State
 from dataframe import NoDF
@@ -11,17 +12,24 @@ def Page():
     df = State.df.value
 
     # PAGE TITLE
-    title = "[NOT FOR PUBLIC] Visboard"
-    sl.Title(title)
+    title = "SDSS"
+    sl.Title("Parameter Display - SDSS (NOTPUBLIC)")
     with sl.AppBar():
-        sl.AppBarTitle(children=title)
-        sl.Button(
-            label=None,
-            on_click=State.change_theme,
-            icon_name="mdi-moon-waning-crescent"
-            if State.theme.value else "mdi-white-balance-sunny",
-            style=State.style.value,
+        sl.AppBarTitle(children=[rv.Icon(children=["mdi-orbit"]), title])
+        sl.Select(
+            label="Dataset",
+            dense=True,
+            values=State.Lookup.datasets,
+            value=State.dataset.value,
+            on_value=State.load_dataset,
         )
+        # sl.Button(
+        #    label=None,
+        #    on_click=State.change_theme,
+        #    icon_name="mdi-moon-waning-crescent"
+        #    if State.theme.value else "mdi-white-balance-sunny",
+        #    style=State.style.value,
+        # )
     # SIDEBAR
     sidebar()
     # MAIN GRID
@@ -59,7 +67,7 @@ def Page():
 def Layout(children):
     route, routes = sl.use_route()
 
-    return sl.AppLayout(children=children, toolbar_dark=State.theme.value)
+    return sl.AppLayout(sidebar_open=False, children=children, color="purple")
 
 
 if __name__ == "__main__":

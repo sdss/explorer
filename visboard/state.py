@@ -3,34 +3,28 @@ from typing import Optional, cast
 import solara as sl
 import vaex as vx
 
-try:
-    df_sample = vx.open("./astra-clean.parquet", shuffle=True)
-except:  # noqa
-    df_sample = vx.example()
-
 
 class State:
     view = sl.reactive("histogram")
     df = sl.reactive(cast(Optional[vx.DataFrame], None))
+    dataset = sl.reactive("")
     theme = sl.reactive(False)
     style = sl.reactive(cast(str, None))
 
     @staticmethod
-    def load_sample():
-        State.df.value = df_sample
-
-    @staticmethod
     def load_from_file(file):
         df = vx.open(file["file_obj"])
-        PlotState.x.value = df.columns[0]
-        PlotState.y.value = df.columns[1]
-        PlotState.color.value = df.columns[2]
-        PlotState.nbins.value = 50
         State.df.value = df
 
     @staticmethod
-    def reset():
-        State.df.value = None
+    def load_dataset(dataset):
+        if dataset is None:
+            df = vx.open(
+                f"/home/riley/rproj/data/{State.dataset.value}.parquet")
+        else:
+            df = vx.open(f"/home/riley/rproj/data/{dataset}.parquet")
+        df = df.shuffle()
+        State.df.value = df
 
     @staticmethod
     def change_theme():
@@ -42,6 +36,7 @@ class State:
 
     class Lookup:
         views = ["histogram", "histogram2d", "scatter", "skyplot"]
+        datasets = ["apogeenet", "aspcap", "thecannon"]
 
 
 class PlotState:

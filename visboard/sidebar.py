@@ -6,39 +6,8 @@ import solara as sl
 import numpy as np
 import reacton.ipyvuetify as rv
 
-from solara.components.columns import Columns
-from solara.components.card import Card
-from solara.components.file_drop import FileDrop
-
-from state import State, PlotState
+from state import State
 from editor import ExprEditor, SumCard
-
-
-@sl.component()
-def dataset_menu():
-    df = State.df.value
-    with sl.Row():
-        sl.Button(
-            "Sample APOGEENET Dataset",
-            color="primary",
-            text=True,
-            outlined=True,
-            on_click=State.load_sample,
-            disabled=df is not None,
-        )
-        sl.Button(
-            "Clear dataset",
-            color="primary",
-            text=True,
-            outlined=True,
-            on_click=State.reset,
-        )
-    if df is None:
-        FileDrop(
-            on_file=State.load_from_file,
-            on_total_progress=lambda *args: None,
-            label="Drag file here",
-        )
 
 
 @sl.component()
@@ -62,7 +31,7 @@ def control_menu():
         QuickFilterMenu()
 
         # pivot table
-        sl.PivotTableCard(df, x=["telescope"], y=["release"])
+        sl.PivotTableCard(df, x=["release"], y=["telescope"])
 
         with sl.Row(style={"align-items": "center"}):
             sl.FileDownload(
@@ -72,9 +41,7 @@ def control_menu():
             )
 
     else:
-        sl.Info(
-            "No data loaded, click on the sample dataset button to load a sample dataset, or upload a file."
-        )
+        sl.Info("No data loaded.")
 
 
 @sl.component()
@@ -83,13 +50,6 @@ def QuickFilterMenu():
     Apply quick filters via check boxes.
     """
     df = State.df.value
-    cols = df.get_column_names()
-    flag_cols = []
-    for col in cols:
-        if re.search("flag", col):
-            flag_cols.append(col)
-    # TODO: find out how flags work, currently using 3 cols as plceholders:
-    flag_cols = ["result_flags", "flag_bad", "flag_warn"]
     _filter, set_filter = sl.use_cross_filter(id(df), "quickflags")
 
     # Quick filter states
@@ -105,9 +65,8 @@ def QuickFilterMenu():
             return
         # flag out all nonzero
         if flag_nonzero:
-            for flag in flag_cols:
-                # two types of flag
-                filters.append(df[f"({flag} == 0)"])
+            # INFO: Andy just said use this col, so that's what i did
+            filters.append(df["(result_flags==0)"])
         if flag_snr50:
             filters.append(df["(snr > 50)"])
         concat_filter = reduce(operator.and_, filters[1:], filters[0])
@@ -144,5 +103,4 @@ def sidebar():
     with sl.Sidebar():
         with sl.Card("Controls", margin=0, elevation=0):
             with sl.Column():
-                dataset_menu()
                 control_menu()

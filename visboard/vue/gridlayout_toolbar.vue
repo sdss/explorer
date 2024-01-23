@@ -7,6 +7,7 @@
             :row-height="30"
             :is-draggable="draggable"
             :is-resizable="resizable"
+            :responsive="true"
             :is-mirrored="false"
             :vertical-compact="true"
             :margin="[10, 10]"
@@ -110,6 +111,10 @@ module.exports = {
 
 <style id="grid_layout">
 .vue-grid-item > div {
-  height: 100%;
+  height: 97%;
+}
+
+.vue-grid-item.vue-resizable-handle > {
+  background: #fff !important;
 }
 </style>
