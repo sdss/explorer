@@ -7,4 +7,4 @@ The visboard is a custom data visualization application developed for SDSS-V's D
 
 ## SDSS-V loaders (specutils)
 
-See [here](https://www.github.com/specutils/pull/1107).
+See [here](https://www.github.com/astropy/specutils/pull/1107).
