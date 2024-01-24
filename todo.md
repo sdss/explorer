@@ -37,6 +37,8 @@ make a singularity.
 the utah VM is free from feb 15
 
 
+**add no of point sshown in scatter plot to settings menu**
+
 **ADD routes to diff datasets (only changes state file) and loading properties**
 
 **LOFTY GOAL:** make a wiki clone of the confluence for a local running host via xwiki
