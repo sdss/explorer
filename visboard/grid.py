@@ -59,16 +59,21 @@ def ViewCard(type, i):
         # cut layout at that spot, objects not cut because of how vue selects item to render
         GridState.grid_layout.value = (GridState.grid_layout.value[:q] +
                                        GridState.grid_layout.value[q + 1:])
+        # replace the object with a dummy card
+        GridState.objects.value[q] = rv.Card()
 
-    with rv.Card(style_=" width: 100%; height: 100%") as main:
+    with rv.Card(class_="grey darken-3",
+                 style_="width: 100%; height: 100%") as main:
         state = PlotState()
         with rv.CardText():
-            with sl.Column():
+            with sl.Column(classes=["grey darken-3"]):
                 if type == "table":
                     DFView()
                 else:
                     show_plot(type, state)
-                btn = sl.Button(icon_name="mdi-settings", outlined=False)
+                btn = sl.Button(icon_name="mdi-settings",
+                                outlined=False,
+                                classes=["grey darken-3"])
                 with Menu(activator=btn, close_on_content_click=False):
                     with sl.Card(margin=0):
                         show_settings(type, state)
@@ -147,9 +152,12 @@ def ObjectGrid():
                         sl.Button(label="skyplot", on_click=add_skyplot),
                     ]
             rv.Spacer()
-            sl.Button(color="yellow",
-                      icon_name="mdi-refresh",
-                      on_click=reset_layout)
+            sl.Button(
+                color="yellow",
+                icon_name="mdi-refresh",
+                classes=["black--text"],
+                on_click=reset_layout,
+            )
         GridDraggableToolbar(
             items=GridState.objects.value,
             grid_layout=GridState.grid_layout.value,
@@ -157,4 +165,5 @@ def ObjectGrid():
             resizable=True,
             draggable=True,
         )
+    print(GridState.objects.value)
     return

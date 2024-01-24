@@ -12,10 +12,9 @@ def Page():
     df = State.df.value
 
     # PAGE TITLE
-    title = "SDSS"
     sl.Title("Parameter Display - SDSS (NOTPUBLIC)")
     with sl.AppBar():
-        sl.AppBarTitle(children=[rv.Icon(children=["mdi-orbit"]), title])
+        sl.AppBarTitle(children=[rv.Icon(children=["mdi-orbit"]), " SDSS"])
         sl.Select(
             label="Dataset",
             dense=True,

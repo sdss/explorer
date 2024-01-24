@@ -31,7 +31,7 @@ def control_menu():
         QuickFilterMenu()
 
         # pivot table
-        sl.PivotTableCard(df, x=["release"], y=["telescope"])
+        sl.PivotTableCard(df, y=["telescope"], x=["release"])
 
         with sl.Row(style={"align-items": "center"}):
             sl.FileDownload(
@@ -50,6 +50,8 @@ def QuickFilterMenu():
     Apply quick filters via check boxes.
     """
     df = State.df.value
+    # TODO: find out how flags work, currently using 3 cols as plceholders:
+    flag_cols = ["result_flags", "flag_bad", "flag_warn"]
     _filter, set_filter = sl.use_cross_filter(id(df), "quickflags")
 
     # Quick filter states
@@ -65,8 +67,8 @@ def QuickFilterMenu():
             return
         # flag out all nonzero
         if flag_nonzero:
-            # INFO: Andy just said use this col, so that's what i did
-            filters.append(df["(result_flags==0)"])
+            for flag in flag_cols:
+                filters.append(df[f"({flag}==0)"])
         if flag_snr50:
             filters.append(df["(snr > 50)"])
         concat_filter = reduce(operator.and_, filters[1:], filters[0])

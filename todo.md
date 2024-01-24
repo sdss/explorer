@@ -7,11 +7,13 @@
 
 ## FEATURES
 
-**FEATURE: log colorscale**
+**FEATURE: logarithmic colorscale**
+  - easy enough for purely positive values. How do to on negative values?
+    - probably can't, so we can disable the switch on if dff[plotstate.color.value].min() < 0.
 
 **FEAT: download via context menu on scatterplots**
 for download: needs which ipl and which id (very easy)
-'
+
 **FEAT: jdaviz via context menu**
 on another server, prestarted for a demo with a temp spectra
 
@@ -20,26 +22,25 @@ on another server, prestarted for a demo with a temp spectra
 
 ***FEATURE: add selection to histogram and skyplot***
 
-**CORE FEATURE: application settings in top right**
+**UX: application settings in top right**
 
-add route to jdaviz (find out how to)
+**add routing to jdaviz (find out how to)**
 
 give singularity and docker a whirl
 
 add multi-dataset functionality (long term)
+  - this depends on if abundances are truly defined
+  - 
 
 ***DEPLOYMENT ON UTAH***
 make a singularity.
 the utah VM is free from feb 15
-
-** MIHT BE ABLE TO ADD RESIZE VIA THE RESIZE CALLBACK OF THE GRID ITEM OBJECTS I NTHE VUE GRID LAYOUYT**
 
 
 **ADD routes to diff datasets (only changes state file) and loading properties**
 
 **LOFTY GOAL:** make a wiki clone of the confluence for a local running host via xwiki
 
-# make filters clear when it is derendered
 
 ## andy suggestions
 
@@ -61,9 +62,11 @@ deployment on singularity applet thingy
 
 ***FIX: relayout bugging when any axes are logarithmic or flipped***
 
+**make filters clear when it is derendered**
+
 ## LOFTY GOALS
 
-
+**MIGHT BE ABLE TO ADD RESIZE VIA THE RESIZE CALLBACK OF THE GRID ITEM OBJECTS I NTHE VUE GRID LAYOUYT**
 
 **REALLY HARD TO IMPLEMENT FEATURE: scatterplot relayout adaptive rerendering underlying trace**
   - there is a max the browser can render, say 5k
@@ -72,5 +75,3 @@ deployment on singularity applet thingy
   - i want to implement say a soft heatmap trace beneath the scatter points outside the shown range or vice versa to give indications of density.
     **heatmap skyplot?**
       - doesn't seem like there's a trace for one
-
-# 

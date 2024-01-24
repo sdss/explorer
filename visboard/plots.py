@@ -13,6 +13,20 @@ from vaex.cache import on
 from state import State
 from util import check_catagorical
 
+DARK_TEMPLATE = dict(layout=go.Layout(
+    font=dict(color="white", size=16),
+    showlegend=False,
+    paper_bgcolor="#424242",
+    autosize=True,
+    plot_bgcolor="#212121",
+    margin={
+        "t": 30,
+        "b": 80,
+        "l": 80,
+        "r": 80
+    },
+))
+
 
 def update_relayout(fig, relayout, plotstate):
     if relayout is not None:
@@ -203,31 +217,32 @@ def scatter(plotstate):
     c = c.values
     ids = ids.values
 
-    fig = go.Figure(data=go.Scattergl(
-        x=x,
-        y=y,
-        mode="markers",
-        customdata=ids,
-        hovertemplate=f"<b>{plotstate.x.value}</b>:" + " %{x:.6f}<br>" +
-        f"<b>{plotstate.y.value}</b>:" + " %{y:.6f}<br>" +
-        f"<b>{plotstate.color.value}</b>:" + " %{marker.color:.6f}<br>" +
-        "<b>ID</b>:" + " %{customdata:.d}",
-        marker=dict(
-            color=c,
-            colorbar=dict(title=plotstate.color.value),
-            colorscale=plotstate.colorscale.value,
+    fig = go.Figure(
+        data=go.Scattergl(
+            x=x,
+            y=y,
+            mode="markers",
+            customdata=ids,
+            hovertemplate=f"<b>{plotstate.x.value}</b>:" + " %{x:.6f}<br>" +
+            f"<b>{plotstate.y.value}</b>:" + " %{y:.6f}<br>" +
+            f"<b>{plotstate.color.value}</b>:" + " %{marker.color:.6f}<br>" +
+            "<b>ID</b>:" + " %{customdata:.d}",
+            marker=dict(
+                color=c,
+                colorbar=dict(title=plotstate.color.value),
+                colorscale=plotstate.colorscale.value,
+            ),
         ),
-    ), )
-    fig.update_layout(
-        xaxis_title=plotstate.x.value,
-        yaxis_title=plotstate.y.value,
-        autosize=True,
+        layout=go.Layout(
+            xaxis_title=plotstate.x.value,
+            yaxis_title=plotstate.y.value,
+            template=DARK_TEMPLATE,
+        ),
     )
-    fig.update_layout(template="plotly_dark")
     # flip and log
     if plotstate.flipx.value:
         # TODO: fix the flip on dynamic render (cant use autorange have to used manual logic aijijhitjhij)
-        fig.update_xaxes(autorange="reversed")
+        fig.update_xaxes(range=fig.layout.xaxes.range.reverse())
     if plotstate.flipy.value:
         fig.update_yaxes(autorange="reversed")
     if plotstate.logx.value:
@@ -236,7 +251,7 @@ def scatter(plotstate):
         fig.update_yaxes(type="log")
 
     # change autorange min-max to allow for a reset to max range
-    # TODO: need to add
+    # TODO: need to add fix for reversed
     fig.update_xaxes(autorangeoptions_minallowed=xmm[0],
                      autorangeoptions_maxallowed=xmm[1])
     fig.update_yaxes(autorangeoptions_minallowed=ymm[0],
@@ -409,14 +424,10 @@ def histogram(plotstate):
         labels={
             "x": plotstate.x.value,
         },
+        template=DARK_TEMPLATE,
     )
-    fig.update_layout(
-        xaxis_title=plotstate.x.value,
-        yaxis_title="Frequency",
-        font=dict(size=16),
-        autosize=True,
-    )
-    fig.update_layout(template="plotly_dark")
+    fig.update_yaxes(title="Frequency")
+    fig.update_layout(margin_r=10)
 
     if plotstate.flipx.value:
         fig.update_xaxes(autorange="reversed")
@@ -599,9 +610,9 @@ def histogram2d(plotstate):
         labels={
             "x": plotstate.x.value,
             "y": plotstate.y.value,
-            "color": plotstate.binscale.value,
+            "color": plotstate.color.value + f"({plotstate.bintype.value})",
         },
-        template="plotly_dark",
+        template=DARK_TEMPLATE,
     )
     if plotstate.flipx.value:
         fig.update_xaxes(autorange="reversed")
@@ -713,21 +724,24 @@ def skyplot(plotstate):
 
     c = dff[plotstate.color.value]
     ids = dff["sdss_id"]
-    fig = go.Figure(data=go.Scattergeo(
-        lat=lat.values,
-        lon=lon.values,
-        mode="markers",
-        customdata=ids.values,
-        hovertemplate=f"<b>{lon_label}</b>:" + " %{lon:.6f}<br>" +
-        f"<b>{lat_label}</b>:" + " %{lat:.6f}<br>" +
-        f"<b>{plotstate.color.value}</b>:" + " %{marker.color:.6f}<br>" +
-        "<b>ID</b>:" + " %{customdata:.d}",
-        marker=dict(
-            color=c.values,
-            colorbar=dict(title=plotstate.color.value),
-            colorscale=plotstate.colorscale.value,
+    fig = go.Figure(
+        data=go.Scattergeo(
+            lat=lat.values,
+            lon=lon.values,
+            mode="markers",
+            customdata=ids.values,
+            hovertemplate=f"<b>{lon_label}</b>:" + " %{lon:.6f}<br>" +
+            f"<b>{lat_label}</b>:" + " %{lat:.6f}<br>" +
+            f"<b>{plotstate.color.value}</b>:" + " %{marker.color:.6f}<br>" +
+            "<b>ID</b>:" + " %{customdata:.d}",
+            marker=dict(
+                color=c.values,
+                colorbar=dict(title=plotstate.color.value),
+                colorscale=plotstate.colorscale.value,
+            ),
         ),
-    ), )
+        layout=go.Layout(template=DARK_TEMPLATE),
+    )
 
     xpos = 0
     ypos = 0
@@ -745,22 +759,16 @@ def skyplot(plotstate):
         fig.update_yaxes(autorange="reversed")
     fig.update_geos(
         projection_type=plotstate.projection.value,
-        bgcolor="#ccc",
+        bgcolor="#212121",
         visible=False,
         lonaxis_showgrid=True,
         lonaxis_tick0=0,
+        lonaxis_gridcolor="#616161",
         lataxis_showgrid=True,
         lataxis_tick0=0,
+        lataxis_gridcolor="#616161",
     )
-    fig.update_layout(showlegend=False,
-                      margin={
-                          "t": 30,
-                          "b": 10,
-                          "l": 0,
-                          "r": 0
-                      })
-    fig.update_layout(autosize=True)
-    fig.update_layout(template="plotly_dark")
+    fig.update_layout(margin={"t": 30, "b": 10, "l": 0, "r": 0})
 
     # reset the ranges based on the relayout
     fig = update_relayout(fig, relayout, plotstate)
