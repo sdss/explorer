@@ -1,0 +1,117 @@
+\documentclass[a4paper,10pt,twocolumn]{article}
+
+\usepackage{inputenc}
+\usepackage{fontenc}
+\usepackage{textcomp}
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage[width = 18cm,height = 22cm,columnsep = 1cm,margin = 2cm]{geometry}
+\usepackage[backend=biber,style=authoryear]{biblatex}
+\usepackage{aas_macros}
+
+\bibliography{/home/riley/rproj/reports/bibliography.bib}
+\graphicspath{{/home/riley/rproj/reports/images/}}
+
+\title{Sloan Digital Sky Survey Software Development: Week 9 Progress Report}
+\author{Riley Thai, Andy Casey (Supervisor)}
+
+\newcommand{\solara}{\texttt{solara}}
+\newcommand{\vaex}{\texttt{vaex}}
+
+\begin{document}
+\maketitle
+\section{Aims and Objectives}
+\begin{enumerate}
+	\item Develop a web application for multi-dimensional exploration of SDSS-V data.
+	\item Work on and contribute to the development of open-source Python libraries.
+\end{enumerate}
+
+\section{Background}
+The Sloan Digital Sky Survey (SDSS) is one of the largest, longest running, and most used astronomical surveys. Started in 1998 \parencite{dr18}, the SDSS provides all-sky, multi-epoch spectroscopy using telescopes in both hemispheres, providing data used to probe the emergence of chemical elements, reveal the inner mechanisms of stars, and investigate the origin of planets. The latest generation of the survey, SDSS-V, aims to conduct the first homogeneous survey using an optical, ultra-wide integral-field spectroscopic map of the interstellar gas, pioneering spectroscopic monitoring and revealing changes on both short and vast timescales \parencite{SDSS2017}. SDSS data over all survey phases has been cited more than 650,000 over 111,000 refereed papers \parencite{dr18}.
+
+The SDSS has previously offered a simple web application for end users to access, explore, and investigate spectra and other data. However, the fifth generation of the survey now offers a large catalog of stars with complete stellar labels. With a larger set of spectral types explored \parencite{apogee2017}, and an even larger set of stellar labels (Casey et al., in prep), there is a need for a new tool which provides powerful exploration and visualization of large and vast datasets.
+
+\section{Parameter Explorer Development}
+The fifth generation of the SDSS now provides complete stellar labels across multiple different pipelines via the Astra framework. The Parameter Explorer, or as its less boring name, the \emph{VisBoard}, is a in-development data webapp which will be hosted on SDSS servers and provide both public and proprietary SDSS data to its users for exploration.
+
+Since the previous report, updates have been made which primarily improve the UX of the software. The utility of the VisBoard has expanded to allow for exploration across a variety of viewing forms through an intuitive user experience. Much like sticky notes, views can be added, removed, and resized at will by the user, whilst applying global filters across the selected dataset. In Section \ref{sec:}, we discuss . Section \ref{sec:} discusses. Finally, in Section \ref{sec:}
+
+\subsection{Sticky Note Layout}
+\label{sec:sticky}
+The user can now directly add and remove plotting views, which can resized with a small handle in the top left.  Each plot then dynamically resizes to the containing object.
+
+Within each view, a plot's individual properties can be changed, such as colorscale, the data to plot, and whether a given axis is flipped and/or logarithmic scale.
+
+Each plot (excluding the aggregation view) now has a selection option, which allows the user to select certain tiles.
+
+On the scatter object views, a user can right click on any given star to directly download or view the spectra via \texttt{jdaviz}. Currently, these lead to placeholders, but will eventually be replaced with browser links to the public SDSS data by the ID lookup.
+
+\subsection{Skyplot}
+
+\subsection{Adaptive Rerendering}
+\subsection{Multiple Datasets}
+Within the top left of the application, the user can now directly select the pipeline from which to access data from.
+
+
+Like before, the user's subset of the chosen dataset can be directly downloaded.
+\subsection{Other features}
+\begin{enumerate}
+	\item Expression editor updates:
+	      \begin{itemize}
+		      \item Added the ability to type expressions without brackets.
+		      \item Added functionality to type 3-part expressions (i.e. $400 < x \le 3000$).
+	      \end{itemize}
+	\item Added a Dark theme to the UI, matching the SDSS front-end framework \texttt{zora}.
+\end{enumerate}
+
+\section{Future plans}
+\begin{enumerate}
+	\item \textbf{Add adaptive rerendering to the skyplot view}
+	      \begin{itemize}
+		      \item Mostly done already, just needs to be implemented.
+	      \end{itemize}
+	      \item\textbf{Develop a \emph{Singularity} container for shared development}
+	      \begin{itemize}
+		      \item The Data Visualization group within the SDSS Collaboration will soon be granted access to a virtual machine (VM) for testing and developing applications.
+		      \item Members of the collaboration are interested in using the application, and have suggested using \texttt{Singularity} as the container for it
+	      \end{itemize}
+\end{enumerate}
+
+
+
+\section{Difficulties encountered}
+\begin{enumerate}
+	\item \textbf{\texttt{vaex} and \texttt{solara} documentation is often incomplete.}
+	      \begin{itemize}
+		      \item Throughout development, I found several functions within the source code that were not apparent on the API documentation.
+		      \item This is common throughout open-source development, due to its decentralized nature, but I will also endeavour to ensure I properly document my work.
+	      \end{itemize}
+	\item \textbf{Error messages from \solara are obtuse (no traceback to soure code).}
+	      \begin{itemize}
+		      \item When testing the web app, any bugs which arise often don't provide clear tracebacks, often stopping at one function, or only returning that there was an error during rendering.
+		      \item This is due to the way \solara runs the web application on its own server, which prevents these from appearing.
+		      \item This has made it more difficult, but not impossible, to track down bugs, as I can't use debuggers or other tools directly.
+	      \end{itemize}
+\end{enumerate}
+\section{Future plans}
+\begin{enumerate}
+	\item \textbf{Expand cross-filtering functionality.}
+	      \begin{enumerate}
+		      \item We can expand the cross-filtering functionality to further leverage \vaex functionality.
+		      \item Possible expansions include:
+		            \begin{itemize}
+			            \item using the groupby object, similar to how it is implemented in \texttt{pandas}.
+			            \item allowing for the selection of a specific bin within the histogram2d view.
+			            \item expanding to have different subsets saved for the user to use and explore individually, rather than across the entire dashboard.
+		            \end{itemize}
+	      \end{enumerate}
+	\item \textbf{Implement the webapp within the proprietary backend.}
+	      \begin{enumerate}
+		      \item SDSS uses a backend derivative based on FastAPI. Currently, the webapp we've developed works on Starlette, but hasn't been implemented in the proprietary backend yet.
+		      \item This is due to a few bugs during startup of the development Docker setup which we still need to resolve, which will help other members of the collaboration to test it as well.
+	      \end{enumerate}
+\end{enumerate}
+\printbibliography
+\end{document}
+
+
