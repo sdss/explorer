@@ -23,7 +23,7 @@ class GridLayout(v.VuetifyTemplate):
     """
 
     template_file = os.path.join(os.path.dirname(__file__),
-                                 "vue/gridlayout_toolbar.vue")
+                                 "../vue/gridlayout_toolbar.vue")
     gridlayout_loaded = t.Bool(False).tag(sync=True)
     items = t.Union([t.List(), t.Dict()],
                     default_value=[]).tag(sync=True,
