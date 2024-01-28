@@ -7,10 +7,10 @@ import plotly.express as px
 import plotly.graph_objects as go
 import reacton.ipyvuetify as rv
 import solara as sl
-from solara import lab
-from vaex.cache import on
+from solara.lab import Menu, ContextMenu
 
 from state import State
+from plot_settings import show_settings
 from util import check_catagorical
 
 DARK_TEMPLATE = dict(layout=go.Layout(
@@ -28,8 +28,75 @@ DARK_TEMPLATE = dict(layout=go.Layout(
 ))
 
 
+class PlotState:
+    """
+    Combination of reactive states which instantiate a specific plot's settings/properties
+    """
+
+    def __init__(self):
+        # x,y,z/color
+        self.x = sl.use_reactive("teff")
+        self.y = sl.use_reactive("logg")
+        self.color = sl.use_reactive("fe_h")
+
+        # plot parameters/settings
+        self.colorscale = sl.use_reactive("viridis")
+        self.logx = sl.use_reactive(False)
+        self.logy = sl.use_reactive(False)
+        self.flipx = sl.use_reactive(False)
+        self.flipy = sl.use_reactive(False)
+        self.reactive = sl.use_reactive("on")
+
+        # statistics
+        self.nbins = sl.use_reactive(200)
+        self.bintype = sl.use_reactive("mean")
+        self.binscale = sl.use_reactive(None)
+        self.norm = sl.use_reactive(None)
+
+        # skyplot settings
+        self.geo_coords = sl.use_reactive("ra/dec")
+        self.projection = sl.use_reactive("hammer")
+
+        # all lookup data for types
+        self.Lookup = dict(
+            norms=[
+                None, "percent", "probability", "density",
+                "probability density"
+            ],
+            bintypes=["count", "mean", "median", "min", "max"],
+            colorscales=[
+                "inferno",
+                "viridis",
+                "jet",
+                "solar",
+                "plotly3",
+                "sunset",
+                "sunsetdark",
+                "tropic",
+                "delta",
+                "twilight",
+            ],
+            binscales=[None, "log1p", "log10"],
+            projections=[
+                "albers",
+                "aitoff",
+                "azimuthal equal area",
+                "equal earth",
+                "hammer",
+                "mollweide",
+                "mt flat polar quartic",
+            ],
+        )
+
+
+def range_loop(start, offset):
+    return (start + (offset % 360) + 360) % 360
+
+
 def update_relayout(fig, relayout, plotstate):
     if relayout is not None:
+        if len(relayout) == 0:
+            return fig
         if "xaxis.range[0]" in relayout.keys():
             range = [relayout["xaxis.range[0]"], relayout["xaxis.range[1]"]]
             if plotstate.flipx.value:
@@ -69,23 +136,32 @@ def update_relayout(fig, relayout, plotstate):
 
 
 @sl.component
-def show_plot(type, plotstate):
-    # failsafe conditional checks
-    if State.df.value is not None:
-        if plotstate.x.value is not None and plotstate.y.value is not None:
-            if type == "histogram":
-                histogram(plotstate)
-            elif type == "histogram2d":
-                histogram2d(plotstate)
-            elif type == "scatter":
-                # scatterplot()
-                scatter(plotstate)
-            elif type == "skyplot":
-                skyplot(plotstate)
-        else:
-            sl.ProgressLinear(True, color="purple")
-    else:
-        sl.Warning("Import or select a dataset to plot!")
+def show_plot(type, del_func):
+    with rv.Card(class_="grey darken-3", style_="width: 100%; height: 100%"):
+        plotstate = PlotState()
+        with rv.CardText():
+            with sl.Column(classes=["grey darken-3"]):
+                if type == "histogram":
+                    histogram(plotstate)
+                elif type == "histogram2d":
+                    histogram2d(plotstate)
+                elif type == "scatter":
+                    # scatterplot()
+                    scatter(plotstate)
+                elif type == "skyplot":
+                    skyplot(plotstate)
+                btn = sl.Button(icon_name="mdi-settings",
+                                outlined=False,
+                                classes=["grey darken-3"])
+                with Menu(activator=btn, close_on_content_click=False):
+                    with sl.Card(margin=0):
+                        show_settings(type, plotstate)
+                        sl.Button(
+                            icon_name="mdi-delete",
+                            color="red",
+                            block=True,
+                            on_click=del_func,
+                        )
 
 
 @sl.component
@@ -348,7 +424,7 @@ def scatter(plotstate):
             plotstate.flipy.value,
         ],
     )
-    with lab.ContextMenu(activator=fig):
+    with ContextMenu(activator=fig):
         if clicked & hovered:
             sl.Column(
                 gap="0px",
@@ -697,13 +773,70 @@ def skyplot(plotstate):
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "scattergeo")
     menu_open, set_menu_open = sl.use_state(False)
-    relayout, set_relayout = sl.use_state(None)
     hovered, set_hovered = sl.use_state(False)
     sdssid, set_sdssid = sl.use_state(None)
+    rerange, set_rerange = sl.use_state({})
+    local_filter, set_local_filter = sl.use_state(None)
+    rerange: dict
 
-    dff = df
-    if filter:
-        dff = dff[filter]
+    def remake_filters():
+        if plotstate.geo_coords.value == "ra/dec":
+            lon = "ra"
+            lat = "dec"
+        else:
+            lon = "l"
+            lat = "b"
+        if "geo.projection.scale" in rerange.keys():
+            scale = np.max((rerange["geo.projection.scale"], 1.0))
+        else:
+            scale = 1.0
+        if "geo.center.lon" in rerange.keys():
+            lon_center = rerange["geo.center.lon"]
+        else:
+            lon_center = 0
+        if "geo.center.lat" in rerange.keys():
+            lat_center = rerange["geo.center.lat"]
+        else:
+            lat_center = 0
+
+        # make filter data
+        lonlow, lonhigh = (
+            range_loop(0, -180 / scale + lon_center),
+            range_loop(0, 180 / scale + lon_center),
+        )
+        latlow, lathigh = (
+            np.max((lat_center - (90 / scale), -90)),
+            np.min((lat_center + (90 / scale), 90)),
+        )
+
+        # create and set filter objects
+        lonfilter = None
+        if scale > 1:
+            if lonhigh < lonlow:
+                lonfilter = df[f"({lon} > {lonlow})"] | df[
+                    f"({lon} < {lonhigh})"]
+            else:
+                lonfilter = df[f"({lon} > {lonlow})"] & df[
+                    f"({lon} < {lonhigh})"]
+        if lonfilter is not None:
+            set_local_filter((df[f"({lat} > {latlow})"]
+                              & df[f"({lat}< {lathigh})"]) & lonfilter)
+        else:
+            set_local_filter(df[f"({lat} > {latlow})"]
+                             & df[f"({lat}< {lathigh})"])
+
+    sl.use_thread(remake_filters, dependencies=[rerange])
+
+    if local_filter is not None:
+        if filter is not None:
+            dff = df[((filter) & local_filter)]
+        else:
+            dff = df[local_filter]
+    elif filter is not None:
+        dff = df[filter]
+    else:
+        dff = df
+
     dff = dff[:1_000]
 
     # get correct col based on coords setting
@@ -771,10 +904,10 @@ def skyplot(plotstate):
     fig.update_layout(margin={"t": 30, "b": 10, "l": 0, "r": 0})
 
     # reset the ranges based on the relayout
-    fig = update_relayout(fig, relayout, plotstate)
+    fig = update_relayout(fig, rerange, plotstate)
 
     def reset_lims():
-        set_relayout(None)
+        set_rerange({})
 
     sl.use_thread(
         reset_lims,
@@ -787,14 +920,18 @@ def skyplot(plotstate):
 
     def relayout_callback(data):
         if data is not None:
-            set_relayout(data["relayout_data"])
+            if "geo.fitbounds" in data["relayout_data"].keys():
+                set_rerange({})
+                set_local_filter(None)
+            else:
+                if data["relayout_data"] is not None:
+                    print(data["relayout_data"])
+                    set_rerange(dict(rerange, **data["relayout_data"]))
 
     """Selection handlers"""
 
     def on_select(data):
-        print(data["points"]["point_indexes"])
         if len(data["points"]["xs"]) > 0:
-            print(type(df == dff[data["points"]["point_indexes"]]))
             set_filter(df[df == dff[data["points"]["point_indexes"]]])
 
     def on_deselect(data):
@@ -834,6 +971,7 @@ def skyplot(plotstate):
         on_deselect=on_deselect,
         on_relayout=relayout_callback,
         dependencies=[
+            rerange,
             filter,
             plotstate.geo_coords.value,
             plotstate.projection.value,
@@ -843,9 +981,9 @@ def skyplot(plotstate):
             plotstate.flipy.value,
         ],
     )
-    with lab.ContextMenu(activator=fig,
-                         open_value=menu_open,
-                         on_open_value=set_menu_open):
+    with ContextMenu(activator=fig,
+                     open_value=menu_open,
+                     on_open_value=set_menu_open):
         if hovered & menu_open:
             sl.Column(
                 gap="0px",

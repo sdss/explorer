@@ -11,8 +11,7 @@ import ipywidgets as widgets
 
 from plots import show_plot
 from plot_settings import show_settings
-from state import PlotState
-from dataframe import DFView
+from dataframe import show_table
 
 
 class GridLayout(v.VuetifyTemplate):
@@ -62,29 +61,12 @@ def ViewCard(type, i):
         # replace the object with a dummy card
         GridState.objects.value[q] = rv.Card()
 
-    with rv.Card(class_="grey darken-3",
-                 style_="width: 100%; height: 100%") as main:
-        state = PlotState()
-        with rv.CardText():
-            with sl.Column(classes=["grey darken-3"]):
-                if type == "table":
-                    DFView()
-                else:
-                    show_plot(type, state)
-                btn = sl.Button(icon_name="mdi-settings",
-                                outlined=False,
-                                classes=["grey darken-3"])
-                with Menu(activator=btn, close_on_content_click=False):
-                    with sl.Card(margin=0):
-                        show_settings(type, state)
-                        sl.Button(
-                            icon_name="mdi-delete",
-                            color="red",
-                            block=True,
-                            on_click=lambda: remove(i),
-                        )
+    if type != "table":
+        show_plot(type, lambda: remove(i))
+    else:
+        show_table(lambda: remove(i))
 
-    return main
+    return
 
 
 @sl.component

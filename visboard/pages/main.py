@@ -64,7 +64,7 @@ def Page():
 
 @sl.component
 def Layout(children):
-    route, routes = sl.use_route()
+    # route, routes = sl.use_route()
 
     return sl.AppLayout(sidebar_open=False, children=children, color="purple")
 

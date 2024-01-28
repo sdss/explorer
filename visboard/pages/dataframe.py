@@ -1,7 +1,8 @@
 from typing import cast, Optional
 
 import solara as sl
-import vaex as vx  # noqa
+from solara.lab import Menu
+import reacton.ipyvuetify as rv
 
 from state import State
 
@@ -14,7 +15,7 @@ def Loading() -> None:
 
 
 @sl.component
-def DFView() -> None:
+def show_table(del_func):
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), name="filter-tableview")
     column, set_column = sl.use_state(cast(Optional[str], None))
@@ -53,12 +54,29 @@ def DFView() -> None:
         if column is not None and order is not None:
             dff = dff.sort(dff[column], ascending=order)
         # TODO: add column add/remove functionality
-        sl.DataTable(
-            dff,
-            items_per_page=10,  # tablestate.height.value,
-            scrollable=True,
-            column_actions=column_actions,
-        )
+        with rv.Card(class_="grey darken-3",
+                     style_="width: 100%; height: 100%"):
+            with rv.CardText():
+                with sl.Column(classes=["grey darken-3"]):
+                    sl.DataTable(
+                        dff,
+                        items_per_page=10,  # tablestate.height.value,
+                        scrollable=True,
+                        column_actions=column_actions,
+                    )
+                    btn = sl.Button(
+                        icon_name="mdi-settings",
+                        outlined=False,
+                        classes=["grey darken-3"],
+                    )
+                    with Menu(activator=btn, close_on_content_click=False):
+                        with sl.Card(margin=0):
+                            sl.Button(
+                                icon_name="mdi-delete",
+                                color="red",
+                                block=True,
+                                on_click=del_func,
+                            )
 
     else:
         NoDF()

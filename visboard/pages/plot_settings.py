@@ -1,5 +1,4 @@
 import solara as sl
-from typing import cast
 
 from solara.components.columns import Columns
 from solara.components.card import Card
