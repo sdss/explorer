@@ -135,7 +135,6 @@ def update_relayout(fig, relayout, plotstate):
     return fig
 
 
-@sl.component
 def show_plot(type, del_func):
     with rv.Card(class_="grey darken-3", style_="width: 100%; height: 100%"):
         plotstate = PlotState()
@@ -777,7 +776,6 @@ def skyplot(plotstate):
     sdssid, set_sdssid = sl.use_state(None)
     rerange, set_rerange = sl.use_state({})
     local_filter, set_local_filter = sl.use_state(None)
-    rerange: dict
 
     def remake_filters():
         if plotstate.geo_coords.value == "ra/dec":

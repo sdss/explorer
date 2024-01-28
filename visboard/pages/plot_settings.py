@@ -5,7 +5,6 @@ from solara.components.card import Card
 from state import State
 
 
-@sl.component
 def show_settings(type, state):
     # plot controls
     if type == "scatter":
