@@ -9,7 +9,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 import reacton.ipyvuetify as rv
 import solara as sl
-from plotly.graph_objs._figurewidget import FigureWidget
 from solara.lab import Menu, ContextMenu
 
 from state import State
@@ -315,6 +314,10 @@ def scatter(plotstate):
             xaxis_title=plotstate.x.value,
             yaxis_title=plotstate.y.value,
             template=DARK_TEMPLATE,
+            coloraxis=dict(
+                cmin=np.float32(dff.min(plotstate.color.value)),
+                cmax=np.float32(dff.max(plotstate.color.value)),
+            ),
         ),
     )
     # flip and log
@@ -684,6 +687,21 @@ def histogram2d(plotstate):
     else:
         origin = "lower"
 
+    def set_colorlabel():
+        if plotstate.bintype.value == "count":
+            return f"count ({plotstate.binscale.value})"
+        else:
+            return f"{plotstate.color.value} ({plotstate.bintype.value})"
+
+    colorlabel = sl.use_memo(
+        set_colorlabel,
+        dependencies=[
+            plotstate.bintype.value,
+            plotstate.color.value,
+            plotstate.binscale.value,
+        ],
+    )
+
     fig = px.imshow(
         z.T,
         zmin=cmin,
@@ -693,7 +711,7 @@ def histogram2d(plotstate):
         labels={
             "x": plotstate.x.value,
             "y": plotstate.y.value,
-            "color": plotstate.color.value + f"({plotstate.bintype.value})",
+            "color": colorlabel,
         },
         template=DARK_TEMPLATE,
     )

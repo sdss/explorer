@@ -58,13 +58,21 @@ def QuickFilterMenu():
     flag_nonzero, set_flag_nonzero = sl.use_state(False)
     flag_snr50, set_flag_snr50 = sl.use_state(False)
 
+    def reset_filters():
+        set_flag_nonzero(False)
+        set_flag_snr50(False)
+
+    sl.use_thread(reset_filters, dependencies=[State.df.value])
+
     def work():
-        # all false
         filters = []
         flags = [flag_nonzero, flag_snr50]
+
+        # all false
         if np.all(np.logical_not(flags)):
             set_filter(None)
             return
+
         # flag out all nonzero
         if flag_nonzero:
             for flag in flag_cols:

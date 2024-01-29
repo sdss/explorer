@@ -10,20 +10,20 @@
 **FEATURE: logarithmic colorscale**
   - easy enough for purely positive values. How do to on negative values?
     - probably can't, so we can disable the switch on if dff[plotstate.color.value].min() < 0.
+    - np.log10 will just return them as NaN's, so we can use them instead
 
 **feat: add subset functionality**
 - i.e, the ability to add multiple expression sets and toggle them on and off
 
 ***FEATURE: add selection to histogram and skyplot***
 
-**UX: application settings in top right**
+**UX: some application settings in top right?**
+  option to drop some useless columns to make the column selections more intuitive
+    i.e. general user may not use zhang 2023 cols, etc
 
 **add routing to jdaviz (find out how to)**
 
-give singularity and docker a whirl
-
 add multi-dataset functionality (long term)
-  - this depends on if abundances are truly defined
 
 ***DEPLOYMENT ON UTAH***
 make a singularity.

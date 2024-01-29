@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 
 cd pages
-solara run --theme-variant dark --production main.py
+solara run --theme-variant dark --workers 8 --production main.py
