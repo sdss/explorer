@@ -1,5 +1,4 @@
 import traitlets as t
-from typing import List, Dict, Union, Callable
 import os
 
 import solara as sl
@@ -10,7 +9,6 @@ import ipyvuetify as v
 import ipywidgets as widgets
 
 from plots import show_plot
-from plot_settings import show_settings
 from dataframe import show_table
 
 

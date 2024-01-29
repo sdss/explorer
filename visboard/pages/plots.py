@@ -1,6 +1,7 @@
 import operator
 import webbrowser as wb
 from functools import reduce
+from time import perf_counter as timer
 
 import numpy as np
 import plotly.express as px
@@ -457,32 +458,34 @@ def histogram(plotstate):
         dff = df[filter]
     expr = dff[plotstate.x.value]
 
-    if check_catagorical(expr):
-        x = expr.unique()
-        y = []
-        for i in x:
-            # TODO: raise issue about vaex being unable to count catagorical data
-            y.append(float(expr.str.count(i).sum()))
-    else:
-        # make x (bin centers) and y (counts)
-        x = dff.bin_centers(
-            expression=expr,
-            limits=[
-                np.float32(dff.min(plotstate.x.value)),
-                np.float32(dff.max(plotstate.x.value)),
-            ],
-            shape=plotstate.nbins.value,
-        )
-        binsize = x[1] - x[0]
-        y = dff.count(
-            binby=plotstate.x.value,
-            # limits=dff.minmax(plotstate.x.value),
-            limits=[
-                np.float32(dff.min(plotstate.x.value)),
-                np.float32(dff.max(plotstate.x.value)),
-            ],
-            shape=plotstate.nbins.value,
-        )
+    def perform_binning():
+        tstart = timer()
+        if check_catagorical(expr):
+            x = expr.unique()
+            y = []
+            for i in x:
+                # TODO: raise issue about vaex being unable to count catagorical data
+                y.append(float(expr.str.count(i).sum()))
+        else:
+            # make x (bin centers) and y (counts)
+            # TODO: raise issue about stride bug on value change
+            x = dff.bin_centers(
+                expression=expr,
+                limits=dff.minmax(plotstate.x.value),
+                shape=plotstate.nbins.value,
+            )
+            y = dff.count(
+                binby=plotstate.x.value,
+                limits=dff.minmax(plotstate.x.value),
+                shape=plotstate.nbins.value,
+            )
+        print(timer() - tstart)
+        return x, y
+
+    x, y = sl.use_memo(
+        perform_binning,
+        dependencies=[filter, plotstate.x.value, plotstate.nbins.value],
+    )
 
     if check_catagorical(expr):
         logx = False
@@ -517,7 +520,6 @@ def histogram(plotstate):
         reset_lims,
         dependencies=[
             plotstate.x.value,
-            plotstate.y.value,
             plotstate.logx.value,
             plotstate.logy.value,
             plotstate.flipx.value,
@@ -572,104 +574,108 @@ def histogram2d(plotstate):
     if filter:
         dff = df[filter]
 
-    expr_x = dff[plotstate.x.value]
-    expr_y = dff[plotstate.y.value]
-    expr = dff[plotstate.color.value]
-    x_cat = check_catagorical(expr_x)
-    y_cat = check_catagorical(expr_y)
-    if x_cat or y_cat:
-        return sl.Warning(
-            icon=True,
-            label=
-            "Selected columns are catagorical! Incompatible with histogram2d plot.",
-        )
-    bintype = str(plotstate.bintype.value)
+    def perform_binning():
+        expr = (dff[plotstate.x.value], dff[plotstate.y.value])
+        expr_c = dff[plotstate.color.value]
+        x_cat = check_catagorical(expr[0])
+        y_cat = check_catagorical(expr[1])
+        if x_cat or y_cat:
+            return sl.Warning(
+                icon=True,
+                label=
+                "Selected columns are catagorical! Incompatible with histogram2d plot.",
+            )
+        bintype = str(plotstate.bintype.value)
 
-    # xlims, set_xlims = sl.use_state(None)
-    # ylims, set_ylims = sl.use_state(None)
-    # if xlims is None and ylims is None:
-    #    limits = [dff.minmax(plotstate.x.value), dff.minmax(plotstate.y.value)]
-    # else:
-    #    limits = [xlims, ylims]
-    limits = [
-        [
-            np.float32(dff.min(plotstate.x.value)),
-            np.float32(dff.max(plotstate.x.value)),
+        # xlims, set_xlims = sl.use_state(None)
+        # ylims, set_ylims = sl.use_state(None)
+        # if xlims is None and ylims is None:
+        #    limits = [dff.minmax(plotstate.x.value), dff.minmax(plotstate.y.value)]
+        # else:
+        #    limits = [xlims, ylims]
+        limits = [dff.minmax(plotstate.x.value), dff.minmax(plotstate.y.value)]
+
+        if bintype == "count":
+            y = dff.count(
+                binby=expr,
+                limits=limits,
+                shape=plotstate.nbins.value,
+                array_type="xarray",
+            )
+        elif bintype == "mean":
+            y = dff.mean(
+                expr_c,
+                binby=expr,
+                limits=limits,
+                shape=plotstate.nbins.value,
+                array_type="xarray",
+            )
+        elif bintype == "median":
+            return sl.Warning(
+                label="Median has memory issues. Remains unimplemented.",
+                icon=True)
+            # WARNING: do not use median_approx -- it consumed 9T of memory.
+            # y = dff.median_approx(
+            #    expr,
+            #    binby=[expr_x, expr_y],
+            #    limits=[
+            #        dff.minmax(plotstate.x.value),
+            #        dff.minmax(plotstate.y.value)
+            #    ],
+            #    shape=plotstate.nbins.value,
+            # )
+        # elif bintype == "mode":
+        #    y = dff.mode(
+        #        expr,
+        #        binby=[expr_x, expr_y],
+        #        limits=[
+        #            dff.minmax(plotstate.x.value),
+        #            dff.minmax(plotstate.y.value)
+        #        ],
+        #        shape=plotstate.nbins.value,
+        #    )
+        elif bintype == "min":
+            y = dff.min(
+                expr_c,
+                binby=expr,
+                limits=limits,
+                shape=plotstate.nbins.value,
+                array_type="xarray",
+            )
+        elif bintype == "max":
+            y = dff.max(
+                expr_c,
+                binby=expr,
+                limits=limits,
+                shape=plotstate.nbins.value,
+                array_type="xarray",
+            )
+
+        binscale = str(plotstate.binscale.value)
+        if binscale == "log1p":
+            y = np.log1p(y)
+        elif binscale == "log10":
+            y = np.log10(y)
+
+        # TODO: clean this code
+        y = y.where(y != np.inf, np.nan)
+        y = y.where(y != -np.inf, np.nan)
+        cmin = float(np.min(y).values)
+        cmax = float(np.max(y).values)
+        y = y.fillna(-999)
+        return y, cmin, cmax
+
+    z, cmin, cmax = sl.use_memo(
+        perform_binning,
+        dependencies=[
+            filter,
+            plotstate.x.value,
+            plotstate.y.value,
+            plotstate.bintype.value,
+            plotstate.nbins.value,
+            plotstate.binscale.value,
         ],
-        [
-            np.float32(dff.min(plotstate.y.value)),
-            np.float32(dff.max(plotstate.y.value)),
-        ],
-    ]
-
-    if bintype == "count":
-        y = dff.count(
-            binby=[expr_x, expr_y],
-            limits=limits,
-            shape=plotstate.nbins.value,
-            array_type="xarray",
-        )
-    elif bintype == "mean":
-        y = dff.mean(
-            expr,
-            binby=[expr_x, expr_y],
-            limits=limits,
-            shape=plotstate.nbins.value,
-            array_type="xarray",
-        )
-    elif bintype == "median":
-        return sl.Warning(
-            label="Median has memory issues. Remains unimplemented.",
-            icon=True)
-        # WARNING: do not use median_approx -- it consumed 9T of memory.
-        # y = dff.median_approx(
-        #    expr,
-        #    binby=[expr_x, expr_y],
-        #    limits=[
-        #        dff.minmax(plotstate.x.value),
-        #        dff.minmax(plotstate.y.value)
-        #    ],
-        #    shape=plotstate.nbins.value,
-        # )
-    # elif bintype == "mode":
-    #    y = dff.mode(
-    #        expr,
-    #        binby=[expr_x, expr_y],
-    #        limits=[
-    #            dff.minmax(plotstate.x.value),
-    #            dff.minmax(plotstate.y.value)
-    #        ],
-    #        shape=plotstate.nbins.value,
-    #    )
-    elif bintype == "min":
-        y = dff.min(
-            expr,
-            binby=[expr_x, expr_y],
-            limits=limits,
-            shape=plotstate.nbins.value,
-            array_type="xarray",
-        )
-    elif bintype == "max":
-        y = dff.max(
-            expr,
-            binby=[expr_x, expr_y],
-            limits=limits,
-            shape=plotstate.nbins.value,
-            array_type="xarray",
-        )
-
-    binscale = str(plotstate.binscale.value)
-    if binscale == "log1p":
-        y = np.log1p(y)
-    elif binscale == "log10":
-        y = np.log10(y)
-
-    # TODO: clean this code
-    y = y.where(y != np.inf, np.nan)
-    y = y.where(y != -np.inf, np.nan)
-    cmin = float(np.min(y).values)
-    cmax = float(np.max(y).values)
-    y = y.fillna(-999)
+    )
 
     if plotstate.flipy.value:
         origin = "upper"
@@ -677,7 +683,7 @@ def histogram2d(plotstate):
         origin = "lower"
 
     fig = px.imshow(
-        y.T,
+        z.T,
         zmin=cmin,
         zmax=cmax,
         origin=origin,

@@ -11,12 +11,6 @@
   - easy enough for purely positive values. How do to on negative values?
     - probably can't, so we can disable the switch on if dff[plotstate.color.value].min() < 0.
 
-**FEAT: download via context menu on scatterplots**
-for download: needs which ipl and which id (very easy)
-
-**FEAT: jdaviz via context menu**
-on another server, prestarted for a demo with a temp spectra
-
 **feat: add subset functionality**
 - i.e, the ability to add multiple expression sets and toggle them on and off
 
@@ -30,7 +24,6 @@ give singularity and docker a whirl
 
 add multi-dataset functionality (long term)
   - this depends on if abundances are truly defined
-  - 
 
 ***DEPLOYMENT ON UTAH***
 make a singularity.
