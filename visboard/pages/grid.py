@@ -10,6 +10,7 @@ import ipywidgets as widgets
 
 from plots import show_plot
 from dataframe import show_table
+from state import State
 
 
 class GridLayout(v.VuetifyTemplate):
@@ -69,7 +70,14 @@ def ViewCard(type, i):
 
 @sl.component
 def ObjectGrid():
-    print(f"objectgrid: rerender")
+
+    def reset_layout():
+        GridState.index = 0
+        GridState.grid_layout.value = []
+        GridState.objects.value = []
+
+    # full reset layout on dataframe change
+    sl.use_thread(reset_layout, dependencies=[State.df.value])
 
     def set_grid_layout(data):
         GridState.grid_layout.value = data
@@ -111,11 +119,6 @@ def ObjectGrid():
 
     def add_table():
         add_view("table")
-
-    def reset_layout():
-        GridState.index = 0
-        GridState.grid_layout.value = []
-        GridState.objects.value = []
 
     with sl.Column(style={"width": "100%"}):
         with sl.Row():

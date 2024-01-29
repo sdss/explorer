@@ -864,23 +864,24 @@ def skyplot(plotstate):
 
     print("skyplot: rerendering fig start")
     tstart = timer()
-    fig = go.Figure(data=go.Scattergeo(
-        lat=lat.values,
-        lon=lon.values,
-        mode="markers",
-        customdata=ids.values,
-        hovertemplate=f"<b>{lon_label}</b>:" + " %{lon:.6f}<br>" +
-        f"<b>{lat_label}</b>:" + " %{lat:.6f}<br>" +
-        f"<b>{plotstate.color.value}</b>:" + " %{marker.color:.6f}<br>" +
-        "<b>ID</b>:" + " %{customdata:.d}",
-        marker=dict(
-            color=c.values,
-            colorbar=dict(title=plotstate.color.value),
-            colorscale=plotstate.colorscale.value,
+    fig = go.Figure(
+        data=go.Scattergeo(
+            lat=lat.values,
+            lon=lon.values,
+            mode="markers",
+            customdata=ids.values,
+            hovertemplate=f"<b>{lon_label}</b>:" + " %{lon:.6f}<br>" +
+            f"<b>{lat_label}</b>:" + " %{lat:.6f}<br>" +
+            f"<b>{plotstate.color.value}</b>:" + " %{marker.color:.6f}<br>" +
+            "<b>ID</b>:" + " %{customdata:.d}",
+            marker=dict(
+                color=c.values,
+                colorbar=dict(title=plotstate.color.value),
+                colorscale=plotstate.colorscale.value,
+            ),
         ),
-    ),
-                    # layout=go.Layout(template=DARK_TEMPLATE),
-                    )
+        layout=go.Layout(template=DARK_TEMPLATE),
+    )
 
     xpos = 0
     ypos = 0
