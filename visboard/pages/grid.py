@@ -69,6 +69,7 @@ def ViewCard(type, i):
 
 @sl.component
 def ObjectGrid():
+    print(f"objectgrid: rerender")
 
     def set_grid_layout(data):
         GridState.grid_layout.value = data

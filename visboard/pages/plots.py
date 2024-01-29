@@ -1,5 +1,6 @@
 import operator
 import webbrowser as wb
+
 from functools import reduce
 from time import perf_counter as timer
 
@@ -8,6 +9,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import reacton.ipyvuetify as rv
 import solara as sl
+from plotly.graph_objs._figurewidget import FigureWidget
 from solara.lab import Menu, ContextMenu
 
 from state import State
@@ -91,7 +93,7 @@ class PlotState:
 
 
 def range_loop(start, offset):
-    return (start + (offset % 360) + 360) % 360
+    return
 
 
 def update_relayout(fig, relayout, plotstate):
@@ -777,13 +779,18 @@ def histogram2d(plotstate):
 def skyplot(plotstate):
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "scattergeo")
-    menu_open, set_menu_open = sl.use_state(False)
-    hovered, set_hovered = sl.use_state(False)
     sdssid, set_sdssid = sl.use_state(None)
     rerange, set_rerange = sl.use_state({})
     local_filter, set_local_filter = sl.use_state(None)
 
+    if filter is not None:
+        dff = df[filter]
+    else:
+        dff = df
+
     def remake_filters():
+        print("skyplot: remake filters")
+        tstart = timer()
         if plotstate.geo_coords.value == "ra/dec":
             lon = "ra"
             lat = "dec"
@@ -805,8 +812,8 @@ def skyplot(plotstate):
 
         # make filter data
         lonlow, lonhigh = (
-            range_loop(0, -180 / scale + lon_center),
-            range_loop(0, 180 / scale + lon_center),
+            (0 + ((-180 / scale + lon_center) % 360) + 360) % 360,
+            (0 + ((180 / scale + lon_center) % 360) + 360) % 360,
         )
         latlow, lathigh = (
             np.max((lat_center - (90 / scale), -90)),
@@ -828,19 +835,12 @@ def skyplot(plotstate):
         else:
             set_local_filter(df[f"({lat} > {latlow})"]
                              & df[f"({lat}< {lathigh})"])
+        print(f"Time: {timer() - tstart}")
 
-    sl.use_thread(remake_filters, dependencies=[rerange])
+    sl.use_memo(remake_filters, dependencies=[rerange])
 
     if local_filter is not None:
-        if filter is not None:
-            dff = df[((filter) & local_filter)]
-        else:
-            dff = df[local_filter]
-    elif filter is not None:
-        dff = df[filter]
-    else:
-        dff = df
-
+        dff = dff[local_filter]
     dff = dff[:1_000]
 
     # get correct col based on coords setting
@@ -861,24 +861,26 @@ def skyplot(plotstate):
 
     c = dff[plotstate.color.value]
     ids = dff["sdss_id"]
-    fig = go.Figure(
-        data=go.Scattergeo(
-            lat=lat.values,
-            lon=lon.values,
-            mode="markers",
-            customdata=ids.values,
-            hovertemplate=f"<b>{lon_label}</b>:" + " %{lon:.6f}<br>" +
-            f"<b>{lat_label}</b>:" + " %{lat:.6f}<br>" +
-            f"<b>{plotstate.color.value}</b>:" + " %{marker.color:.6f}<br>" +
-            "<b>ID</b>:" + " %{customdata:.d}",
-            marker=dict(
-                color=c.values,
-                colorbar=dict(title=plotstate.color.value),
-                colorscale=plotstate.colorscale.value,
-            ),
+
+    print("skyplot: rerendering fig start")
+    tstart = timer()
+    fig = go.Figure(data=go.Scattergeo(
+        lat=lat.values,
+        lon=lon.values,
+        mode="markers",
+        customdata=ids.values,
+        hovertemplate=f"<b>{lon_label}</b>:" + " %{lon:.6f}<br>" +
+        f"<b>{lat_label}</b>:" + " %{lat:.6f}<br>" +
+        f"<b>{plotstate.color.value}</b>:" + " %{marker.color:.6f}<br>" +
+        "<b>ID</b>:" + " %{customdata:.d}",
+        marker=dict(
+            color=c.values,
+            colorbar=dict(title=plotstate.color.value),
+            colorscale=plotstate.colorscale.value,
         ),
-        layout=go.Layout(template=DARK_TEMPLATE),
-    )
+    ),
+                    # layout=go.Layout(template=DARK_TEMPLATE),
+                    )
 
     xpos = 0
     ypos = 0
@@ -913,6 +915,8 @@ def skyplot(plotstate):
     def reset_lims():
         set_rerange({})
 
+    print(f"Time: {timer() - tstart}")
+
     sl.use_thread(
         reset_lims,
         dependencies=[
@@ -923,14 +927,16 @@ def skyplot(plotstate):
     )
 
     def relayout_callback(data):
+        print("skyplot: relayout called")
+        start = timer()
         if data is not None:
             if "geo.fitbounds" in data["relayout_data"].keys():
                 set_rerange({})
                 set_local_filter(None)
             else:
                 if data["relayout_data"] is not None:
-                    print(data["relayout_data"])
                     set_rerange(dict(rerange, **data["relayout_data"]))
+        print(f"Time relayout: {timer() - start}")
 
     """Selection handlers"""
 
@@ -945,15 +951,6 @@ def skyplot(plotstate):
     Context Menu handlers
     """
 
-    def on_hover(data):
-        set_hovered(True)
-        set_menu_open(False)
-        set_sdssid(dff[data["points"]["point_indexes"][0]])
-
-    def on_unhover(data):
-        if not menu_open:
-            set_hovered(False)
-
     def open_jdaviz():
         wb.open("http://localhost:8866/")
         close_context_menu()
@@ -961,7 +958,7 @@ def skyplot(plotstate):
     def download_spectra():
         # TODO: change to directly use ID
         print(sdssid[0])
-        wb.open("https://www.bing.com")
+        wb.open("https://www.google.com")
         close_context_menu()
 
     def close_context_menu():
@@ -969,14 +966,13 @@ def skyplot(plotstate):
 
     fig = sl.FigurePlotly(
         fig,
-        on_hover=on_hover,
-        on_unhover=on_unhover,
+        on_click=print,
         on_selection=on_select,
         on_deselect=on_deselect,
         on_relayout=relayout_callback,
         dependencies=[
-            rerange,
             filter,
+            local_filter,
             plotstate.geo_coords.value,
             plotstate.projection.value,
             plotstate.color.value,
@@ -985,25 +981,25 @@ def skyplot(plotstate):
             plotstate.flipy.value,
         ],
     )
-    with ContextMenu(activator=fig,
-                     open_value=menu_open,
-                     on_open_value=set_menu_open):
-        if hovered & menu_open:
-            sl.Column(
-                gap="0px",
-                children=[
-                    sl.Button(
-                        label="Download spectra",
-                        icon_name="mdi-file-chart-outline",
-                        on_click=download_spectra,
-                        small=True,
-                    ),
-                    sl.Button(
-                        label="Open in Jdaviz",
-                        icon_name="mdi-chart-line",
-                        on_click=open_jdaviz,
-                        small=True,
-                    ),
-                ],
-            )
+    # with ContextMenu(activator=fig,
+    #                 open_value=menu_open,
+    #                 on_open_value=set_menu_open):
+    #    if hovered & menu_open:
+    #        sl.Column(
+    #            gap="0px",
+    #            children=[
+    #                sl.Button(
+    #                    label="Download spectra",
+    #                    icon_name="mdi-file-chart-outline",
+    #                    on_click=download_spectra,
+    #                    small=True,
+    #                ),
+    #                sl.Button(
+    #                    label="Open in Jdaviz",
+    #                    icon_name="mdi-chart-line",
+    #                    on_click=open_jdaviz,
+    #                    small=True,
+    #                ),
+    #            ],
+    #        )
     return

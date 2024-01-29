@@ -1,4 +1,5 @@
 from typing import cast
+from time import perf_counter as timer
 
 import solara as sl
 import reacton.ipyvuetify as rv
@@ -49,6 +50,9 @@ def ExprEditor():
     error, set_error = sl.use_state(cast(str, None))
 
     def work():
+        print("expreditor: expression change")
+        start = timer()
+
         try:
             # TODO: this is hella spaghetti how fix
             if expression is None or expression == "":
@@ -108,11 +112,13 @@ def ExprEditor():
                     > 10), "expression too precise (results in length < 10)"
             # pass all checks, then set the filter
             set_filter(df["(" + completed_expression + ")"])
+            print(f"Time: {timer() - start}")
             return True
 
         except AssertionError as e:
             set_filter(None)
             set_error(e)
+            print(f"Time: {timer() - start}")
             return False
 
     result: sl.Result[bool] = sl.use_thread(work, dependencies=[expression])
