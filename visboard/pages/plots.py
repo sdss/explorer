@@ -304,6 +304,7 @@ def scatter(plotstate):
             f"<b>{plotstate.y.value}</b>:" + " %{y:.6f}<br>" +
             f"<b>{plotstate.color.value}</b>:" + " %{marker.color:.6f}<br>" +
             "<b>ID</b>:" + " %{customdata:.d}",
+            name="",
             marker=dict(
                 color=c,
                 colorbar=dict(title=plotstate.color.value),
@@ -892,6 +893,7 @@ def skyplot(plotstate):
             f"<b>{lat_label}</b>:" + " %{lat:.6f}<br>" +
             f"<b>{plotstate.color.value}</b>:" + " %{marker.color:.6f}<br>" +
             "<b>ID</b>:" + " %{customdata:.d}",
+            name="",
             marker=dict(
                 color=c.values,
                 colorbar=dict(title=plotstate.color.value),
