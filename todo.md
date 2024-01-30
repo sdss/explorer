@@ -39,10 +39,6 @@ the utah VM is free from feb 15
 
 ## andy suggestions
 
-create parquet for 2 other pipes (ASPCAP, The Cannon)
-
-styling
-
 deployment on singularity applet thingy
 
 

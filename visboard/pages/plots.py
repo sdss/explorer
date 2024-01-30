@@ -9,6 +9,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import reacton.ipyvuetify as rv
 import solara as sl
+from plotly.graph_objs._figurewidget import FigureWidget
 from solara.lab import Menu, ContextMenu
 
 from state import State
@@ -294,53 +295,58 @@ def scatter(plotstate):
     c = c.values
     ids = ids.values
 
-    fig = go.Figure(
-        data=go.Scattergl(
-            x=x,
-            y=y,
-            mode="markers",
-            customdata=ids,
-            hovertemplate=f"<b>{plotstate.x.value}</b>:" + " %{x:.6f}<br>" +
-            f"<b>{plotstate.y.value}</b>:" + " %{y:.6f}<br>" +
-            f"<b>{plotstate.color.value}</b>:" + " %{marker.color:.6f}<br>" +
-            "<b>ID</b>:" + " %{customdata:.d}",
-            name="",
-            marker=dict(
-                color=c,
-                colorbar=dict(title=plotstate.color.value),
-                colorscale=plotstate.colorscale.value,
+    def create_fig():
+        fig = go.Figure(
+            data=go.Scattergl(
+                x=x,
+                y=y,
+                mode="markers",
+                customdata=ids,
+                hovertemplate=f"<b>{plotstate.x.value}</b>:" +
+                " %{x:.6f}<br>" + f"<b>{plotstate.y.value}</b>:" +
+                " %{y:.6f}<br>" + f"<b>{plotstate.color.value}</b>:" +
+                " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
+                " %{customdata:.d}",
+                name="",
+                marker=dict(
+                    color=c,
+                    colorbar=dict(title=plotstate.color.value),
+                    colorscale=plotstate.colorscale.value,
+                ),
             ),
-        ),
-        layout=go.Layout(
-            xaxis_title=plotstate.x.value,
-            yaxis_title=plotstate.y.value,
-            template=DARK_TEMPLATE,
-            coloraxis=dict(
-                cmin=np.float32(dff.min(plotstate.color.value)),
-                cmax=np.float32(dff.max(plotstate.color.value)),
+            layout=go.Layout(
+                xaxis_title=plotstate.x.value,
+                yaxis_title=plotstate.y.value,
+                template=DARK_TEMPLATE,
+                coloraxis=dict(
+                    cmin=np.float32(dff.min(plotstate.color.value)),
+                    cmax=np.float32(dff.max(plotstate.color.value)),
+                ),
             ),
-        ),
-    )
-    # flip and log
-    if plotstate.flipx.value:
-        # TODO: fix the flip on dynamic render (cant use autorange have to used manual logic aijijhitjhij)
-        fig.update_xaxes(range=fig.layout.xaxes.range.reverse())
-    if plotstate.flipy.value:
-        fig.update_yaxes(autorange="reversed")
-    if plotstate.logx.value:
-        fig.update_xaxes(type="log")
-    if plotstate.logy.value:
-        fig.update_yaxes(type="log")
+        )
+        # flip and log
+        if plotstate.flipx.value:
+            # TODO: fix the flip on dynamic render (cant use autorange have to used manual logic aijijhitjhij)
+            fig.update_xaxes(range=fig.layout.xaxes.range.reverse())
+        if plotstate.flipy.value:
+            fig.update_yaxes(autorange="reversed")
+        if plotstate.logx.value:
+            fig.update_xaxes(type="log")
+        if plotstate.logy.value:
+            fig.update_yaxes(type="log")
 
-    # change autorange min-max to allow for a reset to max range
-    # TODO: need to add fix for reversed
-    fig.update_xaxes(autorangeoptions_minallowed=xmm[0],
-                     autorangeoptions_maxallowed=xmm[1])
-    fig.update_yaxes(autorangeoptions_minallowed=ymm[0],
-                     autorangeoptions_maxallowed=ymm[1])
-    """Relayout handlers"""
-    # reset the ranges based on the relayout
-    fig = update_relayout(fig, relayout, plotstate)
+        # change autorange min-max to allow for a reset to max range
+        # TODO: need to add fix for reversed
+        fig.update_xaxes(autorangeoptions_minallowed=xmm[0],
+                         autorangeoptions_maxallowed=xmm[1])
+        fig.update_yaxes(autorangeoptions_minallowed=ymm[0],
+                         autorangeoptions_maxallowed=ymm[1])
+        """Relayout handlers"""
+        # reset the ranges based on the relayout
+        fig = update_relayout(fig, relayout, plotstate)
+        return fig
+
+    fig = sl.use_memo(create_fig)
 
     def reset_lims():
         set_relayout(None)
@@ -498,23 +504,27 @@ def histogram(plotstate):
     else:
         logx = plotstate.logx.value
 
-    fig = px.histogram(
-        x=x,
-        y=y,
-        nbins=plotstate.nbins.value,
-        log_x=logx,
-        log_y=plotstate.logy.value,
-        histnorm=plotstate.norm.value,
-        labels={
-            "x": plotstate.x.value,
-        },
-        template=DARK_TEMPLATE,
-    )
-    fig.update_yaxes(title="Frequency")
-    fig.update_layout(margin_r=10)
+    def create_fig():
+        fig = px.histogram(
+            x=x,
+            y=y,
+            nbins=plotstate.nbins.value,
+            log_x=logx,
+            log_y=plotstate.logy.value,
+            histnorm=plotstate.norm.value,
+            labels={
+                "x": plotstate.x.value,
+            },
+            template=DARK_TEMPLATE,
+        )
+        fig.update_yaxes(title="Frequency")
+        fig.update_layout(margin_r=10)
 
-    if plotstate.flipx.value:
-        fig.update_xaxes(autorange="reversed")
+        if plotstate.flipx.value:
+            fig.update_xaxes(autorange="reversed")
+        return fig
+
+    fig = sl.use_memo(create_fig)
 
     # reset the ranges based on the relayout
     fig = update_relayout(fig, relayout, plotstate)
