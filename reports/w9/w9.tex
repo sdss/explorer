@@ -37,18 +37,18 @@
 \end{figure*}
 \section{Aims and Objectives}
 \begin{enumerate}
-	\item Develop a web application for multi-dimensional exploration of SDSS-V data.
+	\item Develop a out-of-memory web application for multi-dimensional exploration of SDSS-V data.
 	\item Work on and contribute to the development of open-source Python libraries.
 \end{enumerate}
 
 \section{Background}
-The Sloan Digital Sky Survey (SDSS) is one of the largest, longest running, and most used astronomical surveys. Started in 1998 \parencite{dr18}, the SDSS provides all-sky, multi-epoch spectroscopy using telescopes in both hemispheres, providing data used to probe the emergence of chemical elements, reveal the inner mechanisms of stars, and investigate the origin of planets. The latest generation of the survey, SDSS-V, aims to conduct the first homogeneous survey using an optical, ultra-wide integral-field spectroscopic map of the interstellar gas, pioneering spectroscopic monitoring and revealing changes on both short and vast timescales \parencite{SDSS2017}. SDSS data over all survey phases has been cited more than 650,000 over 111,000 refereed papers \parencite{dr18}.
+The Sloan Digital Sky Survey (SDSS) is one of the largest, longest running, and most used astronomical surveys. Started in 1998 \parencite{dr18}, the SDSS provides all-sky, multi-epoch spectroscopy using telescopes in both hemispheres, providing data used to probe the emergence of chemical elements, reveal the inner mechanisms of stars, and investigate the origin of planets. The latest generation of the survey, SDSS-V, aims to conduct the first homogeneous survey using an optical, ultra-wide integral-field spectroscopic map of the interstellar gas, pioneering spectroscopic monitoring and revealing changes on both short and vast timescales \parencite{SDSS2017}. SDSS data over all survey phases has been cited more than 650,000 times over 111,000 refereed papers \parencite{dr18}.
 
 The SDSS has previously offered a simple web application for end users to access, explore, and investigate spectra and other data. However, the fifth generation of the survey now offers a large catalog of stars with complete stellar labels. With a larger set of spectral types explored \parencite{apogee2017}, and an even larger set of stellar labels (Casey et al., in prep), there is a need for a new tool which provides powerful exploration and visualization of large and vast datasets.
 
 
-\section{Parameter Explorer Development}
-The fifth generation of the SDSS now provides complete stellar labels across multiple different pipelines via the Astra framework. The Parameter Explorer, or by its less boring name, the \emph{VisBoard}, is a in-development data webapp which will be hosted on SDSS servers and provide both public and proprietary SDSS data to its users for multi-dimensional data exploration.
+\section{VisBoard Development}
+The fifth generation of the SDSS now provides complete stellar labels across multiple different pipelines via the Astra framework. This multi-dimensional parameter explorer, or by its less boring name, the \emph{VisBoard}, is a in-development data webapp which will be hosted on SDSS servers, providing both public and proprietary SDSS data to its users for multi-dimensional data exploration via out-of-memory loading and computation using \texttt{vaex}.
 \begin{figure}[tp]
 	\centering
 	\includegraphics[width=1.0\columnwidth]{layout}
@@ -68,11 +68,11 @@ Within each view, a plot's individual properties can be changed, such as colorsc
 
 Each plot (excluding the \emph{aggregation} view) now has a selection option, which allows the user to select certain bins or points, which will then be cross filtered to other open views.
 
-On the scatter plot views, a user can right click on any given star to directly download or view the object's spectra via \texttt{jdaviz}. Currently, these lead to placeholders, but will eventually be replaced with browser links to the public SDSS data by the ID lookup.
+On the scatter plot views, a user can right click on any given star to directly download or view the object's spectra in the browser via \texttt{jdaviz}. Currently, these lead to placeholders, but will eventually be replaced with browser links to the public SDSS data by the ID lookup.
 
 \subsubsection{Skyplot}
 \label{sec:skyplot}
-New to this format is a scatter plot with a sky projection, herein referred to as a ``\emph{skyplot}". This view was heavily requested by astronomers after consultations and demos. The user can switch between plotting right ascension vs. declination ($\mathrm{RA / DEC} $) or galactic longitude and latitude ($l / b $). Panning the view will accurately map the points according to the projection type, which can be set by the user. The settings menu and skyplot are shown in Figure \ref{fig:skyplot}
+New to this format is a scatter plot with a sky projection, herein referred to as a ``\emph{skyplot}". This view was heavily requested by astronomers after consultations and demos. The user can switch between plotting right ascension vs. declination ($\mathrm{RA / DEC} $) or galactic longitude and latitude ($l / b $). Panning the view will accurately map the points according to the projection type, which can be set by the user. The settings menu and skyplot are shown in Figure \ref{fig:skyplot}.
 
 
 \subsubsection{Dynamic rerendering and filtering}
@@ -139,12 +139,12 @@ The user's subset of the chosen dataset can also be directly downloaded, based o
 \end{enumerate}
 \section{Future plans}
 \begin{enumerate}
-	\item \textbf{Add dynamic filtering to the skyplot view}
+	\item \textbf{Add dynamic filtering to the \emph{skyplot} view.}
 	      \begin{itemize}
 		      \item Due to the difference in relayout callback information, it was not simply plug and play to implement the routine.
 		      \item It wasn't finished prior to writing this report, but the logic is sorted already and just needs to be implemented.
 	      \end{itemize}
-	      \item\textbf{Develop a \texttt{Singularity} container for shared development}
+	      \item\textbf{Develop a \texttt{Singularity} container for shared development.}
 	      \begin{itemize}
 		      \item The Data Visualization group within the SDSS Collaboration will soon be granted access to a virtual machine (VM) for testing and developing applications.
 		      \item Members of the collaboration are interested in providing feedback and testing the application, and have suggested using \texttt{Singularity} \parencite{singularity} as the portable app-container for the development workflow.
