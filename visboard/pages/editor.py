@@ -53,6 +53,7 @@ def ExprEditor():
         set_error(cast(str, None))
 
     # INFO: resets on dataframe change
+    # BUG: can randomly reset even though the dataset doesn't actually change, this might be a big bug
     sl.use_thread(reset, dependencies=[State.df.value])
 
     def work():

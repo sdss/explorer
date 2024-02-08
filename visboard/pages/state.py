@@ -20,9 +20,9 @@ class State:
     def load_dataset(dataset):
         if dataset is None:
             df = vx.open(
-                f"/home/riley/rproj/data/{State.dataset.value}.parquet")
+                f"/home/riley/uni/rproj/data/{State.dataset.value}.parquet")
         else:
-            df = vx.open(f"/home/riley/rproj/data/{dataset}.parquet")
+            df = vx.open(f"/home/riley/uni/rproj/data/{dataset}.parquet")
         df = df.shuffle()
         State.df.value = df
 
