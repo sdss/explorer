@@ -341,12 +341,12 @@ def scatter(plotstate):
                          autorangeoptions_maxallowed=xmm[1])
         fig.update_yaxes(autorangeoptions_minallowed=ymm[0],
                          autorangeoptions_maxallowed=ymm[1])
-        """Relayout handlers"""
         # reset the ranges based on the relayout
         fig = update_relayout(fig, relayout, plotstate)
         return fig
 
     fig = sl.use_memo(create_fig)
+    """Relayout handlers"""
 
     def reset_lims():
         set_relayout(None)
@@ -498,6 +498,7 @@ def histogram(plotstate):
         perform_binning,
         dependencies=[filter, plotstate.x.value, plotstate.nbins.value],
     )
+    binsize = x[1] - x[0]
 
     if check_catagorical(expr):
         logx = False
@@ -687,6 +688,7 @@ def histogram2d(plotstate):
             filter,
             plotstate.x.value,
             plotstate.y.value,
+            plotstate.color.value,
             plotstate.bintype.value,
             plotstate.nbins.value,
             plotstate.binscale.value,
