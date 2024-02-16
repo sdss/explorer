@@ -77,7 +77,7 @@ def ObjectGrid():
         GridState.objects.value = []
 
     # full reset layout on dataframe change
-    sl.use_thread(reset_layout, dependencies=[State.df.value])
+    sl.use_thread(reset_layout, dependencies=[State.dataset.value])
 
     def set_grid_layout(data):
         GridState.grid_layout.value = data

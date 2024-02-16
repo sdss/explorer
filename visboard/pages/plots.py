@@ -50,7 +50,6 @@ class PlotState:
         self.logy = sl.use_reactive(False)
         self.flipx = sl.use_reactive(False)
         self.flipy = sl.use_reactive(False)
-        self.reactive = sl.use_reactive("on")
 
         # statistics
         self.nbins = sl.use_reactive(200)
@@ -230,38 +229,32 @@ def scatter(plotstate):
     ymm = dff.minmax(plotstate.y.value)
 
     # filter to current relayout
-    if plotstate.reactive.value == "on":
-        # TODO: this logic sequence is cursed and high complexity fix it
-        if relayout is not None:
-            if "xaxis.autorange" in relayout.keys():
-                set_xfilter(None)
-                set_yfilter(None)
-            if "xaxis.range[0]" in relayout.keys():
-                min = relayout["xaxis.range[0]"]
-                max = relayout["xaxis.range[1]"]
-                set_xfilter(df[
-                    f"(({plotstate.x.value} > {np.min((min,max))}) & ({plotstate.x.value} < {np.max((min,max))}))"]
-                            )
-            if "yaxis.range[0]" in relayout.keys():
-                min = relayout["yaxis.range[0]"]
-                max = relayout["yaxis.range[1]"]
-                set_yfilter(df[
-                    f"(({plotstate.y.value} > {np.min((min,max))}) & ({plotstate.y.value} < {np.max((min,max))}))"]
-                            )
-            local_filters = [xfilter, yfilter]
-            if local_filters[0] is not None and local_filters[1] is not None:
-                if filter:
-                    superfilter = reduce(operator.and_, local_filters, filter)
-                    dff = df[superfilter]
-                else:
-                    superfilter = reduce(operator.and_, local_filters[1:],
-                                         local_filters[0])
-                    dff = df[superfilter]
+    # TODO: this logic sequence is cursed and high complexity fix it
+    if relayout is not None:
+        if "xaxis.autorange" in relayout.keys():
+            set_xfilter(None)
+            set_yfilter(None)
+        if "xaxis.range[0]" in relayout.keys():
+            min = relayout["xaxis.range[0]"]
+            max = relayout["xaxis.range[1]"]
+            set_xfilter(df[
+                f"(({plotstate.x.value} > {np.min((min,max))}) & ({plotstate.x.value} < {np.max((min,max))}))"]
+                        )
+        if "yaxis.range[0]" in relayout.keys():
+            min = relayout["yaxis.range[0]"]
+            max = relayout["yaxis.range[1]"]
+            set_yfilter(df[
+                f"(({plotstate.y.value} > {np.min((min,max))}) & ({plotstate.y.value} < {np.max((min,max))}))"]
+                        )
+        local_filters = [xfilter, yfilter]
+        if local_filters[0] is not None and local_filters[1] is not None:
+            if filter:
+                superfilter = reduce(operator.and_, local_filters, filter)
+                dff = df[superfilter]
             else:
-                if filter:
-                    dff = df[filter]
-                else:
-                    dff = df
+                superfilter = reduce(operator.and_, local_filters[1:],
+                                     local_filters[0])
+                dff = df[superfilter]
         else:
             if filter:
                 dff = df[filter]

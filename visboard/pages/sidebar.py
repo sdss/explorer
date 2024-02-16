@@ -62,7 +62,8 @@ def QuickFilterMenu():
         set_flag_nonzero(False)
         set_flag_snr50(False)
 
-    sl.use_thread(reset_filters, dependencies=[State.df.value])
+    # INFO: full reset on dataset change
+    sl.use_thread(reset_filters, dependencies=[State.dataset.value])
 
     def work():
         filters = []
