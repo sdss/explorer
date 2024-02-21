@@ -174,13 +174,20 @@ def scatter(plotstate):
         try:
             min = relayout["xaxis.range[0]"]
             max = relayout["xaxis.range[1]"]
+            if plotstate.logx.value:
+                min = 10**min
+                max = 10**max
             xfilter = df[
                 f"(({plotstate.x.value} > {np.min((min,max))}) & ({plotstate.x.value} < {np.max((min,max))}))"]
+            print(xfilter)
         except KeyError:
             pass
         try:
             min = relayout["yaxis.range[0]"]
             max = relayout["yaxis.range[1]"]
+            if plotstate.logy.value:
+                min = 10**min
+                max = 10**max
             yfilter = df[
                 f"(({plotstate.y.value} > {np.min((min,max))}) & ({plotstate.y.value} < {np.max((min,max))}))"]
 
@@ -303,10 +310,14 @@ def scatter(plotstate):
 
     def on_relayout(data):
         if data is not None:
+            print(data["relayout_data"])
             # full limit reset, resetting relayout data + local filter
             if "xaxis.autorange" in data["relayout_data"].keys():
                 set_relayout({})
                 set_local_filter(None)
+            # if change tool, skip
+            elif "dragmode" in data["relayout_data"].keys():
+                pass
             # Update the current dictionary
             else:
                 set_relayout(dict(relayout, **data["relayout_data"]))
@@ -419,7 +430,7 @@ def skyplot(plotstate):
                 fig_widget.update_yaxes(autorange=True)
 
         def set_log():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            pass
 
         def update_data():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
