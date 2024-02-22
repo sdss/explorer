@@ -1,6 +1,8 @@
+from functools import reduce
+import operator
+
 import vaex as vx
 import solara as sl
-from solara.lab import ContextMenu
 from plotly.graph_objs._figurewidget import FigureWidget
 import plotly.graph_objects as go
 import numpy as np
@@ -193,13 +195,12 @@ def scatter(plotstate):
 
         except KeyError:
             pass
-        try:
-            set_local_filter(xfilter & yfilter)
-        except ValueError:
-            try:
-                set_local_filter(xfilter)
-            except ValueError:
-                set_local_filter(yfilter)
+        if xfilter is not None and yfilter is not None:
+            filters = [xfilter, yfilter]
+        else:
+            filters = [xfilter if xfilter is not None else yfilter]
+        filter = reduce(operator.and_, filters[1:], filters[0])
+        set_local_filter(filter)
 
     sl.use_thread(update_filter, dependencies=[relayout])
 
@@ -251,16 +252,36 @@ def scatter(plotstate):
 
     def add_effects(fig_element: sl.Element):
 
-        def set_flip():
+        def add_context_menu():
+
+            def on_click(trace, points, selector):
+                print(points, selector)
+
             fig_widget: FigureWidget = sl.get_widget(fig_element)
-            if plotstate.flipx.value:
-                fig_widget.update_xaxes(autorange="reversed")
-            else:
-                fig_widget.update_xaxes(autorange=True)
-            if plotstate.flipy.value:
-                fig_widget.update_yaxes(autorange="reversed")
-            else:
-                fig_widget.update_yaxes(autorange=True)
+            points = fig_widget.data[0]
+            points.on_click(on_click)
+
+        sl.use_effect(add_context_menu, dependencies=[])
+
+        def set_xflip():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+
+            if fig_widget.layout.xaxis.range is not None:
+                if plotstate.flipx.value:
+                    fig_widget.update_xaxes(autorange="reversed")
+                else:
+                    fig_widget.update_xaxes(
+                        range=fig_widget.layout.xaxis.range[::-1])
+
+        def set_yflip():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+
+            if fig_widget.layout.yaxis.range is not None:
+                if plotstate.flipy.value:
+                    fig_widget.update_yaxes(autorange="reversed")
+                else:
+                    fig_widget.update_yaxes(
+                        range=fig_widget.layout.yaxis.range[::-1])
 
         def set_log():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
@@ -298,9 +319,8 @@ def scatter(plotstate):
                 plotstate.colorscale.value,
             ],
         )
-        sl.use_effect(
-            set_flip,
-            dependencies=[plotstate.flipx.value, plotstate.flipy.value])
+        sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
+        sl.use_effect(set_yflip, dependencies=[plotstate.flipy.value])
         sl.use_effect(
             set_log, dependencies=[plotstate.logx.value, plotstate.logy.value])
 
