@@ -181,7 +181,6 @@ def scatter(plotstate):
                 max = 10**max
             xfilter = df[
                 f"(({plotstate.x.value} > {np.min((min,max))}) & ({plotstate.x.value} < {np.max((min,max))}))"]
-            print(xfilter)
         except KeyError:
             pass
         try:
@@ -253,19 +252,18 @@ def scatter(plotstate):
     def add_effects(fig_element: sl.Element):
 
         def add_context_menu():
-
+            # TODO: except contextmenu in DOM somehow so i can open my own vue menu
             def on_click(trace, points, selector):
-                print(points, selector)
+                print(trace.customdata[points.point_inds[0]], selector.ctrl)
 
             fig_widget: FigureWidget = sl.get_widget(fig_element)
             points = fig_widget.data[0]
             points.on_click(on_click)
 
-        sl.use_effect(add_context_menu, dependencies=[])
+        sl.use_effect(add_context_menu, dependencies=[relayout])
 
         def set_xflip():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
-
             if fig_widget.layout.xaxis.range is not None:
                 if plotstate.flipx.value:
                     fig_widget.update_xaxes(autorange="reversed")
@@ -275,7 +273,6 @@ def scatter(plotstate):
 
         def set_yflip():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
-
             if fig_widget.layout.yaxis.range is not None:
                 if plotstate.flipy.value:
                     fig_widget.update_yaxes(autorange="reversed")
@@ -299,6 +296,7 @@ def scatter(plotstate):
             data = fig_widget.data[0]
             data.x = dff[plotstate.x.value].values
             data.y = dff[plotstate.y.value].values
+            data.customdata = dff["sdss_id"].values
             data.marker = dict(
                 color=dff[plotstate.color.value].values,
                 colorbar=dict(title=plotstate.color.value),
@@ -308,6 +306,12 @@ def scatter(plotstate):
                 xaxis_title=plotstate.x.value,
                 yaxis_title=plotstate.y.value,
             )
+
+        def checkheight():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            print(fig_widget.layout["height"])
+
+        sl.use_effect(checkheight, dependencies=[plotstate.colorscale.value])
 
         sl.use_effect(
             update_data,
@@ -324,18 +328,13 @@ def scatter(plotstate):
         sl.use_effect(
             set_log, dependencies=[plotstate.logx.value, plotstate.logy.value])
 
-    """
-    relayout callback
-    """
-
     def on_relayout(data):
         if data is not None:
-            print(data["relayout_data"])
             # full limit reset, resetting relayout data + local filter
             if "xaxis.autorange" in data["relayout_data"].keys():
                 set_relayout({})
                 set_local_filter(None)
-            # if change tool, skip
+            # if change tool, skip update
             elif "dragmode" in data["relayout_data"].keys():
                 pass
             # Update the current dictionary
@@ -433,8 +432,6 @@ def skyplot(plotstate):
 
     # only instantiate the figure once
     figure = sl.use_memo(create_fig, dependencies=[])
-
-    print(plotstate.flipx.value)
 
     def add_effects(fig_element: sl.Element):
 
