@@ -3,6 +3,8 @@ import operator
 
 import vaex as vx
 import solara as sl
+from solara.lab import ContextMenu
+import reacton.ipyvuetify as rv
 from plotly.graph_objs._figurewidget import FigureWidget
 import plotly.graph_objects as go
 import numpy as np
@@ -169,6 +171,7 @@ def sky_menu(plotstate):
 def scatter(plotstate):
     relayout, set_relayout = sl.use_state({})
     local_filter, set_local_filter = sl.use_state(None)
+    open, set_open = sl.use_state(False)
 
     def update_filter():
         xfilter = None
@@ -253,8 +256,10 @@ def scatter(plotstate):
 
         def add_context_menu():
             # TODO: except contextmenu in DOM somehow so i can open my own vue menu
+
             def on_click(trace, points, selector):
-                print(trace.customdata[points.point_inds[0]], selector.ctrl)
+                if selector.button == 2:
+                    print(trace.customdata[points.point_inds[0]])
 
             fig_widget: FigureWidget = sl.get_widget(fig_element)
             points = fig_widget.data[0]
@@ -307,12 +312,6 @@ def scatter(plotstate):
                 yaxis_title=plotstate.y.value,
             )
 
-        def checkheight():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            print(fig_widget.layout["height"])
-
-        sl.use_effect(checkheight, dependencies=[plotstate.colorscale.value])
-
         sl.use_effect(
             update_data,
             dependencies=[
@@ -341,7 +340,10 @@ def scatter(plotstate):
             else:
                 set_relayout(dict(relayout, **data["relayout_data"]))
 
-    fig_el = sl.FigurePlotly(figure, on_relayout=on_relayout)
+    fig_el = sl.FigurePlotly(figure,
+                             on_relayout=on_relayout,
+                             on_hover=lambda q: set_open(False))
+
     add_effects(fig_el)
 
 

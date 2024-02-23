@@ -30,7 +30,7 @@
             <div v-if="!items[item.i]">
               placeholder: {{item.i}}
             </div>
-            <v-toolbar title="titleneedstobehereforrenderbutdoesntshow" height="18px" color="#616161"></v-toolbar>
+            <v-toolbar title="Click on this toolbar to drag." height="18px" color="#616161"></v-toolbar>
             <div v-if="items[item.i]"
                   class="no-drag">
               <jupyter-widget :widget="items[item.i]" :key="'child_' + item.i"></jupyter-widget>
