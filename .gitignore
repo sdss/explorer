@@ -162,18 +162,7 @@ cython_debug/
 
 
 # Code directories for astropy & specutils
-solara/solara/
-solara/
-specutils/specutils/
-specutils/
-zora_valis_dockers/zora_valis_dockers/
-zora_valis_dockers/
-jdaviz/jdaviz/
-jdaviz/
 .jukit
-directory
 plotly/plotly
 plotly/
-visboard/astra-clean.parquet
 data
-semaphore/semaphore

@@ -340,9 +340,10 @@ def scatter(plotstate):
             else:
                 set_relayout(dict(relayout, **data["relayout_data"]))
 
-    fig_el = sl.FigurePlotly(figure,
-                             on_relayout=on_relayout,
-                             on_hover=lambda q: set_open(False))
+    fig_el = sl.FigurePlotly(
+        figure,
+        on_relayout=on_relayout,
+    )
 
     add_effects(fig_el)
 
