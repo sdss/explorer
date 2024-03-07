@@ -1055,11 +1055,6 @@ def scatter_menu(plotstate):
                 with sl.Column():
                     sl.Switch(label="Flip y", value=plotstate.flipy)
                     sl.Switch(label="Log y", value=plotstate.logy)
-            sl.Markdown("### Reactive plotting")
-            sl.ToggleButtonsSingle(
-                values=["on", "off"],
-                value=plotstate.reactive,
-            )
 
 
 @sl.component()
