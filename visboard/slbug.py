@@ -9,7 +9,7 @@ from plotly.graph_objs._figurewidget import FigureWidget
 import plotly.graph_objects as go
 import numpy as np
 
-df_loaded = vx.open("/home/riley/rproj/data/apogeenet.parquet")
+df_loaded = vx.open("../data/apogeenet.parquet")
 df = df_loaded.shuffle()
 
 
@@ -343,6 +343,7 @@ def scatter(plotstate):
     fig_el = sl.FigurePlotly(
         figure,
         on_relayout=on_relayout,
+        dependencies=[],
     )
 
     add_effects(fig_el)
