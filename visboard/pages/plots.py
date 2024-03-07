@@ -119,8 +119,8 @@ def show_plot(type, del_func):
             with sl.Column(classes=["grey darken-3"]):
                 if type == "histogram":
                     histogram(plotstate)
-                elif type == "histogram2d":
-                    histogram2d(plotstate)
+                elif type == "aggregated":
+                    aggregated(plotstate)
                 elif type == "scatter":
                     # scatterplot()
                     scatter(plotstate)
@@ -505,9 +505,9 @@ def histogram(plotstate):
 
 
 @sl.component
-def histogram2d(plotstate):
+def aggregated(plotstate):
     df = State.df.value
-    filter, set_filter = sl.use_cross_filter(id(df), "filter-histogram2d")
+    filter, set_filter = sl.use_cross_filter(id(df), "filter-aggregated")
     relayout, set_relayout = sl.use_state(None)
 
     dff = df
@@ -523,7 +523,7 @@ def histogram2d(plotstate):
             return sl.Warning(
                 icon=True,
                 label=
-                "Selected columns are catagorical! Incompatible with histogram2d plot.",
+                "Selected columns are catagorical! Incompatible with aggregated plot.",
             )
         bintype = str(plotstate.bintype.value)
 
@@ -981,7 +981,7 @@ def show_settings(type, state):
         return scatter_menu(state)
     elif type == "histogram":
         return statistics_menu(state)
-    elif type == "histogram2d":
+    elif type == "aggregated":
         return aggregate_menu(state)
     elif type == "skyplot":
         return sky_menu(state)

@@ -108,8 +108,8 @@ def ObjectGrid():
     def add_histogram():
         add_view("histogram")
 
-    def add_histogram2d():
-        add_view("histogram2d")
+    def add_aggregated():
+        add_view("aggregated")
 
     def add_scatter():
         add_view("scatter")
@@ -129,8 +129,7 @@ def ObjectGrid():
                 with sl.Column(gap="0px"):
                     [
                         sl.Button(label="histogram", on_click=add_histogram),
-                        sl.Button(label="aggregated",
-                                  on_click=add_histogram2d),
+                        sl.Button(label="aggregated", on_click=add_aggregated),
                         sl.Button(label="table", on_click=add_table),
                         sl.Button(label="scatter", on_click=add_scatter),
                         sl.Button(label="skyplot", on_click=add_skyplot),
