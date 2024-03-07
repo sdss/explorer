@@ -171,130 +171,65 @@ def show_plot(type, del_func):
 
 
 @sl.component
-def scatter3d(plotstate):
-    df = State.df.value
-    filter, set_filter = sl.use_cross_filter(id(df), "filter-plot3d")
-
-    dff = df
-    if filter:
-        dff = df[filter]
-    selection = np.random.choice(int(len(dff)), plotstate.subset.value)
-    x = np.array(dff[plotstate.x.value].values)[selection]
-    y = np.array(dff[plotstate.y.value].values)[selection]
-    z = np.array(dff[plotstate.color.value].values)[selection]
-
-    fig = px.scatter_3d(
-        x=x,
-        y=y,
-        z=z,
-        log_x=plotstate.logx.value,
-        log_y=plotstate.logy.value,
-        labels={
-            "x": plotstate.x.value,
-            "y": plotstate.y.value,
-            "z": plotstate.color.value,
-        },
-    )
-    if plotstate.flipx.value:
-        fig.update_xaxes(autorange="reversed")
-    if plotstate.flipy.value:
-        fig.update_yaxes(autorange="reversed")
-    fig.update_layout(
-        xaxis_title=plotstate.x.value,
-        autosize=True,
-        yaxis_title=plotstate.y.value,
-    )
-    return sl.FigurePlotly(fig)
-
-
-@sl.component
 def scatter(plotstate):
-    df = State.df.value
-    filter, set_filter = sl.use_cross_filter(id(df), "filter-scatter")
-    relayout, set_relayout = sl.use_state(None)
-    xfilter, set_xfilter = sl.use_state(None)
-    yfilter, set_yfilter = sl.use_state(None)
-    hovered, set_hovered = sl.use_state(False)
-    clicked, set_clicked = sl.use_state(False)
-    sdssid, set_sdssid = sl.use_state(None)
+    df: vx.DataFrame = State.df.value
+    filter, set_filter = sl.use_cross_filter(id(df), "scatter")
+    relayout, set_relayout = sl.use_state({})
+    local_filter, set_local_filter = sl.use_state(None)
 
-    # filter
-    if filter:
+    def update_filter():
+        xfilter = None
+        yfilter = None
+        try:
+            min = relayout["xaxis.range[0]"]
+            max = relayout["xaxis.range[1]"]
+            if plotstate.logx.value:
+                min = 10**min
+                max = 10**max
+            xfilter = df[
+                f"(({plotstate.x.value} > {np.min((min,max))}) & ({plotstate.x.value} < {np.max((min,max))}))"]
+        except KeyError:
+            pass
+        try:
+            min = relayout["yaxis.range[0]"]
+            max = relayout["yaxis.range[1]"]
+            if plotstate.logy.value:
+                min = 10**min
+                max = 10**max
+            yfilter = df[
+                f"(({plotstate.y.value} > {np.min((min,max))}) & ({plotstate.y.value} < {np.max((min,max))}))"]
+
+        except KeyError:
+            pass
+        if xfilter is not None and yfilter is not None:
+            filters = [xfilter, yfilter]
+        else:
+            filters = [xfilter if xfilter is not None else yfilter]
+        filter = reduce(operator.and_, filters[1:], filters[0])
+        set_local_filter(filter)
+
+    sl.use_thread(update_filter, dependencies=[relayout])
+
+    # Apply global and local filters
+    if filter is not None:
         dff = df[filter]
     else:
         dff = df
 
-    # get minmax for reset
-    xmm = dff.minmax(plotstate.x.value)
-    ymm = dff.minmax(plotstate.y.value)
-
-    # filter to current relayout
-    # TODO: this logic sequence is cursed and high complexity fix it
-    if relayout is not None:
-        if "xaxis.autorange" in relayout.keys():
-            set_xfilter(None)
-            set_yfilter(None)
-        if "xaxis.range[0]" in relayout.keys():
-            min = relayout["xaxis.range[0]"]
-            max = relayout["xaxis.range[1]"]
-            set_xfilter(df[
-                f"(({plotstate.x.value} > {np.min((min,max))}) & ({plotstate.x.value} < {np.max((min,max))}))"]
-                        )
-        if "yaxis.range[0]" in relayout.keys():
-            min = relayout["yaxis.range[0]"]
-            max = relayout["yaxis.range[1]"]
-            set_yfilter(df[
-                f"(({plotstate.y.value} > {np.min((min,max))}) & ({plotstate.y.value} < {np.max((min,max))}))"]
-                        )
-        local_filters = [xfilter, yfilter]
-        if local_filters[0] is not None and local_filters[1] is not None:
-            if filter:
-                superfilter = reduce(operator.and_, local_filters, filter)
-                dff = df[superfilter]
-            else:
-                superfilter = reduce(operator.and_, local_filters[1:],
-                                     local_filters[0])
-                dff = df[superfilter]
-        else:
-            if filter:
-                dff = df[filter]
-            else:
-                dff = df
+    if local_filter is not None:
+        dff = dff[local_filter]
     else:
-        if filter:
-            dff = df[filter]
-        else:
-            dff = df
+        dff = dff
 
-    # get cols
-    x = dff[plotstate.x.value]
-    y = dff[plotstate.y.value]
-    c = dff[plotstate.color.value]
-    ids = dff["sdss_id"]
-
-    # trim to renderable length
     if len(dff) > 20000:
-        x = x[:20_000]
-        y = y[:20_000]
-        c = c[:20_000]
-        ids = ids[:20_000]
-
-    # Check for catagorical (unrenderable in scatter)
-    x_cat = check_catagorical(x)
-    y_cat = check_catagorical(y)
-    if x_cat or y_cat:
-        return sl.Warning(
-            icon=True,
-            label=
-            "Selected columns are catagorical! Incompatible with scatter plot.",
-        )
-    x = x.values
-    y = y.values
-    c = c.values
-    ids = ids.values
+        dff = dff[:20_000]
 
     def create_fig():
-        fig = go.Figure(
+        x = dff[plotstate.x.value].values
+        y = dff[plotstate.y.value].values
+        c = dff[plotstate.color.value].values
+        ids = dff["sdss_id"].values
+        figure = go.Figure(
             data=go.Scattergl(
                 x=x,
                 y=y,
