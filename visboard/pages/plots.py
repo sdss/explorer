@@ -399,14 +399,7 @@ def histogram(plotstate):
                 limits=dff.minmax(plotstate.x.value),
                 shape=plotstate.nbins.value,
             )
-        print(timer() - tstart)
         return x, y
-
-    x, y = sl.use_memo(
-        perform_binning,
-        dependencies=[filter, plotstate.x.value, plotstate.nbins.value],
-    )
-    binsize = x[1] - x[0]
 
     if check_catagorical(expr):
         logx = False
@@ -414,6 +407,7 @@ def histogram(plotstate):
         logx = plotstate.logx.value
 
     def create_fig():
+        x, y = perform_binning()
         fig = px.histogram(
             x=x,
             y=y,
@@ -429,33 +423,66 @@ def histogram(plotstate):
         fig.update_yaxes(title="Frequency")
         fig.update_layout(margin_r=10)
 
-        if plotstate.flipx.value:
-            fig.update_xaxes(autorange="reversed")
         return fig
 
-    fig = sl.use_memo(create_fig)
+    # only instantiate the figure widget once
+    figure = sl.use_memo(create_fig, dependencies=[])
 
-    # reset the ranges based on the relayout
-    fig = update_relayout(fig, relayout, plotstate)
+    # Effect based callbacks (flip, log, & data array updates)
+    def add_effects(fig_element: sl.Element):
 
-    def reset_lims():
-        set_relayout(None)
+        def set_xflip():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            if fig_widget.layout.xaxis.range is not None:
+                if plotstate.flipx.value:
+                    fig_widget.update_xaxes(autorange="reversed")
+                else:
+                    fig_widget.update_xaxes(
+                        range=fig_widget.layout.xaxis.range[::-1])
 
-    sl.use_thread(
-        reset_lims,
-        dependencies=[
-            plotstate.x.value,
-            plotstate.logx.value,
-            plotstate.logy.value,
-            plotstate.flipx.value,
-            plotstate.flipy.value,
-        ],
-    )
+        def set_yflip():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            if fig_widget.layout.yaxis.range is not None:
+                if plotstate.flipy.value:
+                    fig_widget.update_yaxes(autorange="reversed")
+                else:
+                    fig_widget.update_yaxes(
+                        range=fig_widget.layout.yaxis.range[::-1])
 
-    def on_selection(data):
-        print(data)
-        filters = list()
+        def set_log():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            if plotstate.logx.value:
+                fig_widget.update_xaxes(type="log")
+            else:
+                fig_widget.update_xaxes(type="linear")
+            if plotstate.logy.value:
+                fig_widget.update_yaxes(type="log")
+            else:
+                fig_widget.update_yaxes(type="linear")
+
+        def update_data():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            data = fig_widget.data[0]
+            data.x, data.y = perform_binning()
+            fig_widget.update_layout(xaxis_title=plotstate.x.value, )
+
+        sl.use_effect(
+            update_data,
+            dependencies=[
+                filter,
+                plotstate.x.value,
+                plotstate.nbins.value,
+            ],
+        )
+        sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
+        sl.use_effect(set_yflip, dependencies=[plotstate.flipy.value])
+        sl.use_effect(
+            set_log, dependencies=[plotstate.logx.value, plotstate.logy.value])
+
+    def on_select(data):
         if len(data["points"]["xs"]) > 0:
+            filters = list()
+            binsize = data["points"]["xs"][1] - data["points"]["xs"][0]
             for cent in np.unique(data["points"]["xs"]):
                 filters.append(
                     df[f"({plotstate.x.value} <= {cent + binsize})"]
@@ -463,28 +490,16 @@ def histogram(plotstate):
             filters = reduce(operator.or_, filters[1:], filters[0])
             set_filter(filters)
 
-    def on_deselect(data):
+    def on_deselect(_data):
         set_filter(None)
 
-    def relayout_callback(data):
-        if data is not None:
-            set_relayout(data["relayout_data"])
-
     fig_el = sl.FigurePlotly(
-        fig,
-        on_selection=on_selection,
+        figure,
+        on_selection=on_select,
         on_deselect=on_deselect,
-        on_relayout=relayout_callback,
-        dependencies=[
-            filter,
-            plotstate.nbins.value,
-            plotstate.x.value,
-            plotstate.logx.value,
-            plotstate.logy.value,
-            plotstate.flipx.value,
-            plotstate.norm.value,
-        ],
+        dependencies=[],
     )
+    add_effects(fig_el)
 
     return fig_el
 
