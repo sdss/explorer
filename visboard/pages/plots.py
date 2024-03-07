@@ -732,49 +732,41 @@ def histogram2d(plotstate):
 @sl.component
 def skyplot(plotstate):
     df = State.df.value
-    filter, set_filter = sl.use_cross_filter(id(df), "scattergeo")
-    sdssid, set_sdssid = sl.use_state(None)
-    rerange, set_rerange = sl.use_state({})
+    filter, set_filter = sl.use_cross_filter(
+        id(df), "skyplot"
+    )  # TODO: check if filters interfere because they have the same ID
+    relayout, set_relayout = sl.use_state({})
     local_filter, set_local_filter = sl.use_state(None)
 
-    if filter is not None:
-        dff = df[filter]
-    else:
-        dff = df
-
-    def remake_filters():
-        print("skyplot: remake filters")
-        tstart = timer()
-        if plotstate.geo_coords.value == "ra/dec":
-            lon = "ra"
-            lat = "dec"
+    def update_filter():
+        if plotstate.geo_coords.value == "celestial":
+            lon, lat = ("ra", "dec")
         else:
-            lon = "l"
-            lat = "b"
-        if "geo.projection.scale" in rerange.keys():
-            scale = np.max((rerange["geo.projection.scale"], 1.0))
-        else:
+            lon, lat = ("l", "b")
+        try:
+            scale = relayout["geo.projection.scale"]
+            if scale < 1.0:
+                return
+        except KeyError:
             scale = 1.0
-        if "geo.center.lon" in rerange.keys():
-            lon_center = rerange["geo.center.lon"]
-        else:
+        try:
+            lon_center = relayout["geo.center.lon"]
+        except KeyError:
             lon_center = 0
-        if "geo.center.lat" in rerange.keys():
-            lat_center = rerange["geo.center.lat"]
-        else:
+        try:
+            lat_center = relayout["geo.center.lat"]
+        except KeyError:
             lat_center = 0
 
-        # make filter data
         lonlow, lonhigh = (
-            (0 + ((-180 / scale + lon_center) % 360) + 360) % 360,
-            (0 + ((180 / scale + lon_center) % 360) + 360) % 360,
+            range_loop(0, -180 / scale + lon_center),
+            range_loop(0, 180 / scale + lon_center),
         )
         latlow, lathigh = (
             np.max((lat_center - (90 / scale), -90)),
             np.min((lat_center + (90 / scale), 90)),
         )
 
-        # create and set filter objects
         lonfilter = None
         if scale > 1:
             if lonhigh < lonlow:
@@ -789,176 +781,195 @@ def skyplot(plotstate):
         else:
             set_local_filter(df[f"({lat} > {latlow})"]
                              & df[f"({lat}< {lathigh})"])
-        print(f"Time: {timer() - tstart}")
 
-    sl.use_memo(remake_filters, dependencies=[rerange])
+    sl.use_thread(update_filter, dependencies=[relayout])
+
+    # Apply global and local filters
+    if filter is not None:
+        dff = df[filter]
+    else:
+        dff = df
 
     if local_filter is not None:
         dff = dff[local_filter]
-    dff = dff[:1_000]
+    else:
+        dff = dff
 
-    # get correct col based on coords setting
-    dtick = 30  # for tickers
-    if plotstate.geo_coords.value == "ra/dec":
+    # cut dff to renderable length
+    dff = dff[:3_000]
+
+    def create_fig():
+        dtick = 30  # for tickers
+
+        # always initialized as RA/DEC
         lon = dff["ra"]
         lat = dff["dec"]
-        lon_label = "RA"
-        lat_label = "DEC"
-        x = list(range(-180, 180 + dtick, dtick))
-    else:
-        lon = dff["l"]
-        lat = dff["b"]
-        lon_label = "l"
-        lat_label = "b"
+        c = dff[plotstate.color.value]
+        ids = dff["sdss_id"]
+
+        figure = go.Figure(
+            data=go.Scattergeo(
+                lat=lat.values,
+                lon=lon.values,
+                mode="markers",
+                customdata=ids.values,
+                hovertemplate="<b>RA</b>:" + " %{lon:.6f}<br>" +
+                "<b>DEC</b>:" + " %{lat:.6f}<br>" +
+                f"<b>{plotstate.color.value}</b>:" +
+                " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
+                " %{customdata:.d}",
+                name="",
+                marker=dict(
+                    color=c.values,
+                    colorbar=dict(title=plotstate.color.value),
+                    colorscale=plotstate.colorscale.value,
+                ),
+            ),
+            layout=go.Layout(
+                xaxis_title=plotstate.x.value,
+                yaxis_title=plotstate.y.value,
+                template=DARK_TEMPLATE,
+                coloraxis=dict(
+                    cmin=np.float32(dff.min(plotstate.color.value)),
+                    cmax=np.float32(dff.max(plotstate.color.value)),
+                ),
+                geo=dict(
+                    bgcolor="#212121",
+                    projection_type=plotstate.projection.value,
+                    visible=False,
+                    lonaxis_showgrid=True,
+                    lonaxis_gridcolor="#616161",
+                    lonaxis_tick0=0,
+                    lataxis_showgrid=True,
+                    lataxis_gridcolor="#616161",
+                    lataxis_tick0=0,
+                ),
+            ),
+        )
+        # axes markers
+        dtick = 30
         x = list(range(0, 360 + dtick, dtick))
-    y = list(range(-90, 90 + dtick, dtick))
+        y = list(range(-90, 90 + dtick, dtick))
+        xpos = 0
+        ypos = 0
+        figure.add_trace(
+            go.Scattergeo({
+                "lon": x + [xpos] * (len(y)),
+                "lat": [ypos] * (len(x)) + y,
+                "showlegend": False,
+                "text": x + y,
+                "mode": "text",
+            }))
+        figure.update_layout(margin={"t": 30, "b": 10, "l": 0, "r": 0})
+        return figure
 
-    c = dff[plotstate.color.value]
-    ids = dff["sdss_id"]
+    # only instantiate the figure once
+    figure = sl.use_memo(create_fig, dependencies=[])
 
-    print("skyplot: rerendering fig start")
-    tstart = timer()
-    fig = go.Figure(
-        data=go.Scattergeo(
-            lat=lat.values,
-            lon=lon.values,
-            mode="markers",
-            customdata=ids.values,
-            hovertemplate=f"<b>{lon_label}</b>:" + " %{lon:.6f}<br>" +
-            f"<b>{lat_label}</b>:" + " %{lat:.6f}<br>" +
-            f"<b>{plotstate.color.value}</b>:" + " %{marker.color:.6f}<br>" +
-            "<b>ID</b>:" + " %{customdata:.d}",
-            name="",
-            marker=dict(
-                color=c.values,
+    # Effect based callbacks (flip, log, & data array updates)
+    def add_effects(fig_element: sl.Element):
+
+        def set_flip():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            if plotstate.flipx.value:
+                fig_widget.update_xaxes(autorange="reversed")
+            else:
+                fig_widget.update_xaxes(autorange=True)
+            if plotstate.flipy.value:
+                fig_widget.update_yaxes(autorange="reversed")
+            else:
+                fig_widget.update_yaxes(autorange=True)
+
+        def set_log():
+            # log is meaningless on the projected skyplots
+            pass
+
+        def update_data():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+
+            # update main trace
+            data = fig_widget.data[0]
+            if plotstate.geo_coords.value == "celestial":
+                data.lon = dff["ra"].values
+                data.lat = dff["dec"].values
+            else:
+                data.lon = dff["l"].values
+                data.lat = dff["b"].values
+            data.customdata = dff["sdss_id"].values
+            data.marker = dict(
+                color=dff[plotstate.color.value].values,
                 colorbar=dict(title=plotstate.color.value),
                 colorscale=plotstate.colorscale.value,
-            ),
-        ),
-        layout=go.Layout(template=DARK_TEMPLATE),
-    )
+            )
+            data.hovertemplate = (
+                f"<b>{'RA' if plotstate.geo_coords.value == 'celestial' else 'l'}</b>:"
+                + " %{lon:.6f}<br>" +
+                f"<b>{'DEC' if plotstate.geo_coords.value == 'celestial' else 'b'}</b>:"
+                + " %{lat:.6f}<br>" + f"<b>{plotstate.color.value}</b>:" +
+                " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
+                " %{customdata:.d}")
 
-    xpos = 0
-    ypos = 0
-    fig.add_trace(
-        go.Scattergeo({
-            "lon": x[1:-1] + [xpos] * (len(y) - 2),
-            "lat": [ypos] * (len(x) - 2) + y[1:-1],
-            "showlegend": False,
-            "text": x[1:-1] + y[1:-1],
-            "mode": "text",
-        }))
-    if plotstate.flipx.value:
-        fig.update_xaxes(autorange="reversed")
-    if plotstate.flipy.value:
-        fig.update_yaxes(autorange="reversed")
-    fig.update_geos(
-        projection_type=plotstate.projection.value,
-        bgcolor="#212121",
-        visible=False,
-        lonaxis_showgrid=True,
-        lonaxis_tick0=0,
-        lonaxis_gridcolor="#616161",
-        lataxis_showgrid=True,
-        lataxis_tick0=0,
-        lataxis_gridcolor="#616161",
-    )
-    fig.update_layout(margin={"t": 30, "b": 10, "l": 0, "r": 0})
+        def update_color():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
 
-    # reset the ranges based on the relayout
-    fig = update_relayout(fig, rerange, plotstate)
+            # update main trace
+            data = fig_widget.data[0]
+            data.marker = dict(
+                color=dff[plotstate.color.value].values,
+                colorbar=dict(title=plotstate.color.value),
+                colorscale=plotstate.colorscale.value,
+            )
+            data.hovertemplate = (
+                f"<b>{'RA' if plotstate.geo_coords.value == 'celestial' else 'l'}</b>:"
+                + " %{lon:.6f}<br>" +
+                f"<b>{'DEC' if plotstate.geo_coords.value == 'celestial' else 'b'}</b>:"
+                + " %{lat:.6f}<br>" + f"<b>{plotstate.color.value}</b>:" +
+                " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
+                " %{customdata:.d}")
 
-    def reset_lims():
-        set_rerange({})
+        sl.use_effect(update_data,
+                      dependencies=[local_filter, plotstate.geo_coords.value])
+        sl.use_effect(
+            update_color,
+            dependencies=[
+                local_filter,
+                plotstate.color.value,
+                plotstate.colorscale.value,
+            ],
+        )
+        sl.use_effect(
+            set_flip,
+            dependencies=[plotstate.flipx.value, plotstate.flipy.value])
 
-    print(f"Time: {timer() - tstart}")
-
-    sl.use_thread(
-        reset_lims,
-        dependencies=[
-            plotstate.geo_coords.value,
-            plotstate.flipx.value,
-            plotstate.flipy.value,
-        ],
-    )
-
-    def relayout_callback(data):
-        print("skyplot: relayout called")
-        start = timer()
+    # Plotly-side callbacks (relayout, select, deselect)
+    def on_relayout(data):
         if data is not None:
+            # full limit reset, resetting relayout data + local filter
             if "geo.fitbounds" in data["relayout_data"].keys():
-                set_rerange({})
+                set_relayout({})
                 set_local_filter(None)
+            # if change tool, skip update
+            elif "dragmode" in data["relayout_data"].keys():
+                pass
+            # Update the current dictionary
             else:
-                if data["relayout_data"] is not None:
-                    set_rerange(dict(rerange, **data["relayout_data"]))
-        print(f"Time relayout: {timer() - start}")
-
-    """Selection handlers"""
+                set_relayout(dict(relayout, **data["relayout_data"]))
 
     def on_select(data):
         if len(data["points"]["xs"]) > 0:
             set_filter(df[df == dff[data["points"]["point_indexes"]]])
 
-    def on_deselect(data):
+    def on_deselect(_data):
         set_filter(None)
 
-    """
-    Context Menu handlers
-    """
-
-    def open_jdaviz():
-        wb.open("http://localhost:8866/")
-        close_context_menu()
-
-    def download_spectra():
-        # TODO: change to directly use ID
-        print(sdssid[0])
-        wb.open("https://www.google.com")
-        close_context_menu()
-
-    def close_context_menu():
-        set_hovered(False)
-
-    fig = sl.FigurePlotly(
-        fig,
-        on_click=print,
+    fig_el = sl.FigurePlotly(
+        figure,
         on_selection=on_select,
         on_deselect=on_deselect,
-        on_relayout=relayout_callback,
-        dependencies=[
-            filter,
-            local_filter,
-            plotstate.geo_coords.value,
-            plotstate.projection.value,
-            plotstate.color.value,
-            plotstate.colorscale.value,
-            plotstate.flipx.value,
-            plotstate.flipy.value,
-        ],
+        on_relayout=on_relayout,
+        dependencies=[],
     )
-    # with ContextMenu(activator=fig,
-    #                 open_value=menu_open,
-    #                 on_open_value=set_menu_open):
-    #    if hovered & menu_open:
-    #        sl.Column(
-    #            gap="0px",
-    #            children=[
-    #                sl.Button(
-    #                    label="Download spectra",
-    #                    icon_name="mdi-file-chart-outline",
-    #                    on_click=download_spectra,
-    #                    small=True,
-    #                ),
-    #                sl.Button(
-    #                    label="Open in Jdaviz",
-    #                    icon_name="mdi-chart-line",
-    #                    on_click=open_jdaviz,
-    #                    small=True,
-    #                ),
-    #            ],
-    #        )
-    return
+    add_effects(fig_el)
 
 
 # PLOT SETTINGS
@@ -984,7 +995,7 @@ def sky_menu(plotstate):
         with Card(margin=0):
             with sl.Column():
                 sl.ToggleButtonsSingle(value=plotstate.geo_coords,
-                                       values=["ra/dec", "galactic lon/lat"])
+                                       values=["celestial", "galactic"])
                 sl.Select(
                     label="Projection",
                     value=plotstate.projection,
