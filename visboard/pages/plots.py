@@ -1,28 +1,24 @@
+import copy
 import operator
-import webbrowser as wb
-
 from functools import reduce
 from typing import cast
 
-from time import perf_counter as timer
-
 import numpy as np
-import vaex as vx
 import plotly.express as px
 import plotly.graph_objects as go
 import reacton.ipyvuetify as rv
 import solara as sl
-
+import vaex as vx
+import xarray
+from plotly.graph_objs._figurewidget import FigureWidget
 from solara.components.card import Card
 from solara.components.columns import Columns
 from solara.lab import Menu
-from plotly.graph_objs._figurewidget import FigureWidget
 
 from state import State
 from util import check_catagorical
 
 # TEMPLATES AND STATE
-
 DARK_TEMPLATE = dict(layout=go.Layout(
     font=dict(color="white", size=16),
     showlegend=False,
@@ -110,8 +106,6 @@ def range_loop(start, offset):
 
 
 # SHOW PLOT
-
-
 def show_plot(type, del_func):
     with rv.Card(class_="grey darken-3", style_="width: 100%; height: 100%"):
         plotstate = PlotState(type)
@@ -508,25 +502,27 @@ def histogram(plotstate):
 def aggregated(plotstate):
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "filter-aggregated")
-    relayout, set_relayout = sl.use_state(None)
 
     dff = df
     if filter:
         dff = df[filter]
 
+    x_cat = check_catagorical(dff[plotstate.x.value])
+    y_cat = check_catagorical(dff[plotstate.y.value])
+    if x_cat or y_cat:
+        # TODO: move this to inside the data update, making the error message as a temporary popup
+        return sl.Warning(
+            icon=True,
+            label=
+            "Selected columns are catagorical! Incompatible with aggregated plot.",
+        )
+
     def perform_binning():
         expr = (dff[plotstate.x.value], dff[plotstate.y.value])
         expr_c = dff[plotstate.color.value]
-        x_cat = check_catagorical(expr[0])
-        y_cat = check_catagorical(expr[1])
-        if x_cat or y_cat:
-            return sl.Warning(
-                icon=True,
-                label=
-                "Selected columns are catagorical! Incompatible with aggregated plot.",
-            )
         bintype = str(plotstate.bintype.value)
 
+        # TODO: report weird stride bug that occurs on this commented code
         # xlims, set_xlims = sl.use_state(None)
         # ylims, set_ylims = sl.use_state(None)
         # if xlims is None and ylims is None:
@@ -551,32 +547,44 @@ def aggregated(plotstate):
                 array_type="xarray",
             )
         elif bintype == "median":
-            return sl.Warning(
-                label="Median has memory issues. Remains unimplemented.",
-                icon=True)
-            # WARNING: do not use median_approx -- it consumed 9T of memory.
-            # y = dff.median_approx(
-            #    expr,
-            #    binby=[expr_x, expr_y],
-            #    limits=[
-            #        dff.minmax(plotstate.x.value),
-            #        dff.minmax(plotstate.y.value)
-            #    ],
-            #    shape=plotstate.nbins.value,
-            # )
-        # elif bintype == "mode":
-        #    y = dff.mode(
-        #        expr,
-        #        binby=[expr_x, expr_y],
-        #        limits=[
-        #            dff.minmax(plotstate.x.value),
-        #            dff.minmax(plotstate.y.value)
-        #        ],
-        #        shape=plotstate.nbins.value,
-        #    )
+            # NOTE: i can convert the numpy out into an xarray, should work fine
+            y = dff.median_approx(
+                expr_c,
+                binby=expr,
+                shape=plotstate.nbins.value,
+            )
+            # convert to xarray
+            y = xarray.DataArray(
+                y,
+                coords={
+                    plotstate.x.value:
+                    dff.bin_centers(
+                        expression=expr[0],
+                        limits=limits[0],
+                        shape=plotstate.nbins.value,
+                    ),
+                    plotstate.y.value:
+                    dff.bin_centers(
+                        expression=expr[1],
+                        limits=limits[1],
+                        shape=plotstate.nbins.value,
+                    ),
+                },
+            )
+
+        elif bintype == "mode":
+            y = dff.mode(
+                expression=expr,
+                binby=[expr_x, expr_y],
+                limits=[
+                    dff.minmax(plotstate.x.value),
+                    dff.minmax(plotstate.y.value)
+                ],
+                shape=plotstate.nbins.value,
+            )
         elif bintype == "min":
             y = dff.min(
-                expr_c,
+                expression=expr_c,
                 binby=expr,
                 limits=limits,
                 shape=plotstate.nbins.value,
@@ -584,12 +592,14 @@ def aggregated(plotstate):
             )
         elif bintype == "max":
             y = dff.max(
-                expr_c,
+                expression=expr_c,
                 binby=expr,
                 limits=limits,
                 shape=plotstate.nbins.value,
                 array_type="xarray",
             )
+        else:
+            raise ValueError("no assigned bintype for aggregated")
 
         binscale = str(plotstate.binscale.value)
         if binscale == "log1p":
@@ -598,30 +608,11 @@ def aggregated(plotstate):
             y = np.log10(y)
 
         # TODO: clean this code
-        y = y.where(y != np.inf, np.nan)
-        y = y.where(y != -np.inf, np.nan)
+        y = y.where(np.abs(y) != np.inf, np.nan)
         cmin = float(np.min(y).values)
         cmax = float(np.max(y).values)
         y = y.fillna(-999)
         return y, cmin, cmax
-
-    z, cmin, cmax = sl.use_memo(
-        perform_binning,
-        dependencies=[
-            filter,
-            plotstate.x.value,
-            plotstate.y.value,
-            plotstate.color.value,
-            plotstate.bintype.value,
-            plotstate.nbins.value,
-            plotstate.binscale.value,
-        ],
-    )
-
-    if plotstate.flipy.value:
-        origin = "upper"
-    else:
-        origin = "lower"
 
     def set_colorlabel():
         if plotstate.bintype.value == "count":
@@ -629,104 +620,106 @@ def aggregated(plotstate):
         else:
             return f"{plotstate.color.value} ({plotstate.bintype.value})"
 
-    colorlabel = sl.use_memo(
-        set_colorlabel,
-        dependencies=[
-            plotstate.bintype.value,
-            plotstate.color.value,
-            plotstate.binscale.value,
-        ],
-    )
+    def create_fig():
+        z, cmin, cmax = perform_binning()
+        colorlabel = set_colorlabel()
+        fig = px.imshow(
+            z.T,
+            zmin=cmin,
+            zmax=cmax,
+            origin="lower",
+            color_continuous_scale=plotstate.colorscale.value,
+            labels={
+                "x": plotstate.x.value,
+                "y": plotstate.y.value,
+                "color": colorlabel,
+            },
+            template=DARK_TEMPLATE,
+        )
+        return fig
 
-    fig = px.imshow(
-        z.T,
-        zmin=cmin,
-        zmax=cmax,
-        origin=origin,
-        color_continuous_scale=plotstate.colorscale.value,
-        labels={
-            "x": plotstate.x.value,
-            "y": plotstate.y.value,
-            "color": colorlabel,
-        },
-        template=DARK_TEMPLATE,
-    )
-    if plotstate.flipx.value:
-        fig.update_xaxes(autorange="reversed")
+    # only instantiate the figure once
+    figure = sl.use_memo(create_fig, dependencies=[])
 
-    # reset the ranges based on the relayout
-    fig = update_relayout(fig, relayout, plotstate)
+    def add_effects(fig_element: sl.Element):
 
-    def reset_lims():
-        set_relayout(None)
+        def set_xflip():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            if plotstate.flipx.value:
+                fig_widget.update_xaxes(autorange="reversed")
+            else:
+                fig_widget.update_xaxes(autorange=True)
+            print(fig_widget.layout.xaxis)
 
-    sl.use_thread(
-        reset_lims,
-        dependencies=[
-            plotstate.x.value,
-            plotstate.y.value,
-            plotstate.flipx.value,
-            plotstate.flipy.value,
-        ],
-    )
+        def set_yflip():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            if plotstate.flipy.value:
+                fig_widget.update_yaxes(autorange="reversed")
+            else:
+                fig_widget.update_yaxes(autorange=False)
+                fig_widget.update_yaxes(autorange=True)
+            print(fig_widget.layout.yaxis)
 
-    def relayout_callback(data):
-        if data is not None:
-            set_relayout(data["relayout_data"])
+        def update_data():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
 
-    def select_bin(data):
-        return
-        x_be = np.histogram_bin_edges(expr_x.evaluate(),
-                                      bins=plotstate.nbins.value)
-        xs = data["points"]["xs"][0]
-        qx = np.abs(x_be - xs)
-        px = np.sort(np.abs(x_be - xs))[0:2]
-        ox = [qx == ps for ps in px]
-        xi = np.logical_or(ox[0], ox[1])
+            # update data information
+            z, cmin, cmax = perform_binning()
+            colorlabel = set_colorlabel()
+            data = fig_widget.data[0]
+            data.z = z.T.data
+            data.x = z.coords[plotstate.x.value]
+            data.y = z.coords[plotstate.y.value]
+            data.hovertemplate = (f"{plotstate.x.value}" + ": %{x}<br>" +
+                                  f"{plotstate.y.value}:" + " %{y}<br>" +
+                                  f"{colorlabel}: " + "%{z}<extra></extra>")
 
-        y_be = np.histogram_bin_edges(expr_y.evaluate(),
-                                      bins=plotstate.nbins.value)
-        ys = data["points"]["ys"][0]
-        qy = np.abs(y_be - ys)
-        py = np.sort(np.abs(y_be - ys))[0:2]
-        oy = [qy == ps for ps in py]
-        yi = np.logical_or(oy[0], oy[1])
-        set_xlims(x_be[xi])
-        set_ylims(y_be[yi])
-        return
+            # update coloraxis & label information
+            fig_widget.update_coloraxes(
+                cmax=cmax,
+                cmin=cmin,
+                colorbar=dict(title=colorlabel),
+                colorscale=plotstate.colorscale.value,
+            )
+            fig_widget.update_layout(
+                xaxis_title=plotstate.x.value,
+                yaxis_title=plotstate.y.value,
+            )
 
-    def deselect_bin():
-        return
-        set_xlims(None)
-        set_ylims(None)
-        return
+        def update_color():
+            # NOTE: only for updating colorscale, since any other change
+            # requires an entire plot change
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
 
-    fig.update_layout(font=dict(size=16), autosize=True)
+            # update coloraxis information
+            fig_widget.update_coloraxes(
+                colorscale=plotstate.colorscale.value, )
 
-    with sl.Column() as main:
-        sl.FigurePlotly(
-            fig,
-            on_click=select_bin,
-            on_relayout=relayout_callback,
+        sl.use_effect(
+            update_data,
             dependencies=[
                 filter,
-                # xlims,
-                # ylims,
-                plotstate.nbins.value,
+                plotstate.x.value,
                 plotstate.y.value,
                 plotstate.color.value,
-                plotstate.colorscale.value,
-                plotstate.logx.value,
-                plotstate.logy.value,
-                plotstate.flipx.value,
-                plotstate.flipy.value,
-                plotstate.binscale.value,
                 plotstate.bintype.value,
+                plotstate.binscale.value,
+                plotstate.nbins.value,
             ],
         )
-        # sl.Button("Reset", on_click=deselect_bin)
+        sl.use_effect(
+            update_color,
+            dependencies=[
+                plotstate.colorscale.value,
+            ],
+        )
+        sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
+        sl.use_effect(set_yflip, dependencies=[plotstate.flipy.value])
 
-    return main
+    fig_el = sl.FigurePlotly(figure)
+    add_effects(fig_el)
+
+    return
 
 
 @sl.component
