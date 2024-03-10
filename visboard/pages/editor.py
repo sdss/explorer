@@ -62,6 +62,7 @@ def ExprEditor():
                 return None
             # first, remove all spaces
             expr = expression.replace(" ", "")
+            num_regex = r"^-?[0-9]+(?:\.[0-9]+)?(?:e\d+)?$"
 
             # get expression in parts, saving split via () regex
             subexpressions = re.split(r"(&|\||\)|\()", expr)
@@ -89,7 +90,7 @@ def ExprEditor():
 
                     # check a and b & if a < b
                     assert (
-                        re.match(r"^[0-9]+|\.|-$", parts[0]) is not None
+                        re.match(num_regex, parts[0]) is not None
                     ), f"expression {n} is invalid: must be numeric for numerical data column"
                     assert (
                         float(parts[0]) < float(parts[-1])
@@ -112,7 +113,7 @@ def ExprEditor():
                         dtype = str(dff[col].dtype)
                         if "float" in dtype or "int" in dtype:
                             assert (
-                                re.match(r"^[0-9]+|\.|-$", num) is not None
+                                re.match(num_regex, num) is not None
                             ), f"expression {n} is invalid: must be numeric for numerical data column"
                     else:
                         assert (
