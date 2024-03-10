@@ -131,6 +131,10 @@ def ExprEditor():
                 # enumerate the expr counter
                 n = n + 1
             expr = "(" + "".join(subexpressions) + ")"
+            print(len(df[expr].evaluate()))
+            assert len(df[expr].evaluate()
+                       ) > 2, "expression reduces to minimal length"
+
             set_filter(df[expr])
 
             return True
