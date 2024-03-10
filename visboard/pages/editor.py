@@ -1,6 +1,8 @@
 from typing import cast
+import re
 
 import solara as sl
+import numpy as np
 import reacton.ipyvuetify as rv
 
 from state import State
@@ -48,79 +50,96 @@ def ExprEditor():
     expression, set_expression = sl.use_state("")
     error, set_error = sl.use_state(cast(str, None))
 
-    def reset():
-        set_expression("")
-        set_error(cast(str, None))
-
-    # INFO: resets on dataframe change
-    # BUG: can randomly reset even though the dataset doesn't actually change, this might be a big bug
-    sl.use_thread(reset, dependencies=[State.dataset.value])
-
     def work():
+        """
+        Validates if the expression is valid, and returns
+        a precise error message for any issues in the expression.
+        """
         try:
             # TODO: this is hella spaghetti how fix
             if expression is None or expression == "":
                 set_filter(None)
                 return None
-            modifiers = [">=", "<=", "!=", ">", "<", "=="]
-            assert any(modifier in expression for modifier in
-                       modifiers), "expression requires comparative modifier"
+            # first, remove all spaces
+            expr = expression.replace(" ", "")
 
-            # get expression in parts
-            exprlist = []
-            for modifier in modifiers:
-                exprs = expression.split("&")
-                for expr in exprs:
-                    expr = expr.split(modifier)
-                    if len(expr) == 2 or len(expr) == 3:
-                        expr.append(modifier)
-                        exprlist.append(expr)
-                        if len(exprs) == 1:
-                            break
+            # get expression in parts, saving split via () regex
+            subexpressions = re.split(r"(&|\||\)|\()", expr)
+            n = 1
+            for i, expr in enumerate(subexpressions):
+                # saved regex info -> skip w/o enumerating
+                if expr in ["", "&", "(", ")", "|"]:
+                    continue
 
-            completed_expression = []
-            for expr in exprlist:
-                if len(expr) == 3:
-                    mod = expr[-1].strip().replace(")", "").replace("(", "")
-                    if (expr[0].strip().replace(")", "").replace("(", "")
-                            in dff.get_column_names()):
-                        col = expr[0].strip().replace(")", "").replace("(", "")
-                        num = expr[1].strip().replace(")", "").replace("(", "")
-                    elif (expr[1].strip().replace(")", "").replace("(", "")
-                          in dff.get_column_names()):
-                        col = expr[1].strip().replace(")", "").replace("(", "")
-                        num = expr[0].strip().replace(")", "").replace("(", "")
-                    else:
-                        assert False, "one part must be a data column"
-                    completed_expression.append(f"({col}{mod}{num})")
-                else:
+                parts = re.split(r"(>=|<=|<|>|==|!=)", expr)
+                # if parts[0] == "" and len(parts) == 1:
+                #    assert False, f"expression {n} is invalid: no expression"
+                if len(parts) == 1:
+                    assert False, f"expression {n} is invalid: no comparator"
+                elif len(parts) == 5:
+                    # first, check that parts 2 & 4 are lt or lte comparators
                     assert (
-                        expr[1].strip().replace(")", "").replace("(", "")
-                        in dff.get_column_names()), "middle must be a column"
+                        re.fullmatch(r"<=|<", parts[1]) is not None
+                        and re.fullmatch(r"<=|<", parts[3]) is not None
+                    ), f"expression {n} is invalid: not a proper 3-part inequality (a < col <= b)"
+                    # check middle
+                    assert (
+                        parts[2] in dff.columns
+                    ), f"expression {n} is invalid: must be comparing a data column (a < col <= b)"
 
-                    assert (expr[0].strip().replace(")", "").replace("(", "")
-                            != ""), "ends must be numeric"
-                    assert (expr[2].strip().replace(")", "").replace("(", "")
-                            != ""), "ends must be numeric"
-                    col = expr[1].strip().replace(")", "").replace("(", "")
-                    low = expr[0].strip().replace(")", "").replace("(", "")
-                    high = expr[2].strip().replace(")", "").replace("(", "")
-                    completed_expression.append(
-                        f"(({col} > {low}) & ({col} < {high}))")
-            import numpy as np
+                    # check a and b & if a < b
+                    assert (
+                        re.match(r"^[0-9]+|\.|-$", parts[0]) is not None
+                    ), f"expression {n} is invalid: must be numeric for numerical data column"
+                    assert (
+                        float(parts[0]) < float(parts[-1])
+                    ), f"expression {n} is invalid: invalid inequality (a > b for a < col < b)"
 
-            completed_expression = " & ".join(completed_expression)
+                    # change the expression to valid format
+                    subexpressions[i] = (
+                        f"(({parts[0]}{parts[1]}{parts[2]})&({parts[2]}{parts[3]}{parts[4]}))"
+                    )
 
-            assert (np.count_nonzero(df["(" + completed_expression +
-                                        ")"].evaluate())
-                    > 10), "expression too precise (results in length < 10)"
-            # pass all checks, then set the filter
-            set_filter(df["(" + completed_expression + ")"])
+                elif len(parts) == 3:
+                    check = (parts[0] in dff.columns, parts[2] in dff.columns)
+                    if np.any(check):
+                        if check[0]:
+                            col = parts[0]
+                            num = parts[2]
+                        elif check[1]:
+                            col = parts[2]
+                            num = parts[0]
+                        dtype = str(dff[col].dtype)
+                        if "float" in dtype or "int" in dtype:
+                            assert (
+                                re.match(r"^[0-9]+|\.|-$", num) is not None
+                            ), f"expression {n} is invalid: must be numeric for numerical data column"
+                    else:
+                        assert (
+                            False
+                        ), f"expression {n} is invalid: one part must be column"
+                    assert (
+                        re.match(r">=|<=|<|>|==|!=", parts[1]) is not None
+                    ), f"expression {n} is invalid: middle is not comparator"
+
+                    # change the expression in subexpression
+                    subexpressions[i] = "(" + expr + ")"
+                else:
+                    assert False, f"expression {n} is invalid: too many comparators"
+
+                # enumerate the expr counter
+                n = n + 1
+            expr = "(" + "".join(subexpressions) + ")"
+            set_filter(df[expr])
+
             return True
 
         except AssertionError as e:
             set_filter(None)
             set_error(e)
+            return False
+        except SyntaxError as e:
+            set_error("modifier at end of sequence with no expression")
             return False
 
     result: sl.Result[bool] = sl.use_thread(work, dependencies=[expression])
