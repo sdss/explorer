@@ -1,4 +1,5 @@
 import solara as sl
+from solara import lab
 import reacton.ipyvuetify as rv
 
 from state import State
@@ -10,9 +11,11 @@ from grid import ObjectGrid
 @sl.component
 def Page():
     df = State.df.value
+    print(dir(lab.theme))
 
     # PAGE TITLE
-    sl.Title("Parameter Display - SDSS (NOTPUBLIC)")
+    # TODO: make this adaptive in some cool way
+    sl.Title("(NOTPUBLIC) SDSS Visboard")
     with sl.AppBar():
         sl.AppBarTitle(children=[rv.Icon(children=["mdi-orbit"]), " SDSS"])
         sl.Select(
@@ -22,13 +25,7 @@ def Page():
             value=State.dataset.value,
             on_value=State.load_dataset,
         )
-        # sl.Button(
-        #    label=None,
-        #    on_click=State.change_theme,
-        #    icon_name="mdi-moon-waning-crescent"
-        #    if State.theme.value else "mdi-white-balance-sunny",
-        #    style=State.style.value,
-        # )
+        lab.ThemeToggle()
     # SIDEBAR
     sidebar()
     # MAIN GRID

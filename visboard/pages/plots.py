@@ -11,7 +11,7 @@ import reacton.ipyvuetify as rv
 import solara as sl
 from solara.components.card import Card
 from solara.components.columns import Columns
-from solara.lab import Menu, ContextMenu
+from solara.lab import Menu, ContextMenu, use_dark_effective
 
 from state import State
 from util import check_catagorical
@@ -24,6 +24,19 @@ DARK_TEMPLATE = dict(layout=go.Layout(
     paper_bgcolor="#424242",
     autosize=True,
     plot_bgcolor="#212121",
+    margin={
+        "t": 30,
+        "b": 80,
+        "l": 80,
+        "r": 80
+    },
+))
+LIGHT_TEMPLATE = dict(layout=go.Layout(
+    font=dict(color="black", size=16),
+    showlegend=False,
+    paper_bgcolor="#F5F5F5",
+    autosize=True,
+    plot_bgcolor="#FAFAFA",
     margin={
         "t": 30,
         "b": 80,
