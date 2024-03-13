@@ -6,5 +6,4 @@
 The visboard is a custom data visualization application developed for SDSS-V's DR19, built using `solara`, `plotly` and `vaex`.
 
 ## SDSS-V loaders (specutils)
-$ \pi r^2 + 2 \alpha $
 See [here](https://www.github.com/astropy/specutils/pull/1107).
