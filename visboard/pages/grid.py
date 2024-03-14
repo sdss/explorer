@@ -48,8 +48,7 @@ class GridState:
 def ViewCard(type, i):
 
     def remove(i):
-        # find where in grid_layout has this item no i
-        q = int()
+        # find where in grid_layout has key (i)
         for n, obj in enumerate(GridState.grid_layout.value):
             if obj["i"] == i:
                 q = n
@@ -148,5 +147,4 @@ def ObjectGrid():
             resizable=True,
             draggable=True,
         )
-    print(GridState.objects.value)
     return
