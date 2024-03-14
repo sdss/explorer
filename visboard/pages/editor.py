@@ -67,14 +67,13 @@ def ExprEditor():
             # get expression in parts, saving split via () regex
             subexpressions = re.split(r"(&|\||\)|\()", expr)
             n = 1
+            cols = dff.get_column_names()
             for i, expr in enumerate(subexpressions):
                 # saved regex info -> skip w/o enumerating
                 if expr in ["", "&", "(", ")", "|"]:
                     continue
 
                 parts = re.split(r"(>=|<=|<|>|==|!=)", expr)
-                # if parts[0] == "" and len(parts) == 1:
-                #    assert False, f"expression {n} is invalid: no expression"
                 if len(parts) == 1:
                     assert False, f"expression {n} is invalid: no comparator"
                 elif len(parts) == 5:
@@ -83,6 +82,7 @@ def ExprEditor():
                         re.fullmatch(r"<=|<", parts[1]) is not None
                         and re.fullmatch(r"<=|<", parts[3]) is not None
                     ), f"expression {n} is invalid: not a proper 3-part inequality (a < col <= b)"
+
                     # check middle
                     assert (
                         parts[2] in dff.columns
@@ -130,18 +130,22 @@ def ExprEditor():
 
                 # enumerate the expr counter
                 n = n + 1
+
+            # create expression as str
             expr = "(" + "".join(subexpressions) + ")"
-            print(len(df[expr].evaluate()))
-            assert len(df[expr].evaluate()
-                       ) > 2, "expression reduces to minimal length"
 
+            # query to see if it reduces to an unplottable length
+            dfq = df[df[expr]]
+            assert len(dfq) > 0, "expression reduces dataset to 0 rows"
+
+            # set filter & exit
             set_filter(df[expr])
-
             return True
 
         except AssertionError as e:
-            set_filter(None)
-            set_error(e)
+            # INFO: it's probably better NOT to unset filters if assertions fail.
+            # set_filter(None)
+            set_error(e)  # saves error msg to state
             return False
         except SyntaxError as e:
             set_error("modifier at end of sequence with no expression")
