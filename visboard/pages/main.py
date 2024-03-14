@@ -11,7 +11,6 @@ from grid import ObjectGrid
 @sl.component
 def Page():
     df = State.df.value
-    print(dir(lab.theme))
 
     # PAGE TITLE
     # TODO: make this adaptive in some cool way
