@@ -12,7 +12,6 @@ from state import State
 def SumCard():
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "summary")
-
     # filter logic
     if filter:
         filtered = True
@@ -35,8 +34,10 @@ def SumCard():
                 summary = f"{len(dff):,} / {len(df):,}"
             else:
                 summary = f"{len(dff):,}"
-            rv.Icon(children=["mdi-filter"],
-                    style_="opacity: 0.1" if not filtered else "")
+            rv.Icon(
+                children=["mdi-filter"],
+                style_="opacity: 0.1" if not filtered else "",
+            )
             rv.Html(tag="h3", children=[summary], style_="display: inline")
 
 
@@ -153,36 +154,41 @@ def ExprEditor():
 
     result: sl.Result[bool] = sl.use_thread(work, dependencies=[expression])
 
-    with sl.Card(title="Expression editor", margin=0) as main:
-        sl.InputText(label="Enter an expression",
-                     value=expression,
-                     on_value=set_expression)
-        if result.state == sl.ResultState.FINISHED:
-            if result.value:
-                sl.Success(
-                    label="Valid expression entered.",
-                    icon=True,
-                    dense=True,
-                    outlined=False,
-                )
-            elif result.value is None:
-                sl.Info(
-                    label="No expression entered. Filter unset.",
-                    icon=True,
-                    dense=True,
-                    outlined=False,
-                )
-            else:
-                sl.Error(
-                    label=f"Invalid expression entered: {error}",
-                    icon=True,
-                    dense=True,
-                    outlined=False,
-                )
+    with rv.ExpansionPanel() as main:
+        with rv.ExpansionPanelHeader():
+            rv.Icon(children=["mdi-function-variant"])
+            with rv.CardTitle(children=["Expressions"]):
+                pass
+        with rv.ExpansionPanelContent():
+            sl.InputText(label="Enter an expression",
+                         value=expression,
+                         on_value=set_expression)
+            if result.state == sl.ResultState.FINISHED:
+                if result.value:
+                    sl.Success(
+                        label="Valid expression entered.",
+                        icon=True,
+                        dense=True,
+                        outlined=False,
+                    )
+                elif result.value is None:
+                    sl.Info(
+                        label="No expression entered. Filter unset.",
+                        icon=True,
+                        dense=True,
+                        outlined=False,
+                    )
+                else:
+                    sl.Error(
+                        label=f"Invalid expression entered: {error}",
+                        icon=True,
+                        dense=True,
+                        outlined=False,
+                    )
 
-        elif result.state == sl.ResultState.ERROR:
-            sl.Error(f"Error occurred: {result.error}")
-        else:
-            sl.Info("Evaluating expression...")
-            rv.ProgressLinear(indeterminate=True)
+            elif result.state == sl.ResultState.ERROR:
+                sl.Error(f"Error occurred: {result.error}")
+            else:
+                sl.Info("Evaluating expression...")
+                rv.ProgressLinear(indeterminate=True)
     return main

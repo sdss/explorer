@@ -11,9 +11,8 @@ from editor import ExprEditor, SumCard
 
 
 @sl.component()
-def control_menu():
+def DownloadMenu():
     df = State.df.value
-
     filter, set_filter = sl.use_cross_filter(id(df), "download")
     if filter:
         dff = df[filter]
@@ -25,23 +24,12 @@ def control_menu():
         return dfp.to_csv(index=False)
 
     if df is not None:
-        # summary + expressions
-        SumCard()
-        ExprEditor()
-        QuickFilterMenu()
-
-        # pivot table
-        sl.PivotTableCard(df, y=["telescope"], x=["release"])
-
         with sl.Row(style={"align-items": "center"}):
             sl.FileDownload(
                 get_data,
                 filename="apogeenet_filtered.csv",
                 label="Download table",
             )
-
-    else:
-        sl.Info("No data loaded.")
 
 
 @sl.component()
@@ -90,28 +78,46 @@ def QuickFilterMenu():
         dependencies=[flag_nonzero, flag_snr50],
     )
 
-    with rv.Card(elevation=2, style_="height: 100%; width: 100%;") as main:
-        with rv.ExpansionPanels(accordion=True):
-            with rv.ExpansionPanel():
-                with rv.ExpansionPanelHeader():
-                    rv.Icon(children=["mdi-filter-plus-outline"])
-                    with rv.CardTitle(children=["Quick filters"]):
-                        pass
-                with rv.ExpansionPanelContent():
-                    sl.Checkbox(
-                        label="All flags zero",
-                        value=flag_nonzero,
-                        on_value=set_flag_nonzero,
-                    )
-                    sl.Checkbox(label="SNR > 50",
-                                value=flag_snr50,
-                                on_value=set_flag_snr50)
+    with rv.ExpansionPanel() as main:
+        with rv.ExpansionPanelHeader():
+            rv.Icon(children=["mdi-filter-plus-outline"])
+            with rv.CardTitle(children=["Quick filters"]):
+                pass
+        with rv.ExpansionPanelContent():
+            sl.Checkbox(
+                label="All flags zero",
+                value=flag_nonzero,
+                on_value=set_flag_nonzero,
+            )
+            sl.Checkbox(label="SNR > 50",
+                        value=flag_snr50,
+                        on_value=set_flag_snr50)
+    return
+
+
+@sl.component()
+def PivotTablePanel():
+    df = State.df.value
+    with rv.ExpansionPanel() as main:
+        with rv.ExpansionPanelHeader():
+            rv.Icon(children=["mdi-table-plus"])
+            with rv.CardTitle(children=["Pivot Table"]):
+                pass
+        with rv.ExpansionPanelContent():
+            sl.PivotTableCard(df, y=["telescope"], x=["release"])
     return main
 
 
 @sl.component()
 def sidebar():
+    df = State.df.value
     with sl.Sidebar():
-        with sl.Card("Controls", margin=0, elevation=0):
-            with sl.Column():
-                control_menu()
+        if df is not None:
+            SumCard()
+            with rv.ExpansionPanels(accordion=True):
+                ExprEditor()
+                QuickFilterMenu()
+                PivotTablePanel()
+                DownloadMenu()
+        else:
+            sl.Info("No data loaded.")
