@@ -16,7 +16,11 @@ def Page():
     # TODO: make this adaptive in some cool way
     sl.Title("(NOTPUBLIC) SDSS Visboard")
     with sl.AppBar():
+        # main title object
         sl.AppBarTitle(children=[rv.Icon(children=["mdi-orbit"]), " SDSS"])
+
+        # dataset selection
+        # NOTE: may be moved in future!
         sl.Select(
             label="Dataset",
             dense=True,
@@ -24,7 +28,11 @@ def Page():
             value=State.dataset.value,
             on_value=State.load_dataset,
         )
+
+        # appbar buttons
         lab.ThemeToggle()
+        sl.Button(icon_name="mdi-wheelchair-accessibility", text=True)
+        sl.Button(icon_name="mdi-login-variant", outlined=True)
     # SIDEBAR
     sidebar()
     # MAIN GRID
