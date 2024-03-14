@@ -62,7 +62,7 @@ def ExprEditor():
                 return None
             # first, remove all spaces
             expr = expression.replace(" ", "")
-            num_regex = r"^-?[0-9]+(?:\.[0-9]+)?(?:e\d+)?$"
+            num_regex = r"^-?[0-9]+(?:\.[0-9]+)?(?:-?e\d+)?$"
 
             # get expression in parts, saving split via () regex
             subexpressions = re.split(r"(&|\||\)|\()", expr)
