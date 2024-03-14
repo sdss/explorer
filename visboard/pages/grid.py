@@ -48,16 +48,23 @@ class GridState:
 def ViewCard(type, i):
 
     def remove(i):
+        """
+        i: unique identifier key, position in objects list
+        q: specific, adaptive index in grid_objects (position dict)
+        """
         # find where in grid_layout has key (i)
         for n, obj in enumerate(GridState.grid_layout.value):
             if obj["i"] == i:
                 q = n
                 break
-        # cut layout at that spot, objects not cut because of how vue selects item to render
+
+        # cut layout at that spot
         GridState.grid_layout.value = (GridState.grid_layout.value[:q] +
                                        GridState.grid_layout.value[q + 1:])
-        # replace the object with a dummy card
-        GridState.objects.value[q] = rv.Card()
+
+        # replace the object in object list with a dummy renderable
+        # INFO: cannot be deleted because it breaks all renders
+        GridState.objects.value[i] = rv.Card()
 
     if type != "table":
         show_plot(type, lambda: remove(i))
