@@ -1,14 +1,16 @@
+import copy
 import operator
-import webbrowser as wb
-
 from functools import reduce
-from time import perf_counter as timer
+from typing import cast
 
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import reacton.ipyvuetify as rv
 import solara as sl
+import vaex as vx
+import xarray
+from plotly.graph_objs._figurewidget import FigureWidget
 from solara.components.card import Card
 from solara.components.columns import Columns
 from solara.lab import Menu, ContextMenu, use_dark_effective
@@ -17,7 +19,6 @@ from state import State
 from util import check_catagorical
 
 # TEMPLATES AND STATE
-
 DARK_TEMPLATE = dict(layout=go.Layout(
     font=dict(color="white", size=16),
     showlegend=False,
@@ -51,30 +52,37 @@ class PlotState:
     Combination of reactive states which instantiate a specific plot's settings/properties
     """
 
-    def __init__(self):
-        # x,y,z/color
+    def __init__(self, type):
+        # common settings
         self.x = sl.use_reactive("teff")
-        self.y = sl.use_reactive("logg")
-        self.color = sl.use_reactive("fe_h")
-
-        # plot parameters/settings
-        self.colorscale = sl.use_reactive("viridis")
-        self.logx = sl.use_reactive(False)
-        self.logy = sl.use_reactive(False)
         self.flipx = sl.use_reactive(False)
         self.flipy = sl.use_reactive(False)
 
-        # statistics
-        self.nbins = sl.use_reactive(200)
-        self.bintype = sl.use_reactive("mean")
-        self.binscale = sl.use_reactive(None)
-        self.norm = sl.use_reactive(None)
+        # moderately unique plot parameters/settings
+        if type != "histogram":
+            self.y = sl.use_reactive("logg")
+            self.color = sl.use_reactive("fe_h")
+            self.colorscale = sl.use_reactive("viridis")
+        if type != "aggregated" and type != "skyplot":
+            self.logx = sl.use_reactive(False)
+            self.logy = sl.use_reactive(False)
+
+        # statistics settings
+        if type == "aggregated" or type == "histogram":
+            self.nbins = sl.use_reactive(200)
+            if type == "aggregated":
+                self.bintype = sl.use_reactive("mean")
+                self.binscale = sl.use_reactive(None)
+            else:
+                self.norm = sl.use_reactive(cast(str, None))
 
         # skyplot settings
-        self.geo_coords = sl.use_reactive("ra/dec")
-        self.projection = sl.use_reactive("hammer")
+        if type == "skyplot":
+            self.geo_coords = sl.use_reactive("celestial")
+            self.projection = sl.use_reactive("hammer")
 
         # all lookup data for types
+        # TODO: move this lookup data elsewhere to reduce the size of the plotstate objects
         self.Lookup = dict(
             norms=[
                 None, "percent", "probability", "density",
@@ -107,63 +115,19 @@ class PlotState:
 
 
 def range_loop(start, offset):
-    return
-
-
-def update_relayout(fig, relayout, plotstate):
-    if relayout is not None:
-        if len(relayout) == 0:
-            return fig
-        if "xaxis.range[0]" in relayout.keys():
-            range = [relayout["xaxis.range[0]"], relayout["xaxis.range[1]"]]
-            if plotstate.flipx.value:
-                range = [np.max(range), np.min(range)]
-            else:
-                range = [np.min(range), np.max(range)]
-            if plotstate.logx.value:
-                range = np.log10(range)
-            fig.update_xaxes(range=range)
-        if "yaxis.range[0]" in relayout.keys():
-            range = [relayout["yaxis.range[0]"], relayout["yaxis.range[1]"]]
-            if plotstate.flipy.value:
-                range = [np.max(range), np.min(range)]
-            else:
-                range = [np.min(range), np.max(range)]
-            if plotstate.logy.value:
-                range = np.log10(range)
-            fig.update_yaxes(range=range)
-
-        # LONGITUDE
-        if "geo.projection.rotation.lon" in relayout.keys():
-            fig.update_geos(
-                projection_rotation_lon=relayout["geo.projection.rotation.lon"]
-            )
-        if "geo.center.lon" in relayout.keys():
-            fig.update_geos(center_lon=relayout["geo.center.lon"])
-        # LATITUDE
-        if "geo.projection.rotation.lat" in relayout.keys():
-            fig.update_geos(
-                projection_rotation_lat=relayout["geo.projection.rotation.lat"]
-            )
-        if "geo.center.lat" in relayout.keys():
-            fig.update_geos(center_lat=relayout["geo.center.lat"])
-        if "geo.projection.scale" in relayout.keys():
-            fig.update_geos(projection_scale=relayout["geo.projection.scale"])
-    return fig
+    return (start + (offset % 360) + 360) % 360
 
 
 # SHOW PLOT
-
-
 def show_plot(type, del_func):
     with rv.Card(class_="grey darken-3", style_="width: 100%; height: 100%"):
-        plotstate = PlotState()
+        plotstate = PlotState(type)
         with rv.CardText():
             with sl.Column(classes=["grey darken-3"]):
                 if type == "histogram":
                     histogram(plotstate)
-                elif type == "histogram2d":
-                    histogram2d(plotstate)
+                elif type == "aggregated":
+                    aggregated(plotstate)
                 elif type == "scatter":
                     # scatterplot()
                     scatter(plotstate)
@@ -184,130 +148,65 @@ def show_plot(type, del_func):
 
 
 @sl.component
-def scatter3d(plotstate):
-    df = State.df.value
-    filter, set_filter = sl.use_cross_filter(id(df), "filter-plot3d")
-
-    dff = df
-    if filter:
-        dff = df[filter]
-    selection = np.random.choice(int(len(dff)), plotstate.subset.value)
-    x = np.array(dff[plotstate.x.value].values)[selection]
-    y = np.array(dff[plotstate.y.value].values)[selection]
-    z = np.array(dff[plotstate.color.value].values)[selection]
-
-    fig = px.scatter_3d(
-        x=x,
-        y=y,
-        z=z,
-        log_x=plotstate.logx.value,
-        log_y=plotstate.logy.value,
-        labels={
-            "x": plotstate.x.value,
-            "y": plotstate.y.value,
-            "z": plotstate.color.value,
-        },
-    )
-    if plotstate.flipx.value:
-        fig.update_xaxes(autorange="reversed")
-    if plotstate.flipy.value:
-        fig.update_yaxes(autorange="reversed")
-    fig.update_layout(
-        xaxis_title=plotstate.x.value,
-        autosize=True,
-        yaxis_title=plotstate.y.value,
-    )
-    return sl.FigurePlotly(fig)
-
-
-@sl.component
 def scatter(plotstate):
-    df = State.df.value
-    filter, set_filter = sl.use_cross_filter(id(df), "filter-scatter")
-    relayout, set_relayout = sl.use_state(None)
-    xfilter, set_xfilter = sl.use_state(None)
-    yfilter, set_yfilter = sl.use_state(None)
-    hovered, set_hovered = sl.use_state(False)
-    clicked, set_clicked = sl.use_state(False)
-    sdssid, set_sdssid = sl.use_state(None)
+    df: vx.DataFrame = State.df.value
+    filter, set_filter = sl.use_cross_filter(id(df), "scatter")
+    relayout, set_relayout = sl.use_state({})
+    local_filter, set_local_filter = sl.use_state(None)
 
-    # filter
-    if filter:
+    def update_filter():
+        xfilter = None
+        yfilter = None
+        try:
+            min = relayout["xaxis.range[0]"]
+            max = relayout["xaxis.range[1]"]
+            if plotstate.logx.value:
+                min = 10**min
+                max = 10**max
+            xfilter = df[
+                f"(({plotstate.x.value} > {np.min((min,max))}) & ({plotstate.x.value} < {np.max((min,max))}))"]
+        except KeyError:
+            pass
+        try:
+            min = relayout["yaxis.range[0]"]
+            max = relayout["yaxis.range[1]"]
+            if plotstate.logy.value:
+                min = 10**min
+                max = 10**max
+            yfilter = df[
+                f"(({plotstate.y.value} > {np.min((min,max))}) & ({plotstate.y.value} < {np.max((min,max))}))"]
+
+        except KeyError:
+            pass
+        if xfilter is not None and yfilter is not None:
+            filters = [xfilter, yfilter]
+        else:
+            filters = [xfilter if xfilter is not None else yfilter]
+        filter = reduce(operator.and_, filters[1:], filters[0])
+        set_local_filter(filter)
+
+    sl.use_thread(update_filter, dependencies=[relayout])
+
+    # Apply global and local filters
+    if filter is not None:
         dff = df[filter]
     else:
         dff = df
 
-    # get minmax for reset
-    xmm = dff.minmax(plotstate.x.value)
-    ymm = dff.minmax(plotstate.y.value)
-
-    # filter to current relayout
-    # TODO: this logic sequence is cursed and high complexity fix it
-    if relayout is not None:
-        if "xaxis.autorange" in relayout.keys():
-            set_xfilter(None)
-            set_yfilter(None)
-        if "xaxis.range[0]" in relayout.keys():
-            min = relayout["xaxis.range[0]"]
-            max = relayout["xaxis.range[1]"]
-            set_xfilter(df[
-                f"(({plotstate.x.value} > {np.min((min,max))}) & ({plotstate.x.value} < {np.max((min,max))}))"]
-                        )
-        if "yaxis.range[0]" in relayout.keys():
-            min = relayout["yaxis.range[0]"]
-            max = relayout["yaxis.range[1]"]
-            set_yfilter(df[
-                f"(({plotstate.y.value} > {np.min((min,max))}) & ({plotstate.y.value} < {np.max((min,max))}))"]
-                        )
-        local_filters = [xfilter, yfilter]
-        if local_filters[0] is not None and local_filters[1] is not None:
-            if filter:
-                superfilter = reduce(operator.and_, local_filters, filter)
-                dff = df[superfilter]
-            else:
-                superfilter = reduce(operator.and_, local_filters[1:],
-                                     local_filters[0])
-                dff = df[superfilter]
-        else:
-            if filter:
-                dff = df[filter]
-            else:
-                dff = df
+    if local_filter is not None:
+        dff = dff[local_filter]
     else:
-        if filter:
-            dff = df[filter]
-        else:
-            dff = df
+        dff = dff
 
-    # get cols
-    x = dff[plotstate.x.value]
-    y = dff[plotstate.y.value]
-    c = dff[plotstate.color.value]
-    ids = dff["sdss_id"]
-
-    # trim to renderable length
     if len(dff) > 20000:
-        x = x[:20_000]
-        y = y[:20_000]
-        c = c[:20_000]
-        ids = ids[:20_000]
-
-    # Check for catagorical (unrenderable in scatter)
-    x_cat = check_catagorical(x)
-    y_cat = check_catagorical(y)
-    if x_cat or y_cat:
-        return sl.Warning(
-            icon=True,
-            label=
-            "Selected columns are catagorical! Incompatible with scatter plot.",
-        )
-    x = x.values
-    y = y.values
-    c = c.values
-    ids = ids.values
+        dff = dff[:20_000]
 
     def create_fig():
-        fig = go.Figure(
+        x = dff[plotstate.x.value].values
+        y = dff[plotstate.y.value].values
+        c = dff[plotstate.color.value].values
+        ids = dff["sdss_id"].values
+        figure = go.Figure(
             data=go.Scattergl(
                 x=x,
                 y=y,
@@ -335,154 +234,159 @@ def scatter(plotstate):
                 ),
             ),
         )
-        # flip and log
-        if plotstate.flipx.value:
-            # TODO: fix the flip on dynamic render (cant use autorange have to used manual logic aijijhitjhij)
-            fig.update_xaxes(range=fig.layout.xaxes.range.reverse())
-        if plotstate.flipy.value:
-            fig.update_yaxes(autorange="reversed")
-        if plotstate.logx.value:
-            fig.update_xaxes(type="log")
-        if plotstate.logy.value:
-            fig.update_yaxes(type="log")
+        return figure
 
-        # change autorange min-max to allow for a reset to max range
-        # TODO: need to add fix for reversed
-        fig.update_xaxes(autorangeoptions_minallowed=xmm[0],
-                         autorangeoptions_maxallowed=xmm[1])
-        fig.update_yaxes(autorangeoptions_minallowed=ymm[0],
-                         autorangeoptions_maxallowed=ymm[1])
-        # reset the ranges based on the relayout
-        fig = update_relayout(fig, relayout, plotstate)
-        return fig
+    # only instantiate the figure once
+    figure = sl.use_memo(create_fig, dependencies=[])
 
-    fig = sl.use_memo(create_fig)
-    """Relayout handlers"""
+    # Effect based callbacks (flip, log, & data array updates)
+    def add_effects(fig_element: sl.Element):
 
-    def reset_lims():
-        set_relayout(None)
-        set_xfilter(None)
-        set_yfilter(None)
+        def add_context_menu():
+            # TODO: except contextmenu in DOM somehow so i can open my own vue menu
 
-    sl.use_thread(
-        reset_lims,
-        dependencies=[
-            plotstate.x.value,
-            plotstate.y.value,
-            plotstate.logx.value,
-            plotstate.logy.value,
-            plotstate.flipx.value,
-            plotstate.flipy.value,
-        ],
-    )
+            def on_click(trace, points, selector):
+                if selector.button == 2:
+                    print(trace.customdata[points.point_inds[0]])
 
-    def relayout_callback(data):
-        if data is not None:
-            set_relayout(data["relayout_data"])
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            points = fig_widget.data[0]
+            points.on_click(on_click)
 
-    """Selection handlers"""
+        sl.use_effect(add_context_menu, dependencies=[relayout])
 
-    def on_selection(data):
-        print(len(data["points"]["xs"]))
-        if len(data["points"]["xs"]) > 0:
-            set_filter((df[plotstate.x.value].isin(data["points"]["xs"])
-                        & df[plotstate.y.value].isin(data["points"]["ys"])))
+        def set_xflip():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            if fig_widget.layout.xaxis.range is not None:
+                if plotstate.flipx.value:
+                    fig_widget.update_xaxes(autorange="reversed")
+                else:
+                    fig_widget.update_xaxes(
+                        range=fig_widget.layout.xaxis.range[::-1])
 
-    def on_deselect(data):
-        set_filter(None)
+        def set_yflip():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            if fig_widget.layout.yaxis.range is not None:
+                if plotstate.flipy.value:
+                    fig_widget.update_yaxes(autorange="reversed")
+                else:
+                    fig_widget.update_yaxes(
+                        range=fig_widget.layout.yaxis.range[::-1])
 
-    """
-    Context Menu handlers
-    """
+        def set_log():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            if plotstate.logx.value:
+                fig_widget.update_xaxes(type="log")
+            else:
+                fig_widget.update_xaxes(type="linear")
+            if plotstate.logy.value:
+                fig_widget.update_yaxes(type="log")
+            else:
+                fig_widget.update_yaxes(type="linear")
 
-    def on_click(data):
-        set_clicked(True)
-
-    def on_hover(data):
-        set_clicked(False)
-        set_hovered(True)
-        set_sdssid(df[plotstate.x.value].isin(data["points"]["xs"])
-                   & df[plotstate.y.value].isin(data["points"]["ys"]))
-
-    def on_unhover(data):
-        if not clicked:
-            set_hovered(False)
-
-    def open_jdaviz():
-        wb.open("http://localhost:8866/")
-        close_context_menu()
-
-    def download_spectra():
-        # TODO: change to directly use ID
-        if sdssid is not None:
-            print(df[sdssid]["sdss_id"].values[0])
-        else:
-            raise ValueError("SDSS ID was none on scatter hover.")
-        wb.open("https://www.google.com")
-        close_context_menu()
-
-    def close_context_menu():
-        set_hovered(False)
-        set_clicked(False)
-
-    fig = sl.FigurePlotly(
-        fig,
-        on_hover=on_hover,
-        on_click=on_click,
-        on_unhover=on_unhover,
-        on_selection=on_selection,
-        on_deselect=on_deselect,
-        on_relayout=relayout_callback,
-        dependencies=[
-            filter,
-            xfilter,
-            yfilter,
-            plotstate.x.value,
-            plotstate.y.value,
-            plotstate.color.value,
-            plotstate.colorscale.value,
-            plotstate.logx.value,
-            plotstate.logy.value,
-            plotstate.flipx.value,
-            plotstate.flipy.value,
-        ],
-    )
-    with ContextMenu(activator=fig):
-        if clicked & hovered:
-            sl.Column(
-                gap="0px",
-                children=[
-                    sl.Button(
-                        label="Download spectra",
-                        icon_name="mdi-file-chart-outline",
-                        on_click=download_spectra,
-                        small=True,
-                    ),
-                    sl.Button(
-                        label="Open in Jdaviz",
-                        icon_name="mdi-chart-line",
-                        on_click=open_jdaviz,
-                        small=True,
-                    ),
-                ],
+        def update_data():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            data = fig_widget.data[0]
+            data.x = dff[plotstate.x.value].values
+            data.y = dff[plotstate.y.value].values
+            data.customdata = dff["sdss_id"].values
+            data.marker = dict(
+                color=dff[plotstate.color.value].values,
+                colorbar=dict(title=plotstate.color.value),
+                colorscale=plotstate.colorscale.value,
+            )
+            data.hovertemplate = (f"<b>{plotstate.x.value}</b>:" +
+                                  " %{x:.6f}<br>" +
+                                  f"<b>{plotstate.y.value}</b>:" +
+                                  " %{y:.6f}<br>" +
+                                  f"<b>{plotstate.color.value}</b>:" +
+                                  " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
+                                  " %{customdata:.d}")
+            fig_widget.update_layout(
+                xaxis_title=plotstate.x.value,
+                yaxis_title=plotstate.y.value,
             )
 
-    return
+        def update_color():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+
+            # update main trace
+            data = fig_widget.data[0]
+            data.marker = dict(
+                color=dff[plotstate.color.value].values,
+                colorbar=dict(title=plotstate.color.value),
+                colorscale=plotstate.colorscale.value,
+            )
+            data.hovertemplate = (f"<b>{plotstate.x.value}</b>:" +
+                                  " %{x:.6f}<br>" +
+                                  f"<b>{plotstate.y.value}</b>:" +
+                                  " %{y:.6f}<br>" +
+                                  f"<b>{plotstate.color.value}</b>:" +
+                                  " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
+                                  " %{customdata:.d}")
+
+        sl.use_effect(
+            update_data,
+            dependencies=[
+                filter,
+                local_filter,
+                plotstate.x.value,
+                plotstate.y.value,
+            ],
+        )
+        sl.use_effect(
+            update_color,
+            dependencies=[plotstate.color.value, plotstate.colorscale.value],
+        )
+        sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
+        sl.use_effect(set_yflip, dependencies=[plotstate.flipy.value])
+        sl.use_effect(
+            set_log, dependencies=[plotstate.logx.value, plotstate.logy.value])
+
+    # Plotly-side callbacks (relayout, select, and deselect)
+    def on_relayout(data):
+        if data is not None:
+            # full limit reset, resetting relayout data + local filter
+            if "xaxis.autorange" in data["relayout_data"].keys():
+                set_relayout({})
+                set_local_filter(None)
+            # if change tool, skip update
+            elif "dragmode" in data["relayout_data"].keys():
+                pass
+            # Update the current dictionary
+            else:
+                set_relayout(dict(relayout, **data["relayout_data"]))
+
+    def on_select(data):
+        if len(data["points"]["xs"]) > 0:
+            set_filter((df[plotstate.x.value].isin(data["points"]["xs"])
+                        & (df[plotstate.y.value].isin(data["points"]["ys"]))))
+
+    def on_deselect(_data):
+        set_filter(None)
+
+    fig_el = sl.FigurePlotly(
+        figure,
+        on_selection=on_select,
+        on_deselect=on_deselect,
+        on_relayout=on_relayout,
+        dependencies=[],
+    )
+
+    add_effects(fig_el)
 
 
 @sl.component
 def histogram(plotstate):
-    df = State.df.value
-    filter, set_filter = sl.use_cross_filter(id(df), "filter-histogram")
-    relayout, set_relayout = sl.use_state(None)
+    df: vx.DataFrame = State.df.value
+    filter, set_filter = sl.use_cross_filter(id(df), "histogram")
 
     dff = df
     if filter:
         dff = df[filter]
-    expr = dff[plotstate.x.value]
+    expr: vx.Expression = dff[plotstate.x.value]
 
     def perform_binning():
-        tstart = timer()
         if check_catagorical(expr):
             x = expr.unique()
             y = []
@@ -502,14 +406,7 @@ def histogram(plotstate):
                 limits=dff.minmax(plotstate.x.value),
                 shape=plotstate.nbins.value,
             )
-        print(timer() - tstart)
         return x, y
-
-    x, y = sl.use_memo(
-        perform_binning,
-        dependencies=[filter, plotstate.x.value, plotstate.nbins.value],
-    )
-    binsize = x[1] - x[0]
 
     if check_catagorical(expr):
         logx = False
@@ -517,6 +414,7 @@ def histogram(plotstate):
         logx = plotstate.logx.value
 
     def create_fig():
+        x, y = perform_binning()
         fig = px.histogram(
             x=x,
             y=y,
@@ -532,33 +430,66 @@ def histogram(plotstate):
         fig.update_yaxes(title="Frequency")
         fig.update_layout(margin_r=10)
 
-        if plotstate.flipx.value:
-            fig.update_xaxes(autorange="reversed")
         return fig
 
-    fig = sl.use_memo(create_fig)
+    # only instantiate the figure widget once
+    figure = sl.use_memo(create_fig, dependencies=[])
 
-    # reset the ranges based on the relayout
-    fig = update_relayout(fig, relayout, plotstate)
+    # Effect based callbacks (flip, log, & data array updates)
+    def add_effects(fig_element: sl.Element):
 
-    def reset_lims():
-        set_relayout(None)
+        def set_xflip():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            if fig_widget.layout.xaxis.range is not None:
+                if plotstate.flipx.value:
+                    fig_widget.update_xaxes(autorange="reversed")
+                else:
+                    fig_widget.update_xaxes(
+                        range=fig_widget.layout.xaxis.range[::-1])
 
-    sl.use_thread(
-        reset_lims,
-        dependencies=[
-            plotstate.x.value,
-            plotstate.logx.value,
-            plotstate.logy.value,
-            plotstate.flipx.value,
-            plotstate.flipy.value,
-        ],
-    )
+        def set_yflip():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            if fig_widget.layout.yaxis.range is not None:
+                if plotstate.flipy.value:
+                    fig_widget.update_yaxes(autorange="reversed")
+                else:
+                    fig_widget.update_yaxes(
+                        range=fig_widget.layout.yaxis.range[::-1])
 
-    def on_selection(data):
-        print(data)
-        filters = list()
+        def set_log():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            if plotstate.logx.value:
+                fig_widget.update_xaxes(type="log")
+            else:
+                fig_widget.update_xaxes(type="linear")
+            if plotstate.logy.value:
+                fig_widget.update_yaxes(type="log")
+            else:
+                fig_widget.update_yaxes(type="linear")
+
+        def update_data():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            data = fig_widget.data[0]
+            data.x, data.y = perform_binning()
+            fig_widget.update_layout(xaxis_title=plotstate.x.value, )
+
+        sl.use_effect(
+            update_data,
+            dependencies=[
+                filter,
+                plotstate.x.value,
+                plotstate.nbins.value,
+            ],
+        )
+        sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
+        sl.use_effect(set_yflip, dependencies=[plotstate.flipy.value])
+        sl.use_effect(
+            set_log, dependencies=[plotstate.logx.value, plotstate.logy.value])
+
+    def on_select(data):
         if len(data["points"]["xs"]) > 0:
+            filters = list()
+            binsize = data["points"]["xs"][1] - data["points"]["xs"][0]
             for cent in np.unique(data["points"]["xs"]):
                 filters.append(
                     df[f"({plotstate.x.value} <= {cent + binsize})"]
@@ -566,55 +497,45 @@ def histogram(plotstate):
             filters = reduce(operator.or_, filters[1:], filters[0])
             set_filter(filters)
 
-    def on_deselect(data):
+    def on_deselect(_data):
         set_filter(None)
 
-    def relayout_callback(data):
-        if data is not None:
-            set_relayout(data["relayout_data"])
-
     fig_el = sl.FigurePlotly(
-        fig,
-        on_selection=on_selection,
+        figure,
+        on_selection=on_select,
         on_deselect=on_deselect,
-        on_relayout=relayout_callback,
-        dependencies=[
-            filter,
-            plotstate.nbins.value,
-            plotstate.x.value,
-            plotstate.logx.value,
-            plotstate.logy.value,
-            plotstate.flipx.value,
-            plotstate.norm.value,
-        ],
+        dependencies=[],
     )
+    add_effects(fig_el)
 
     return fig_el
 
 
 @sl.component
-def histogram2d(plotstate):
+def aggregated(plotstate):
     df = State.df.value
-    filter, set_filter = sl.use_cross_filter(id(df), "filter-histogram2d")
-    relayout, set_relayout = sl.use_state(None)
+    filter, set_filter = sl.use_cross_filter(id(df), "filter-aggregated")
 
     dff = df
     if filter:
         dff = df[filter]
 
+    x_cat = check_catagorical(dff[plotstate.x.value])
+    y_cat = check_catagorical(dff[plotstate.y.value])
+    if x_cat or y_cat:
+        # TODO: move this to inside the data update, making the error message as a temporary popup
+        return sl.Warning(
+            icon=True,
+            label=
+            "Selected columns are catagorical! Incompatible with aggregated plot.",
+        )
+
     def perform_binning():
         expr = (dff[plotstate.x.value], dff[plotstate.y.value])
         expr_c = dff[plotstate.color.value]
-        x_cat = check_catagorical(expr[0])
-        y_cat = check_catagorical(expr[1])
-        if x_cat or y_cat:
-            return sl.Warning(
-                icon=True,
-                label=
-                "Selected columns are catagorical! Incompatible with histogram2d plot.",
-            )
         bintype = str(plotstate.bintype.value)
 
+        # TODO: report weird stride bug that occurs on this commented code
         # xlims, set_xlims = sl.use_state(None)
         # ylims, set_ylims = sl.use_state(None)
         # if xlims is None and ylims is None:
@@ -639,32 +560,44 @@ def histogram2d(plotstate):
                 array_type="xarray",
             )
         elif bintype == "median":
-            return sl.Warning(
-                label="Median has memory issues. Remains unimplemented.",
-                icon=True)
-            # WARNING: do not use median_approx -- it consumed 9T of memory.
-            # y = dff.median_approx(
-            #    expr,
-            #    binby=[expr_x, expr_y],
-            #    limits=[
-            #        dff.minmax(plotstate.x.value),
-            #        dff.minmax(plotstate.y.value)
-            #    ],
-            #    shape=plotstate.nbins.value,
-            # )
-        # elif bintype == "mode":
-        #    y = dff.mode(
-        #        expr,
-        #        binby=[expr_x, expr_y],
-        #        limits=[
-        #            dff.minmax(plotstate.x.value),
-        #            dff.minmax(plotstate.y.value)
-        #        ],
-        #        shape=plotstate.nbins.value,
-        #    )
+            # NOTE: i can convert the numpy out into an xarray, should work fine
+            y = dff.median_approx(
+                expr_c,
+                binby=expr,
+                shape=plotstate.nbins.value,
+            )
+            # convert to xarray
+            y = xarray.DataArray(
+                y,
+                coords={
+                    plotstate.x.value:
+                    dff.bin_centers(
+                        expression=expr[0],
+                        limits=limits[0],
+                        shape=plotstate.nbins.value,
+                    ),
+                    plotstate.y.value:
+                    dff.bin_centers(
+                        expression=expr[1],
+                        limits=limits[1],
+                        shape=plotstate.nbins.value,
+                    ),
+                },
+            )
+
+        elif bintype == "mode":
+            y = dff.mode(
+                expression=expr,
+                binby=[expr_x, expr_y],
+                limits=[
+                    dff.minmax(plotstate.x.value),
+                    dff.minmax(plotstate.y.value)
+                ],
+                shape=plotstate.nbins.value,
+            )
         elif bintype == "min":
             y = dff.min(
-                expr_c,
+                expression=expr_c,
                 binby=expr,
                 limits=limits,
                 shape=plotstate.nbins.value,
@@ -672,12 +605,14 @@ def histogram2d(plotstate):
             )
         elif bintype == "max":
             y = dff.max(
-                expr_c,
+                expression=expr_c,
                 binby=expr,
                 limits=limits,
                 shape=plotstate.nbins.value,
                 array_type="xarray",
             )
+        else:
+            raise ValueError("no assigned bintype for aggregated")
 
         binscale = str(plotstate.binscale.value)
         if binscale == "log1p":
@@ -686,30 +621,11 @@ def histogram2d(plotstate):
             y = np.log10(y)
 
         # TODO: clean this code
-        y = y.where(y != np.inf, np.nan)
-        y = y.where(y != -np.inf, np.nan)
+        y = y.where(np.abs(y) != np.inf, np.nan)
         cmin = float(np.min(y).values)
         cmax = float(np.max(y).values)
         y = y.fillna(-999)
         return y, cmin, cmax
-
-    z, cmin, cmax = sl.use_memo(
-        perform_binning,
-        dependencies=[
-            filter,
-            plotstate.x.value,
-            plotstate.y.value,
-            plotstate.color.value,
-            plotstate.bintype.value,
-            plotstate.nbins.value,
-            plotstate.binscale.value,
-        ],
-    )
-
-    if plotstate.flipy.value:
-        origin = "upper"
-    else:
-        origin = "lower"
 
     def set_colorlabel():
         if plotstate.bintype.value == "count":
@@ -717,152 +633,146 @@ def histogram2d(plotstate):
         else:
             return f"{plotstate.color.value} ({plotstate.bintype.value})"
 
-    colorlabel = sl.use_memo(
-        set_colorlabel,
-        dependencies=[
-            plotstate.bintype.value,
-            plotstate.color.value,
-            plotstate.binscale.value,
-        ],
-    )
+    def create_fig():
+        z, cmin, cmax = perform_binning()
+        colorlabel = set_colorlabel()
+        fig = px.imshow(
+            z.T,
+            zmin=cmin,
+            zmax=cmax,
+            origin="lower",
+            color_continuous_scale=plotstate.colorscale.value,
+            labels={
+                "x": plotstate.x.value,
+                "y": plotstate.y.value,
+                "color": colorlabel,
+            },
+            template=DARK_TEMPLATE,
+        )
+        return fig
 
-    fig = px.imshow(
-        z.T,
-        zmin=cmin,
-        zmax=cmax,
-        origin=origin,
-        color_continuous_scale=plotstate.colorscale.value,
-        labels={
-            "x": plotstate.x.value,
-            "y": plotstate.y.value,
-            "color": colorlabel,
-        },
-        template=DARK_TEMPLATE,
-    )
-    if plotstate.flipx.value:
-        fig.update_xaxes(autorange="reversed")
+    # only instantiate the figure once
+    figure = sl.use_memo(create_fig, dependencies=[])
 
-    # reset the ranges based on the relayout
-    fig = update_relayout(fig, relayout, plotstate)
+    def add_effects(fig_element: sl.Element):
 
-    def reset_lims():
-        set_relayout(None)
+        def set_xflip():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            if plotstate.flipx.value:
+                fig_widget.update_xaxes(autorange="reversed")
+            else:
+                fig_widget.update_xaxes(autorange=True)
+            print(fig_widget.layout.xaxis)
 
-    sl.use_thread(
-        reset_lims,
-        dependencies=[
-            plotstate.x.value,
-            plotstate.y.value,
-            plotstate.flipx.value,
-            plotstate.flipy.value,
-        ],
-    )
+        def set_yflip():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            if plotstate.flipy.value:
+                fig_widget.update_yaxes(autorange="reversed")
+            else:
+                fig_widget.update_yaxes(autorange=False)
+                fig_widget.update_yaxes(autorange=True)
+            print(fig_widget.layout.yaxis)
 
-    def relayout_callback(data):
-        if data is not None:
-            set_relayout(data["relayout_data"])
+        def update_data():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
 
-    def select_bin(data):
-        return
-        x_be = np.histogram_bin_edges(expr_x.evaluate(),
-                                      bins=plotstate.nbins.value)
-        xs = data["points"]["xs"][0]
-        qx = np.abs(x_be - xs)
-        px = np.sort(np.abs(x_be - xs))[0:2]
-        ox = [qx == ps for ps in px]
-        xi = np.logical_or(ox[0], ox[1])
+            # update data information
+            z, cmin, cmax = perform_binning()
+            colorlabel = set_colorlabel()
+            data = fig_widget.data[0]
+            data.z = z.T.data
+            data.x = z.coords[plotstate.x.value]
+            data.y = z.coords[plotstate.y.value]
+            data.hovertemplate = (f"{plotstate.x.value}" + ": %{x}<br>" +
+                                  f"{plotstate.y.value}:" + " %{y}<br>" +
+                                  f"{colorlabel}: " + "%{z}<extra></extra>")
 
-        y_be = np.histogram_bin_edges(expr_y.evaluate(),
-                                      bins=plotstate.nbins.value)
-        ys = data["points"]["ys"][0]
-        qy = np.abs(y_be - ys)
-        py = np.sort(np.abs(y_be - ys))[0:2]
-        oy = [qy == ps for ps in py]
-        yi = np.logical_or(oy[0], oy[1])
-        set_xlims(x_be[xi])
-        set_ylims(y_be[yi])
-        return
+            # update coloraxis & label information
+            fig_widget.update_coloraxes(
+                cmax=cmax,
+                cmin=cmin,
+                colorbar=dict(title=colorlabel),
+                colorscale=plotstate.colorscale.value,
+            )
+            fig_widget.update_layout(
+                xaxis_title=plotstate.x.value,
+                yaxis_title=plotstate.y.value,
+            )
 
-    def deselect_bin():
-        return
-        set_xlims(None)
-        set_ylims(None)
-        return
+        def update_color():
+            # NOTE: only for updating colorscale, since any other change
+            # requires an entire plot change
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
 
-    fig.update_layout(font=dict(size=16), autosize=True)
+            # update coloraxis information
+            fig_widget.update_coloraxes(
+                colorscale=plotstate.colorscale.value, )
 
-    with sl.Column() as main:
-        sl.FigurePlotly(
-            fig,
-            on_click=select_bin,
-            on_relayout=relayout_callback,
+        sl.use_effect(
+            update_data,
             dependencies=[
                 filter,
-                # xlims,
-                # ylims,
-                plotstate.nbins.value,
+                plotstate.x.value,
                 plotstate.y.value,
                 plotstate.color.value,
-                plotstate.colorscale.value,
-                plotstate.logx.value,
-                plotstate.logy.value,
-                plotstate.flipx.value,
-                plotstate.flipy.value,
-                plotstate.binscale.value,
                 plotstate.bintype.value,
+                plotstate.binscale.value,
+                plotstate.nbins.value,
             ],
         )
-        # sl.Button("Reset", on_click=deselect_bin)
+        sl.use_effect(
+            update_color,
+            dependencies=[
+                plotstate.colorscale.value,
+            ],
+        )
+        sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
+        sl.use_effect(set_yflip, dependencies=[plotstate.flipy.value])
 
-    return main
+    fig_el = sl.FigurePlotly(figure)
+    add_effects(fig_el)
+
+    return
 
 
 @sl.component
 def skyplot(plotstate):
     df = State.df.value
-    filter, set_filter = sl.use_cross_filter(id(df), "scattergeo")
-    sdssid, set_sdssid = sl.use_state(None)
-    rerange, set_rerange = sl.use_state({})
+    filter, set_filter = sl.use_cross_filter(
+        id(df), "skyplot"
+    )  # TODO: check if filters interfere because they have the same ID
+    relayout, set_relayout = sl.use_state({})
     local_filter, set_local_filter = sl.use_state(None)
 
-    if filter is not None:
-        dff = df[filter]
-    else:
-        dff = df
-
-    def remake_filters():
-        print("skyplot: remake filters")
-        tstart = timer()
-        if plotstate.geo_coords.value == "ra/dec":
-            lon = "ra"
-            lat = "dec"
+    def update_filter():
+        if plotstate.geo_coords.value == "celestial":
+            lon, lat = ("ra", "dec")
         else:
-            lon = "l"
-            lat = "b"
-        if "geo.projection.scale" in rerange.keys():
-            scale = np.max((rerange["geo.projection.scale"], 1.0))
-        else:
+            lon, lat = ("l", "b")
+        try:
+            scale = relayout["geo.projection.scale"]
+            if scale < 1.0:
+                return
+        except KeyError:
             scale = 1.0
-        if "geo.center.lon" in rerange.keys():
-            lon_center = rerange["geo.center.lon"]
-        else:
+        try:
+            lon_center = relayout["geo.center.lon"]
+        except KeyError:
             lon_center = 0
-        if "geo.center.lat" in rerange.keys():
-            lat_center = rerange["geo.center.lat"]
-        else:
+        try:
+            lat_center = relayout["geo.center.lat"]
+        except KeyError:
             lat_center = 0
 
-        # make filter data
         lonlow, lonhigh = (
-            (0 + ((-180 / scale + lon_center) % 360) + 360) % 360,
-            (0 + ((180 / scale + lon_center) % 360) + 360) % 360,
+            range_loop(0, -180 / scale + lon_center),
+            range_loop(0, 180 / scale + lon_center),
         )
         latlow, lathigh = (
             np.max((lat_center - (90 / scale), -90)),
             np.min((lat_center + (90 / scale), 90)),
         )
 
-        # create and set filter objects
         lonfilter = None
         if scale > 1:
             if lonhigh < lonlow:
@@ -877,176 +787,195 @@ def skyplot(plotstate):
         else:
             set_local_filter(df[f"({lat} > {latlow})"]
                              & df[f"({lat}< {lathigh})"])
-        print(f"Time: {timer() - tstart}")
 
-    sl.use_memo(remake_filters, dependencies=[rerange])
+    sl.use_thread(update_filter, dependencies=[relayout])
+
+    # Apply global and local filters
+    if filter is not None:
+        dff = df[filter]
+    else:
+        dff = df
 
     if local_filter is not None:
         dff = dff[local_filter]
-    dff = dff[:1_000]
+    else:
+        dff = dff
 
-    # get correct col based on coords setting
-    dtick = 30  # for tickers
-    if plotstate.geo_coords.value == "ra/dec":
+    # cut dff to renderable length
+    dff = dff[:3_000]
+
+    def create_fig():
+        dtick = 30  # for tickers
+
+        # always initialized as RA/DEC
         lon = dff["ra"]
         lat = dff["dec"]
-        lon_label = "RA"
-        lat_label = "DEC"
-        x = list(range(-180, 180 + dtick, dtick))
-    else:
-        lon = dff["l"]
-        lat = dff["b"]
-        lon_label = "l"
-        lat_label = "b"
+        c = dff[plotstate.color.value]
+        ids = dff["sdss_id"]
+
+        figure = go.Figure(
+            data=go.Scattergeo(
+                lat=lat.values,
+                lon=lon.values,
+                mode="markers",
+                customdata=ids.values,
+                hovertemplate="<b>RA</b>:" + " %{lon:.6f}<br>" +
+                "<b>DEC</b>:" + " %{lat:.6f}<br>" +
+                f"<b>{plotstate.color.value}</b>:" +
+                " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
+                " %{customdata:.d}",
+                name="",
+                marker=dict(
+                    color=c.values,
+                    colorbar=dict(title=plotstate.color.value),
+                    colorscale=plotstate.colorscale.value,
+                ),
+            ),
+            layout=go.Layout(
+                xaxis_title=plotstate.x.value,
+                yaxis_title=plotstate.y.value,
+                template=DARK_TEMPLATE,
+                coloraxis=dict(
+                    cmin=np.float32(dff.min(plotstate.color.value)),
+                    cmax=np.float32(dff.max(plotstate.color.value)),
+                ),
+                geo=dict(
+                    bgcolor="#212121",
+                    projection_type=plotstate.projection.value,
+                    visible=False,
+                    lonaxis_showgrid=True,
+                    lonaxis_gridcolor="#616161",
+                    lonaxis_tick0=0,
+                    lataxis_showgrid=True,
+                    lataxis_gridcolor="#616161",
+                    lataxis_tick0=0,
+                ),
+            ),
+        )
+        # axes markers
+        dtick = 30
         x = list(range(0, 360 + dtick, dtick))
-    y = list(range(-90, 90 + dtick, dtick))
+        y = list(range(-90, 90 + dtick, dtick))
+        xpos = 0
+        ypos = 0
+        figure.add_trace(
+            go.Scattergeo({
+                "lon": x + [xpos] * (len(y)),
+                "lat": [ypos] * (len(x)) + y,
+                "showlegend": False,
+                "text": x + y,
+                "mode": "text",
+            }))
+        figure.update_layout(margin={"t": 30, "b": 10, "l": 0, "r": 0})
+        return figure
 
-    c = dff[plotstate.color.value]
-    ids = dff["sdss_id"]
+    # only instantiate the figure once
+    figure = sl.use_memo(create_fig, dependencies=[])
 
-    print("skyplot: rerendering fig start")
-    tstart = timer()
-    fig = go.Figure(
-        data=go.Scattergeo(
-            lat=lat.values,
-            lon=lon.values,
-            mode="markers",
-            customdata=ids.values,
-            hovertemplate=f"<b>{lon_label}</b>:" + " %{lon:.6f}<br>" +
-            f"<b>{lat_label}</b>:" + " %{lat:.6f}<br>" +
-            f"<b>{plotstate.color.value}</b>:" + " %{marker.color:.6f}<br>" +
-            "<b>ID</b>:" + " %{customdata:.d}",
-            name="",
-            marker=dict(
-                color=c.values,
+    # Effect based callbacks (flip, log, & data array updates)
+    def add_effects(fig_element: sl.Element):
+
+        def set_flip():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            if plotstate.flipx.value:
+                fig_widget.update_xaxes(autorange="reversed")
+            else:
+                fig_widget.update_xaxes(autorange=True)
+            if plotstate.flipy.value:
+                fig_widget.update_yaxes(autorange="reversed")
+            else:
+                fig_widget.update_yaxes(autorange=True)
+
+        def set_log():
+            # log is meaningless on the projected skyplots
+            pass
+
+        def update_data():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+
+            # update main trace
+            data = fig_widget.data[0]
+            if plotstate.geo_coords.value == "celestial":
+                data.lon = dff["ra"].values
+                data.lat = dff["dec"].values
+            else:
+                data.lon = dff["l"].values
+                data.lat = dff["b"].values
+            data.customdata = dff["sdss_id"].values
+            data.marker = dict(
+                color=dff[plotstate.color.value].values,
                 colorbar=dict(title=plotstate.color.value),
                 colorscale=plotstate.colorscale.value,
-            ),
-        ),
-        layout=go.Layout(template=DARK_TEMPLATE),
-    )
+            )
+            data.hovertemplate = (
+                f"<b>{'RA' if plotstate.geo_coords.value == 'celestial' else 'l'}</b>:"
+                + " %{lon:.6f}<br>" +
+                f"<b>{'DEC' if plotstate.geo_coords.value == 'celestial' else 'b'}</b>:"
+                + " %{lat:.6f}<br>" + f"<b>{plotstate.color.value}</b>:" +
+                " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
+                " %{customdata:.d}")
 
-    xpos = 0
-    ypos = 0
-    fig.add_trace(
-        go.Scattergeo({
-            "lon": x[1:-1] + [xpos] * (len(y) - 2),
-            "lat": [ypos] * (len(x) - 2) + y[1:-1],
-            "showlegend": False,
-            "text": x[1:-1] + y[1:-1],
-            "mode": "text",
-        }))
-    if plotstate.flipx.value:
-        fig.update_xaxes(autorange="reversed")
-    if plotstate.flipy.value:
-        fig.update_yaxes(autorange="reversed")
-    fig.update_geos(
-        projection_type=plotstate.projection.value,
-        bgcolor="#212121",
-        visible=False,
-        lonaxis_showgrid=True,
-        lonaxis_tick0=0,
-        lonaxis_gridcolor="#616161",
-        lataxis_showgrid=True,
-        lataxis_tick0=0,
-        lataxis_gridcolor="#616161",
-    )
-    fig.update_layout(margin={"t": 30, "b": 10, "l": 0, "r": 0})
+        def update_color():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
 
-    # reset the ranges based on the relayout
-    fig = update_relayout(fig, rerange, plotstate)
+            # update main trace
+            data = fig_widget.data[0]
+            data.marker = dict(
+                color=dff[plotstate.color.value].values,
+                colorbar=dict(title=plotstate.color.value),
+                colorscale=plotstate.colorscale.value,
+            )
+            data.hovertemplate = (
+                f"<b>{'RA' if plotstate.geo_coords.value == 'celestial' else 'l'}</b>:"
+                + " %{lon:.6f}<br>" +
+                f"<b>{'DEC' if plotstate.geo_coords.value == 'celestial' else 'b'}</b>:"
+                + " %{lat:.6f}<br>" + f"<b>{plotstate.color.value}</b>:" +
+                " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
+                " %{customdata:.d}")
 
-    def reset_lims():
-        set_rerange({})
+        sl.use_effect(update_data,
+                      dependencies=[local_filter, plotstate.geo_coords.value])
+        sl.use_effect(
+            update_color,
+            dependencies=[
+                local_filter,
+                plotstate.color.value,
+                plotstate.colorscale.value,
+            ],
+        )
+        sl.use_effect(
+            set_flip,
+            dependencies=[plotstate.flipx.value, plotstate.flipy.value])
 
-    print(f"Time: {timer() - tstart}")
-
-    sl.use_thread(
-        reset_lims,
-        dependencies=[
-            plotstate.geo_coords.value,
-            plotstate.flipx.value,
-            plotstate.flipy.value,
-        ],
-    )
-
-    def relayout_callback(data):
-        print("skyplot: relayout called")
-        start = timer()
+    # Plotly-side callbacks (relayout, select, deselect)
+    def on_relayout(data):
         if data is not None:
+            # full limit reset, resetting relayout data + local filter
             if "geo.fitbounds" in data["relayout_data"].keys():
-                set_rerange({})
+                set_relayout({})
                 set_local_filter(None)
+            # if change tool, skip update
+            elif "dragmode" in data["relayout_data"].keys():
+                pass
+            # Update the current dictionary
             else:
-                if data["relayout_data"] is not None:
-                    set_rerange(dict(rerange, **data["relayout_data"]))
-        print(f"Time relayout: {timer() - start}")
-
-    """Selection handlers"""
+                set_relayout(dict(relayout, **data["relayout_data"]))
 
     def on_select(data):
         if len(data["points"]["xs"]) > 0:
             set_filter(df[df == dff[data["points"]["point_indexes"]]])
 
-    def on_deselect(data):
+    def on_deselect(_data):
         set_filter(None)
 
-    """
-    Context Menu handlers
-    """
-
-    def open_jdaviz():
-        wb.open("http://localhost:8866/")
-        close_context_menu()
-
-    def download_spectra():
-        # TODO: change to directly use ID
-        print(sdssid[0])
-        wb.open("https://www.google.com")
-        close_context_menu()
-
-    def close_context_menu():
-        set_hovered(False)
-
-    fig = sl.FigurePlotly(
-        fig,
-        on_click=print,
+    fig_el = sl.FigurePlotly(
+        figure,
         on_selection=on_select,
         on_deselect=on_deselect,
-        on_relayout=relayout_callback,
-        dependencies=[
-            filter,
-            local_filter,
-            plotstate.geo_coords.value,
-            plotstate.projection.value,
-            plotstate.color.value,
-            plotstate.colorscale.value,
-            plotstate.flipx.value,
-            plotstate.flipy.value,
-        ],
+        on_relayout=on_relayout,
+        dependencies=[],
     )
-    # with ContextMenu(activator=fig,
-    #                 open_value=menu_open,
-    #                 on_open_value=set_menu_open):
-    #    if hovered & menu_open:
-    #        sl.Column(
-    #            gap="0px",
-    #            children=[
-    #                sl.Button(
-    #                    label="Download spectra",
-    #                    icon_name="mdi-file-chart-outline",
-    #                    on_click=download_spectra,
-    #                    small=True,
-    #                ),
-    #                sl.Button(
-    #                    label="Open in Jdaviz",
-    #                    icon_name="mdi-chart-line",
-    #                    on_click=open_jdaviz,
-    #                    small=True,
-    #                ),
-    #            ],
-    #        )
-    return
+    add_effects(fig_el)
 
 
 # PLOT SETTINGS
@@ -1058,7 +987,7 @@ def show_settings(type, state):
         return scatter_menu(state)
     elif type == "histogram":
         return statistics_menu(state)
-    elif type == "histogram2d":
+    elif type == "aggregated":
         return aggregate_menu(state)
     elif type == "skyplot":
         return sky_menu(state)
@@ -1072,7 +1001,7 @@ def sky_menu(plotstate):
         with Card(margin=0):
             with sl.Column():
                 sl.ToggleButtonsSingle(value=plotstate.geo_coords,
-                                       values=["ra/dec", "galactic lon/lat"])
+                                       values=["celestial", "galactic"])
                 sl.Select(
                     label="Projection",
                     value=plotstate.projection,
@@ -1132,11 +1061,6 @@ def scatter_menu(plotstate):
                 with sl.Column():
                     sl.Switch(label="Flip y", value=plotstate.flipy)
                     sl.Switch(label="Log y", value=plotstate.logy)
-            sl.Markdown("### Reactive plotting")
-            sl.ToggleButtonsSingle(
-                values=["on", "off"],
-                value=plotstate.reactive,
-            )
 
 
 @sl.component()

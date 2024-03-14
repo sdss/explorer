@@ -1,11 +1,11 @@
-from typing import Optional, cast
+from typing import cast
 
 import solara as sl
 import vaex as vx
 
 
 class State:
-    df = sl.reactive(cast(Optional[vx.DataFrame], None))
+    df = sl.reactive(cast(vx.DataFrame, None))
     dataset = sl.reactive("")
 
     @staticmethod
@@ -16,10 +16,9 @@ class State:
     @staticmethod
     def load_dataset(dataset):
         if dataset is None:
-            df = vx.open(
-                f"/home/riley/uni/rproj/data/{State.dataset.value}.parquet")
+            df = vx.open(f"../../data/{State.dataset.value}.parquet")
         else:
-            df = vx.open(f"/home/riley/uni/rproj/data/{dataset}.parquet")
+            df = vx.open(f"../../data/{dataset}.parquet")
         df = df.shuffle()
         State.df.value = df
 
