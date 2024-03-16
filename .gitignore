@@ -166,4 +166,6 @@ cython_debug/
 plotly/plotly
 plotly/
 sdss_solara/sdss_solara
+sdss_solara
 data
+slbugs

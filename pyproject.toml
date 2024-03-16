@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling >=0.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sdss_explorer"
+authors = [{name = "Riley Thai", email = "rtha0022@student.monash.edu"}]
+license = {file = "LICENSE"}
+classifiers = ["Intended Audience :: Developers",  "Programming Language :: Python :: 3.10"]
+dynamic = ["version", "description"]
+dependencies = [
+    "solara==1.27.0",
+    "plotly",
+    "vaex",
+    "numpy",
+]
+requires-python = ">= 3.10"
+
+[tool.hatch.version]
+path = "sdss_explorer/__init__.py"
+
+[project.urls]
+repository = "https://www.github.com/rileythai/phs3350"
+
+[tool.black]
+line-length = 160
+
+[tool.isort]
+profile = "black"
+
+[tool.coverage.report]
+exclude_lines = [
+  # Have to re-enable the standard pragma
+  "pragma: no cover",
+  # Don't complain about packages we have installed
+  "except ImportError",
+  # Don't complain if tests don't hit assertions
+  "raise AssertionError",
+  "raise NotImplementedError",
+  # Don't complain about script hooks
+  "def main(.*):",
+  # Ignore branches that don't pertain to this version of Python
+  "pragma: py{ignore_python_version}",
+  # Don't complain about IPython completion helper
+  "def _ipython_key_completions_",
+]

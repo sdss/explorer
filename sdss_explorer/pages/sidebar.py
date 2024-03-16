@@ -6,8 +6,8 @@ import solara as sl
 import numpy as np
 import reacton.ipyvuetify as rv
 
-from state import State
-from editor import ExprEditor, SumCard
+from .state import State
+from .editor import ExprEditor, SumCard
 
 
 @sl.component()

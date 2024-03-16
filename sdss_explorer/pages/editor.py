@@ -5,7 +5,7 @@ import solara as sl
 import numpy as np
 import reacton.ipyvuetify as rv
 
-from state import State
+from .state import State
 
 
 @sl.component

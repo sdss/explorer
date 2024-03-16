@@ -8,9 +8,9 @@ import reacton as r
 import ipyvuetify as v
 import ipywidgets as widgets
 
-from plots import show_plot
-from dataframe import show_table
-from state import State
+from .plots import show_plot
+from .dataframe import show_table
+from .state import State
 
 
 class GridLayout(v.VuetifyTemplate):

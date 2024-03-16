@@ -16,10 +16,10 @@ from solara.components.columns import Columns
 from solara.lab import Menu, ContextMenu
 
 # NOTE: solara is locked to 1.27.0 due to FastAPI theming issues
-from solara.lab import use_dark_effective  # noqa
+# from solara.lab import use_dark_effective
 
-from state import State
-from util import check_catagorical
+from .state import State
+from .util import check_catagorical
 
 # TEMPLATES AND STATE
 DARK_TEMPLATE = dict(layout=go.Layout(

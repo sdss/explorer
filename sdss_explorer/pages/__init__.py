@@ -1,12 +1,12 @@
 import solara as sl
-from solara import lab
+from solara import lab  # noqa, save for when 1.28 bug is fixed.
 import reacton.ipyvuetify as rv
 
-from auth import LoginButton
-from state import State
-from dataframe import NoDF
-from sidebar import sidebar
-from grid import ObjectGrid
+from .auth import LoginButton
+from .state import State
+from .dataframe import NoDF
+from .sidebar import sidebar
+from .grid import ObjectGrid
 
 
 @sl.component
