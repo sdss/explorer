@@ -2,6 +2,7 @@ import solara as sl
 from solara import lab
 import reacton.ipyvuetify as rv
 
+from auth import LoginButton
 from state import State
 from dataframe import NoDF
 from sidebar import sidebar
@@ -32,7 +33,7 @@ def Page():
         # appbar buttons
         # lab.ThemeToggle()
         sl.Button(icon_name="mdi-wheelchair-accessibility", text=True)
-        sl.Button(icon_name="mdi-login-variant", outlined=True)
+        LoginButton()
     # SIDEBAR
     sidebar()
     # MAIN GRID
