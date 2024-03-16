@@ -30,7 +30,7 @@ def Page():
         )
 
         # appbar buttons
-        lab.ThemeToggle()
+        # lab.ThemeToggle()
         sl.Button(icon_name="mdi-wheelchair-accessibility", text=True)
         sl.Button(icon_name="mdi-login-variant", outlined=True)
     # SIDEBAR

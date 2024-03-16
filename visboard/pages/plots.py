@@ -13,7 +13,10 @@ import xarray
 from plotly.graph_objs._figurewidget import FigureWidget
 from solara.components.card import Card
 from solara.components.columns import Columns
-from solara.lab import Menu, ContextMenu, use_dark_effective
+from solara.lab import Menu, ContextMenu
+
+# NOTE: solara is locked to 1.27.0 due to FastAPI theming issues
+from solara.lab import use_dark_effective  # noqa
 
 from state import State
 from util import check_catagorical
@@ -154,7 +157,7 @@ def show_plot(type, del_func):
 @sl.component
 def scatter(plotstate):
     df: vx.DataFrame = State.df.value
-    dark = use_dark_effective()
+    # dark = use_dark_effective()
     filter, set_filter = sl.use_cross_filter(id(df), "scatter")
     relayout, set_relayout = sl.use_state({})
     local_filter, set_local_filter = sl.use_state(None)
@@ -232,7 +235,7 @@ def scatter(plotstate):
             layout=go.Layout(
                 xaxis_title=plotstate.x.value,
                 yaxis_title=plotstate.y.value,
-                template=DARK_TEMPLATE if dark else LIGHT_TEMPLATE,
+                template=DARK_TEMPLATE,  # if dark else LIGHT_TEMPLATE,
                 coloraxis=dict(
                     cmin=np.float32(dff.min(plotstate.color.value)),
                     cmax=np.float32(dff.max(plotstate.color.value)),
@@ -330,10 +333,11 @@ def scatter(plotstate):
                                   " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
                                   " %{customdata:.d}")
 
-        def update_theme():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            fig_widget.update_layout(
-                template=DARK_TEMPLATE if dark else LIGHT_TEMPLATE)
+        # def update_theme():
+        #    fig_widget: FigureWidget = sl.get_widget(fig_element)
+        #    fig_widget.update_layout(
+        #        template=DARK_TEMPLATE,
+        #    )
 
         sl.use_effect(
             update_data,
@@ -350,7 +354,7 @@ def scatter(plotstate):
         )
         sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
         sl.use_effect(set_yflip, dependencies=[plotstate.flipy.value])
-        sl.use_effect(update_theme, dependencies=[dark])
+        # sl.use_effect(update_theme, dependencies=[dark])
         sl.use_effect(
             set_log, dependencies=[plotstate.logx.value, plotstate.logy.value])
 
@@ -391,7 +395,7 @@ def scatter(plotstate):
 def histogram(plotstate):
     df: vx.DataFrame = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "histogram")
-    dark = use_dark_effective()
+    # dark = use_dark_effective()
 
     dff = df
     if filter:
@@ -437,7 +441,7 @@ def histogram(plotstate):
             labels={
                 "x": plotstate.x.value,
             },
-            template=DARK_TEMPLATE if dark else LIGHT_TEMPLATE,
+            template=DARK_TEMPLATE,  # if dark else LIGHT_TEMPLATE,
         )
         fig.update_yaxes(title="Frequency")
         fig.update_layout(margin_r=10)
@@ -485,11 +489,11 @@ def histogram(plotstate):
             data.x, data.y = perform_binning()
             fig_widget.update_layout(xaxis_title=plotstate.x.value, )
 
-        def update_theme():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            fig_widget.update_layout(
-                template=DARK_TEMPLATE if dark else LIGHT_TEMPLATE)
-
+        # def update_theme():
+        #    fig_widget: FigureWidget = sl.get_widget(fig_element)
+        #    fig_widget.update_layout(
+        #        template=DARK_TEMPLATE,
+        #    )
         sl.use_effect(
             update_data,
             dependencies=[
@@ -498,7 +502,6 @@ def histogram(plotstate):
                 plotstate.nbins.value,
             ],
         )
-        sl.use_effect(update_theme, dependencies=[dark])
         sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
         sl.use_effect(set_yflip, dependencies=[plotstate.flipy.value])
         sl.use_effect(
@@ -533,7 +536,7 @@ def histogram(plotstate):
 def aggregated(plotstate):
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "filter-aggregated")
-    dark = use_dark_effective()
+    # dark = use_dark_effective()
 
     dff = df
     if filter:
@@ -666,7 +669,7 @@ def aggregated(plotstate):
                 "y": plotstate.y.value,
                 "color": colorlabel,
             },
-            template=DARK_TEMPLATE if dark else LIGHT_TEMPLATE,
+            template=DARK_TEMPLATE,  # if dark else LIGHT_TEMPLATE,
         )
         return fig
 
@@ -727,10 +730,10 @@ def aggregated(plotstate):
             fig_widget.update_coloraxes(
                 colorscale=plotstate.colorscale.value, )
 
-        def update_theme():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            fig_widget.update_layout(
-                template=DARK_TEMPLATE if dark else LIGHT_TEMPLATE)
+        # def update_theme():
+        #    fig_widget: FigureWidget = sl.get_widget(fig_element)
+        #    fig_widget.update_layout(
+        #        template=DARK_TEMPLATE if dark else LIGHT_TEMPLATE)
 
         sl.use_effect(
             update_data,
@@ -750,7 +753,7 @@ def aggregated(plotstate):
                 plotstate.colorscale.value,
             ],
         )
-        sl.use_effect(update_theme, dependencies=[dark])
+        # sl.use_effect(update_theme, dependencies=[dark])
         sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
         sl.use_effect(set_yflip, dependencies=[plotstate.flipy.value])
 
@@ -766,7 +769,7 @@ def skyplot(plotstate):
     filter, set_filter = sl.use_cross_filter(
         id(df), "skyplot"
     )  # TODO: check if filters interfere because they have the same ID
-    dark = use_dark_effective()
+    # dark = use_dark_effective()
     relayout, set_relayout = sl.use_state({})
     local_filter, set_local_filter = sl.use_state(None)
 
@@ -860,7 +863,7 @@ def skyplot(plotstate):
             layout=go.Layout(
                 xaxis_title=plotstate.x.value,
                 yaxis_title=plotstate.y.value,
-                template=DARK_TEMPLATE if dark else LIGHT_TEMPLATE,
+                template=DARK_TEMPLATE,  # if dark else LIGHT_TEMPLATE,
                 coloraxis=dict(
                     cmin=np.float32(dff.min(plotstate.color.value)),
                     cmax=np.float32(dff.max(plotstate.color.value)),
@@ -959,15 +962,15 @@ def skyplot(plotstate):
                 " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
                 " %{customdata:.d}")
 
-        def update_theme():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            fig_widget.update_layout(
-                template=DARK_TEMPLATE if dark else LIGHT_TEMPLATE)
-            fig_widget.update_geos(
-                bgcolor="#212121" if dark else "#FAFAFA",
-                lonaxis_gridcolor="#616161" if dark else "#BDBDBD",
-                lataxis_gridcolor="#616161" if dark else "#BDBDBD",
-            )
+        # def update_theme():
+        #    fig_widget: FigureWidget = sl.get_widget(fig_element)
+        #    fig_widget.update_layout(
+        #        template=DARK_TEMPLATE if dark else LIGHT_TEMPLATE)
+        #    fig_widget.update_geos(
+        #        bgcolor="#212121", # if dark else "#FAFAFA",
+        #        lonaxis_gridcolor="#616161", # if dark else "#BDBDBD",
+        #        lataxis_gridcolor="#616161", # if dark else "#BDBDBD",
+        #    )
 
         sl.use_effect(update_data,
                       dependencies=[local_filter, plotstate.geo_coords.value])
@@ -979,7 +982,7 @@ def skyplot(plotstate):
                 plotstate.colorscale.value,
             ],
         )
-        sl.use_effect(update_theme, dependencies=[dark])
+        # sl.use_effect(update_theme, dependencies=[dark])
         sl.use_effect(
             set_flip,
             dependencies=[plotstate.flipx.value, plotstate.flipy.value])
