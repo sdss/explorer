@@ -1,7 +1,19 @@
 from typing import cast
+import os
 
 import solara as sl
 import vaex as vx
+
+
+def load_path():
+    path = os.getenv(
+        "EXPLORER_PATH"
+    )  # NOTE: does not expect a slash at end of the var, can account for it in future
+    if path:
+        return path
+    else:
+        raise ValueError(
+            "Path not defined. Please run: export EXPLORER_PATH=path_to_files")
 
 
 class State:
@@ -15,10 +27,11 @@ class State:
 
     @staticmethod
     def load_dataset(dataset):
+        explorer_path = load_path()
         if dataset is None:
-            df = vx.open(f"../../data/{State.dataset.value}.parquet")
+            df = vx.open(f"{explorer_path}/{State.dataset.value}.parquet")
         else:
-            df = vx.open(f"../../data/{dataset}.parquet")
+            df = vx.open(f"{explorer_path}/{dataset}.parquet")
         df = df.shuffle()
         State.df.value = df
 

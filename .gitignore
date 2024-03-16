@@ -165,4 +165,5 @@ cython_debug/
 .jukit
 plotly/plotly
 plotly/
+sdss_solara/sdss_solara
 data
