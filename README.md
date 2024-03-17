@@ -21,7 +21,7 @@ To install in this `venv`, run:
 ```
 git clone https://www.github.com/rileythai/phs3350.git ./sdss-explorer
 cd sdss-explorer
-pip install . -e
+pip install -e .
 ```
 
 ### Run Server
