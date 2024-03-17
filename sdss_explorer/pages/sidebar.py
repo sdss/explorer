@@ -3,6 +3,7 @@ from functools import reduce
 import operator
 
 import solara as sl
+import vaex as vx
 import numpy as np
 import reacton.ipyvuetify as rv
 
@@ -97,14 +98,16 @@ def QuickFilterMenu():
 
 @sl.component()
 def PivotTablePanel():
-    df = State.df.value
+    df: vx.DataFrame = State.df.value
     with rv.ExpansionPanel() as main:
         with rv.ExpansionPanelHeader():
             rv.Icon(children=["mdi-table-plus"])
             with rv.CardTitle(children=["Pivot Table"]):
                 pass
         with rv.ExpansionPanelContent():
-            sl.PivotTableCard(df, y=["telescope"], x=["release"])
+            sl.Markdown("### currently bugged")
+            # BUG: says the df is a dictionary when it isnt
+            # sl.PivotTableCard(df, y=["telescope"], x=["release"])
     return main
 
 

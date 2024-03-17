@@ -5,20 +5,23 @@ import solara as sl
 import vaex as vx
 
 
-def load_path():
-    path = os.getenv(
-        "EXPLORER_PATH"
-    )  # NOTE: does not expect a slash at end of the var, can account for it in future
-    if path:
-        return path
+def load_datapath():
+    """fetches path to parquet files from envvar"""
+    datapath = os.getenv(
+        "EXPLORER_DATAPATH"
+    )  # NOTE: does not expect a slash at end of the envvar, can account for it in future
+    if datapath:
+        return datapath
     else:
         raise ValueError(
-            "Path not defined. Please run: export EXPLORER_PATH=path_to_files")
+            "Path not defined. Please run: export EXPLORER_DATAPATH=path_to_files"
+        )
 
 
 class State:
     df = sl.reactive(cast(vx.DataFrame, None))
     dataset = sl.reactive("")
+    token = sl.reactive("")  # access token
 
     @staticmethod
     def load_from_file(file):
@@ -27,14 +30,18 @@ class State:
 
     @staticmethod
     def load_dataset(dataset):
-        explorer_path = load_path()
+        datapath = load_datapath()
         if dataset is None:
-            df = vx.open(f"{explorer_path}/{State.dataset.value}.parquet")
+            df = vx.open(f"{datapath}/{State.dataset.value}.parquet")
         else:
-            df = vx.open(f"{explorer_path}/{dataset}.parquet")
+            df = vx.open(f"{datapath}/{dataset}.parquet")
         df = df.shuffle()
         State.df.value = df
 
     class Lookup:
         views = ["histogram", "histogram2d", "scatter", "skyplot"]
-        datasets = ["apogeenet", "aspcap", "thecannon"]
+        datasets = [
+            "apogeenet",
+            "aspcap",
+            "thecannon",
+        ]  # TODO: run a get request to find the list of "releases" for given authorization level

@@ -22,13 +22,18 @@ def Page():
 
         # dataset selection
         # NOTE: may be moved in future!
-        sl.Select(
-            label="Dataset",
-            dense=True,
-            values=State.Lookup.datasets,
-            value=State.dataset.value,
-            on_value=State.load_dataset,
-        )
+        btn = sl.Button(icon_name="mdi-database", text=True)
+        with lab.Menu(activator=btn, close_on_content_click=False):
+            with sl.Column(gap="0px"):
+                [
+                    sl.Select(
+                        label="Dataset",
+                        dense=True,
+                        values=State.Lookup.datasets,
+                        value=State.dataset.value,
+                        on_value=State.load_dataset,
+                    )
+                ]
 
         # appbar buttons
         # lab.ThemeToggle()

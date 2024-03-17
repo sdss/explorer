@@ -28,7 +28,8 @@ pip install . -e
 
 To run, the environment variables must be exported to the shell environment. These are:
 
- - `EXPLORER_PATH` :: path to data files (prioprietary SDSS data)
+ - `EXPLORER_DATAPATH` :: path to data files (prioprietary SDSS data).
+ - `VALIS_API_URL` :: url for [valis](https://www.github.com/sdss/valis).
 
 After this, one can run using any of the commands below.
 
