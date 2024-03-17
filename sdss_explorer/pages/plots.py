@@ -1,6 +1,7 @@
 import operator
 from functools import reduce
 from typing import cast
+import webbrowser as wb
 
 import numpy as np
 import plotly.express as px
@@ -254,8 +255,16 @@ def scatter(plotstate):
             # TODO: except contextmenu in DOM somehow so i can open my own vue menu
 
             def on_click(trace, points, selector):
+                # right click
                 if selector.button == 2:
                     print(trace.customdata[points.point_inds[0]])
+                # NOTE: below is <Shift+LMB>
+                elif selector.button == 0 and selector.shift:
+                    # TODO: add proper valis/zora lookup here
+                    zora_url = "http://localhost:8080"
+                    wb.open(
+                        f"{zora_url}/target/{trace.customdata[points.point_inds[0]]}"
+                    )
 
             fig_widget: FigureWidget = sl.get_widget(fig_element)
             points = fig_widget.data[0]
