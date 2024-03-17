@@ -1,4 +1,3 @@
-import copy
 import operator
 from functools import reduce
 from typing import cast
@@ -13,7 +12,7 @@ import xarray
 from plotly.graph_objs._figurewidget import FigureWidget
 from solara.components.card import Card
 from solara.components.columns import Columns
-from solara.lab import Menu, ContextMenu
+from solara.lab import Menu
 
 # NOTE: solara is locked to 1.27.0 due to FastAPI theming issues
 # from solara.lab import use_dark_effective
@@ -81,6 +80,7 @@ class PlotState:
                 self.bintype = sl.use_reactive("mean")
                 self.binscale = sl.use_reactive(None)
             else:
+                self.bintype = sl.use_reactive("count")
                 self.norm = sl.use_reactive(cast(str, None))
 
         # skyplot settings
@@ -95,7 +95,7 @@ class PlotState:
                 None, "percent", "probability", "density",
                 "probability density"
             ],
-            bintypes=["count", "mean", "median", "min", "max"],
+            bintypes=["count", "mean", "median", "sum", "min", "max", "mode"],
             colorscales=[
                 "inferno",
                 "viridis",
@@ -410,18 +410,72 @@ def histogram(plotstate):
                 # TODO: raise issue about vaex being unable to count catagorical data
                 y.append(float(expr.str.count(i).sum()))
         else:
+            # All other
             # make x (bin centers) and y (counts)
             # TODO: raise issue about stride bug on value change
+            limits = dff.minmax(plotstate.x.value)
+
             x = dff.bin_centers(
                 expression=expr,
-                limits=dff.minmax(plotstate.x.value),
+                limits=limits,
                 shape=plotstate.nbins.value,
             )
-            y = dff.count(
-                binby=plotstate.x.value,
-                limits=dff.minmax(plotstate.x.value),
-                shape=plotstate.nbins.value,
-            )
+
+            # create y (data) based on setting
+            bintype = str(plotstate.bintype.value)
+            if bintype == "count":
+                y = dff.count(
+                    binby=plotstate.x.value,
+                    limits=limits,
+                    shape=plotstate.nbins.value,
+                )
+            elif bintype == "sum":
+                y = dff.sum(
+                    expr,
+                    binby=plotstate.x.value,
+                    limits=limits,
+                    shape=plotstate.nbins.value,
+                )
+            elif bintype == "mean":
+                y = dff.mean(
+                    expr,
+                    binby=expr,
+                    limits=limits,
+                    shape=plotstate.nbins.value,
+                )
+            elif bintype == "median":
+                y = dff.median_approx(
+                    expr,
+                    binby=expr,
+                    limits=limits,
+                    shape=plotstate.nbins.value,
+                )
+
+            elif bintype == "mode":
+                y = dff.mode(
+                    expression=expr,
+                    binby=expr,
+                    limits=limits,
+                    shape=plotstate.nbins.value,
+                )
+            elif bintype == "min":
+                y = dff.min(
+                    expression=expr,
+                    binby=expr,
+                    limits=limits,
+                    shape=plotstate.nbins.value,
+                    array_type="xarray",
+                )
+            elif bintype == "max":
+                y = dff.max(
+                    expression=expr,
+                    binby=expr,
+                    limits=limits,
+                    shape=plotstate.nbins.value,
+                    array_type="xarray",
+                )
+            else:
+                raise ValueError("no assigned bintype for histogram.")
         return x, y
 
     if check_catagorical(expr):
@@ -440,6 +494,7 @@ def histogram(plotstate):
             histnorm=plotstate.norm.value,
             labels={
                 "x": plotstate.x.value,
+                "y": f"{plotstate.bintype.value}({plotstate.x.value})",
             },
             template=DARK_TEMPLATE,  # if dark else LIGHT_TEMPLATE,
         )
@@ -485,9 +540,20 @@ def histogram(plotstate):
 
         def update_data():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
-            data = fig_widget.data[0]
-            data.x, data.y = perform_binning()
-            fig_widget.update_layout(xaxis_title=plotstate.x.value, )
+            x, y = perform_binning()
+
+            fig_widget.update_traces(
+                x=x,
+                y=y,
+                nbinsx=plotstate.nbins.value,
+                hovertemplate=f"<b>{plotstate.x.value}</b>:" + " %{x}<br>" +
+                f"<b>{plotstate.bintype.value}({plotstate.x.value})</b>:" +
+                " %{y}<br>",
+            )
+            fig_widget.update_layout(
+                xaxis_title=plotstate.x.value,
+                yaxis_title=f"{plotstate.bintype.value}({plotstate.x.value})",
+            )
 
         # def update_theme():
         #    fig_widget: FigureWidget = sl.get_widget(fig_element)
@@ -500,8 +566,10 @@ def histogram(plotstate):
                 filter,
                 plotstate.x.value,
                 plotstate.nbins.value,
+                plotstate.bintype.value,
             ],
         )
+        # sl.use_effect(update_theme, dependencies=[dark])
         sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
         sl.use_effect(set_yflip, dependencies=[plotstate.flipy.value])
         sl.use_effect(
@@ -557,17 +625,19 @@ def aggregated(plotstate):
         expr_c = dff[plotstate.color.value]
         bintype = str(plotstate.bintype.value)
 
-        # TODO: report weird stride bug that occurs on this commented code
-        # xlims, set_xlims = sl.use_state(None)
-        # ylims, set_ylims = sl.use_state(None)
-        # if xlims is None and ylims is None:
-        #    limits = [dff.minmax(plotstate.x.value), dff.minmax(plotstate.y.value)]
-        # else:
-        #    limits = [xlims, ylims]
+        # TODO: report weird stride bug that occurs on this code
         limits = [dff.minmax(plotstate.x.value), dff.minmax(plotstate.y.value)]
 
         if bintype == "count":
             y = dff.count(
+                binby=expr,
+                limits=limits,
+                shape=plotstate.nbins.value,
+                array_type="xarray",
+            )
+        elif bintype == "sum":
+            y = dff.sum(
+                expr_c,
                 binby=expr,
                 limits=limits,
                 shape=plotstate.nbins.value,
@@ -1026,7 +1096,7 @@ def show_settings(type, state):
     if type == "scatter":
         return scatter_menu(state)
     elif type == "histogram":
-        return statistics_menu(state)
+        return histogram_menu(state)
     elif type == "aggregated":
         return aggregate_menu(state)
     elif type == "skyplot":
@@ -1104,14 +1174,14 @@ def scatter_menu(plotstate):
 
 
 @sl.component()
-def statistics_menu(plotstate):
+def histogram_menu(plotstate):
     df = State.df.value
     columns = list(map(str, df.columns))
     with sl.Columns([1, 1]):
         with Card(margin=0):
             with sl.Column():
                 sl.Select(
-                    "Column x",
+                    "Column",
                     values=columns,
                     value=plotstate.x,
                 )
@@ -1124,9 +1194,9 @@ def statistics_menu(plotstate):
                 max=1e3,
             )
             sl.Select(
-                label="Normalization",
-                values=plotstate.Lookup["norms"],
-                value=plotstate.norm,
+                label="Bintype",
+                values=plotstate.Lookup["bintypes"],
+                value=plotstate.bintype,
             )
     with Card(margin=0):
         with sl.Columns([1, 1, 1], style={"align-items": "center"}):

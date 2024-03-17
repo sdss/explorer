@@ -34,7 +34,8 @@ def check_auth():
     """Checks if logged in."""
     # TODO: make proper header check
     try:
-        print(headers.value["authentication"])
+        pass
+        # print(headers.value["authentication"])
     except KeyError:
         return False
     return True
