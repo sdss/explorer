@@ -19,9 +19,14 @@ def load_datapath():
 
 
 class State:
-    df = sl.reactive(cast(vx.DataFrame, None))
-    dataset = sl.reactive("")
+    dataset = sl.reactive("apogeenet")
+    df = sl.reactive(vx.open(f"{load_datapath()}/apogeenet.parquet"))
     token = sl.reactive("")  # access token
+    datasets = [
+        "apogeenet",
+        "aspcap",
+        "thecannon",
+    ]  # TODO: run a get request to find the list of "releases" for given authorization level
 
     @staticmethod
     def load_from_file(file):
@@ -30,6 +35,7 @@ class State:
 
     @staticmethod
     def load_dataset(dataset):
+        State.dataset.value = dataset
         datapath = load_datapath()
         if dataset is None:
             df = vx.open(f"{datapath}/{State.dataset.value}.parquet")
@@ -40,8 +46,3 @@ class State:
 
     class Lookup:
         views = ["histogram", "histogram2d", "scatter", "skyplot"]
-        datasets = [
-            "apogeenet",
-            "aspcap",
-            "thecannon",
-        ]  # TODO: run a get request to find the list of "releases" for given authorization level

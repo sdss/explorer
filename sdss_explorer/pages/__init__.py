@@ -9,6 +9,11 @@ from .sidebar import sidebar
 from .grid import ObjectGrid
 
 
+def create_callable(dataset):
+    """Doubly wrapped lambda generator."""
+    return lambda: State.load_dataset(dataset)
+
+
 @sl.component
 def Page():
     df = State.df.value
@@ -22,18 +27,19 @@ def Page():
 
         # dataset selection
         # NOTE: may be moved in future!
-        btn = sl.Button(icon_name="mdi-database", text=True)
-        with lab.Menu(activator=btn, close_on_content_click=False):
-            with sl.Column(gap="0px"):
-                [
-                    sl.Select(
-                        label="Dataset",
-                        dense=True,
-                        values=State.Lookup.datasets,
-                        value=State.dataset.value,
-                        on_value=State.load_dataset,
-                    )
-                ]
+        btn = sl.Button(label=State.dataset.value,
+                        icon_name="mdi-database",
+                        text=True)
+        if State.dataset.value is not None:
+            with lab.Menu(activator=btn, close_on_content_click=True):
+                with sl.Column(gap="0px"):
+                    [
+                        sl.Button(
+                            label=dataset,
+                            on_click=create_callable(dataset),
+                        ) for dataset in State.datasets
+                        if dataset != State.dataset.value
+                    ]
 
         # appbar buttons
         # lab.ThemeToggle()
@@ -46,30 +52,6 @@ def Page():
         ObjectGrid()
     else:
         NoDF()
-    # TABS
-    # with lab.Tabs(grow=True):
-    #    with lab.Tab("Table", style=State.style.value):
-    #        if df is not None:
-    #            DFView()
-    #        else:
-    #            NoDF()
-    #    with lab.Tab("Graph"):
-    #        sl.Select(
-    #            label="Plot Type",
-    #            value=State.view,
-    #            values=State.Lookup.views,
-    #        )
-    #        if df is not None:
-    #            if State.view.value in ["scatter"]:
-    #                if len(df) > 10000:
-    #                    sl.Warning(
-    #                        label=
-    #                        "Only plotting first 10,000 points. Please use a filter.",
-    #                        icon=True,
-    #                    )
-    #            show_plot(State.view.value)
-    #        else:
-    #            NoDF()
 
 
 @sl.component
