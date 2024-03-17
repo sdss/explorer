@@ -46,9 +46,13 @@ def Page():
         sl.Button(icon_name="mdi-wheelchair-accessibility", text=True)
         LoginButton()
     # SIDEBAR
-    sidebar()
+    if State.dataset.value != "":
+        sidebar()
+    else:
+        with sl.Sidebar():
+            NoDF()
     # MAIN GRID
-    if df is not None:
+    if State.dataset.value != "":
         ObjectGrid()
     else:
         NoDF()

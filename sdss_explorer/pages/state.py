@@ -19,8 +19,8 @@ def load_datapath():
 
 
 class State:
-    dataset = sl.reactive("apogeenet")
-    df = sl.reactive(vx.open(f"{load_datapath()}/apogeenet.parquet"))
+    dataset = sl.reactive("")
+    df = sl.reactive(cast(vx.DataFrame, None))
     token = sl.reactive("")  # access token
     datasets = [
         "apogeenet",
