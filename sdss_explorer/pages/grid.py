@@ -128,9 +128,12 @@ def ObjectGrid():
 
     with sl.Column(style={"width": "100%"}):
         with sl.Row():
-            btn = sl.Button("Add View",
-                            outlined=False,
-                            icon_name="mdi-image-plus")
+            btn = sl.Button(
+                "Add View",
+                outlined=False,
+                disabled=True if State.dataset.value == "" else False,
+                icon_name="mdi-image-plus",
+            )
             with Menu(activator=btn):
                 with sl.Column(gap="0px"):
                     [
