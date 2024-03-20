@@ -52,7 +52,7 @@ def login(username: str, password: str):
         assert username, "username not defined"
         assert password, "password not defined"
 
-        #
+        # check for a response
         response = rq.post(
             api_url + "/auth/login",
             data={
@@ -79,6 +79,14 @@ def login(username: str, password: str):
         return True
     except AssertionError as e:
         print("request failed:", e)
+
+        print("attempting hello world")
+        response = rq.get(api_url + "/", json={"release": "dr17"})
+        if response.ok:
+            print("hello world returned!")
+            # TODO: remove this hello world check
+        else:
+            print("response received:", response.json())
         return False
 
 
