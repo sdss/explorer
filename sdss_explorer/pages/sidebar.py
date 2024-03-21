@@ -106,8 +106,8 @@ def PivotTablePanel():
                 pass
         with rv.ExpansionPanelContent():
             sl.Markdown("### currently bugged")
-            # BUG: says the df is a dictionary when it isnt
-            # sl.PivotTableCard(df, y=["telescope"], x=["release"])
+            # BUG: says the df is a dictionary when it isnt ONLY on DEV refreshes
+            sl.PivotTableCard(df, y=["telescope"], x=["release"])
     return main
 
 
