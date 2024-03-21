@@ -668,19 +668,14 @@ def aggregated(plotstate):
             assert plotstate.x.value != plotstate.y.value, "1"
 
             assert not check_catagorical(dff[plotstate.x.value])
-            y_cat = check_catagorical(dff[plotstate.y.value])
-            if x_cat or y_cat:
-                return sl.Warning(
-                    icon=True,
-                    label=
-                    "Selected columns are catagorical! Incompatible with aggregated plot.",
-                )
+            assert not check_catagorical(dff[plotstate.y.value])
         except AssertionError as e:
             if e == "1":
-                return (None, None, None)
+                pass
             elif e == "2":
+                pass
                 # TODO: activate snackbar to show that we don't like catagorical selections
-                return (None, None, None)
+            return (None, None, None)
 
         # TODO: report weird stride bug that occurs on this code
         limits = [dff.minmax(plotstate.x.value), dff.minmax(plotstate.y.value)]
