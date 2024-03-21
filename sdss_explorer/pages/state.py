@@ -26,7 +26,7 @@ class State:
         "apogeenet",
         "aspcap",
         "thecannon",
-    ]  # TODO: run a get request to find the list of "releases" for given authorization level
+    ]  # TODO: convert to a function which http.get requests to find the list of "releases" for given authorization level
 
     @staticmethod
     def load_from_file(file):

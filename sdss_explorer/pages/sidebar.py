@@ -114,8 +114,9 @@ def PivotTablePanel():
 @sl.component()
 def sidebar():
     ds = State.dataset.value
+    df = State.df.value
     with sl.Sidebar():
-        if ds != "":
+        if ds != "" and df is not None:
             SumCard()
             with rv.ExpansionPanels(accordion=True):
                 ExprEditor()

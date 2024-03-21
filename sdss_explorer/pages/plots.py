@@ -13,7 +13,7 @@ import xarray
 from plotly.graph_objs._figurewidget import FigureWidget
 from solara.components.card import Card
 from solara.components.columns import Columns
-from solara.lab import Menu
+from solara.lab import Menu, task
 
 # NOTE: solara is locked to 1.27.0 due to FastAPI theming issues
 # from solara.lab import use_dark_effective
@@ -120,6 +120,13 @@ class PlotState:
                 "mt flat polar quartic",
             ],
         )
+
+    def swap_axes(self):
+        # saves current to p and q
+        p = self.x.value
+        q = self.y.value
+        self.x.value = q
+        self.y.value = p
 
 
 def range_loop(start, offset):
@@ -303,44 +310,71 @@ def scatter(plotstate):
 
         def update_data():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
-            data = fig_widget.data[0]
-            data.x = dff[plotstate.x.value].values
-            data.y = dff[plotstate.y.value].values
-            data.customdata = dff["sdss_id"].values
-            data.marker = dict(
-                color=dff[plotstate.color.value].values,
-                colorbar=dict(title=plotstate.color.value),
-                colorscale=plotstate.colorscale.value,
+            fig_widget.update_traces(
+                x=dff[plotstate.x.value].values,
+                y=dff[plotstate.y.value].values,
+                customdata=dff["sdss_id"].values,
+                hovertemplate=(f"<b>{plotstate.x.value}</b>:" +
+                               " %{x:.6f}<br>" +
+                               f"<b>{plotstate.y.value}</b>:" +
+                               " %{y:.6f}<br>" +
+                               f"<b>{plotstate.color.value}</b>:" +
+                               " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
+                               " %{customdata:.d}"),
             )
-            data.hovertemplate = (f"<b>{plotstate.x.value}</b>:" +
-                                  " %{x:.6f}<br>" +
-                                  f"<b>{plotstate.y.value}</b>:" +
-                                  " %{y:.6f}<br>" +
-                                  f"<b>{plotstate.color.value}</b>:" +
-                                  " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
-                                  " %{customdata:.d}")
             fig_widget.update_layout(
                 xaxis_title=plotstate.x.value,
                 yaxis_title=plotstate.y.value,
             )
 
+        def redraw():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            fig_widget.update_traces(
+                x=dff[plotstate.x.value].values,
+                y=dff[plotstate.y.value].values,
+                customdata=dff["sdss_id"].values,
+                hovertemplate=(f"<b>{plotstate.x.value}</b>:" +
+                               " %{x:.6f}<br>" +
+                               f"<b>{plotstate.y.value}</b>:" +
+                               " %{y:.6f}<br>" +
+                               f"<b>{plotstate.color.value}</b>:" +
+                               " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
+                               " %{customdata:.d}"),
+            )
+            fig_widget.update_layout(
+                xaxis_title=plotstate.x.value,
+                yaxis_title=plotstate.y.value,
+            )
+            # check for axes flip and set accordingly to auto or reversed
+            if fig_widget.layout.xaxis.range is not None:
+                if plotstate.flipx.value:
+                    fig_widget.update_xaxes(autorange="reversed")
+                else:
+                    fig_widget.update_xaxes(autorange=True)
+
+            if fig_widget.layout.yaxis.range is not None:
+                if plotstate.flipy.value:
+                    fig_widget.update_yaxes(autorange="reversed")
+                else:
+                    fig_widget.update_yaxes(autorange=True)
+
         def update_color():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
 
-            # update main trace
-            data = fig_widget.data[0]
-            data.marker = dict(
-                color=dff[plotstate.color.value].values,
-                colorbar=dict(title=plotstate.color.value),
-                colorscale=plotstate.colorscale.value,
+            fig_widget.update_traces(
+                marker=dict(
+                    color=dff[plotstate.color.value].values,
+                    colorbar=dict(title=plotstate.color.value),
+                    colorscale=plotstate.colorscale.value,
+                ),
+                hovertemplate=(f"<b>{plotstate.x.value}</b>:" +
+                               " %{x:.6f}<br>" +
+                               f"<b>{plotstate.y.value}</b>:" +
+                               " %{y:.6f}<br>" +
+                               f"<b>{plotstate.color.value}</b>:" +
+                               " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
+                               " %{customdata:.d}"),
             )
-            data.hovertemplate = (f"<b>{plotstate.x.value}</b>:" +
-                                  " %{x:.6f}<br>" +
-                                  f"<b>{plotstate.y.value}</b>:" +
-                                  " %{y:.6f}<br>" +
-                                  f"<b>{plotstate.color.value}</b>:" +
-                                  " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
-                                  " %{customdata:.d}")
 
         # def update_theme():
         #    fig_widget: FigureWidget = sl.get_widget(fig_element)
@@ -353,14 +387,19 @@ def scatter(plotstate):
             dependencies=[
                 filter,
                 local_filter,
-                plotstate.x.value,
-                plotstate.y.value,
             ],
         )
         sl.use_effect(
             update_color,
-            dependencies=[plotstate.color.value, plotstate.colorscale.value],
+            dependencies=[
+                filter,
+                local_filter,
+                plotstate.color.value,
+                plotstate.colorscale.value,
+            ],
         )
+        sl.use_effect(redraw,
+                      dependencies=[plotstate.x.value, plotstate.y.value])
         sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
         sl.use_effect(set_yflip, dependencies=[plotstate.flipy.value])
         # sl.use_effect(update_theme, dependencies=[dark])
@@ -369,6 +408,7 @@ def scatter(plotstate):
 
     # Plotly-side callbacks (relayout, select, and deselect)
     def on_relayout(data):
+        print(data)
         if data is not None:
             # full limit reset, resetting relayout data + local filter
             if "xaxis.autorange" in data["relayout_data"].keys():
@@ -402,6 +442,7 @@ def scatter(plotstate):
 
 @sl.component
 def histogram(plotstate):
+    """histogram"""
     df: vx.DataFrame = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "histogram")
     # dark = use_dark_effective()
@@ -413,13 +454,11 @@ def histogram(plotstate):
 
     def perform_binning():
         if check_catagorical(expr):
-            x = expr.unique()
-            y = []
-            for i in x:
-                # TODO: raise issue about vaex being unable to count catagorical data
-                y.append(float(expr.str.count(i).sum()))
+            # NOTE: under the hood, vaex uses pandas for this
+            series = expr.value_counts()
+            x = series.index.values
+            y = series.values
         else:
-            # All other
             # make x (bin centers) and y (counts)
             # TODO: raise issue about stride bug on value change
             limits = dff.minmax(plotstate.x.value)
@@ -619,20 +658,29 @@ def aggregated(plotstate):
     if filter:
         dff = df[filter]
 
-    x_cat = check_catagorical(dff[plotstate.x.value])
-    y_cat = check_catagorical(dff[plotstate.y.value])
-    if x_cat or y_cat:
-        # TODO: move this to inside the data update, making the error message as a temporary popup
-        return sl.Warning(
-            icon=True,
-            label=
-            "Selected columns are catagorical! Incompatible with aggregated plot.",
-        )
-
     def perform_binning():
         expr = (dff[plotstate.x.value], dff[plotstate.y.value])
         expr_c = dff[plotstate.color.value]
         bintype = str(plotstate.bintype.value)
+
+        # error checking
+        try:
+            assert plotstate.x.value != plotstate.y.value, "1"
+
+            assert not check_catagorical(dff[plotstate.x.value])
+            y_cat = check_catagorical(dff[plotstate.y.value])
+            if x_cat or y_cat:
+                return sl.Warning(
+                    icon=True,
+                    label=
+                    "Selected columns are catagorical! Incompatible with aggregated plot.",
+                )
+        except AssertionError as e:
+            if e == "1":
+                return (None, None, None)
+            elif e == "2":
+                # TODO: activate snackbar to show that we don't like catagorical selections
+                return (None, None, None)
 
         # TODO: report weird stride bug that occurs on this code
         limits = [dff.minmax(plotstate.x.value), dff.minmax(plotstate.y.value)]
@@ -779,15 +827,21 @@ def aggregated(plotstate):
 
             # update data information
             z, cmin, cmax = perform_binning()
-            colorlabel = set_colorlabel()
-            data = fig_widget.data[0]
-            data.z = z.T.data
-            data.x = z.coords[plotstate.x.value]
-            data.y = z.coords[plotstate.y.value]
-            data.hovertemplate = (f"{plotstate.x.value}" + ": %{x}<br>" +
-                                  f"{plotstate.y.value}:" + " %{y}<br>" +
-                                  f"{colorlabel}: " + "%{z}<extra></extra>")
+            if z is None:
+                # TODO: in binning func return snackbar error based on check failure
+                return
 
+            colorlabel = set_colorlabel()
+
+            # update data
+            fig_widget.update_traces(
+                z=z.T.data,
+                x=z.coords[plotstate.x.value],
+                y=z.coords[plotstate.y.value],
+                hovertemplate=(f"{plotstate.x.value}" + ": %{x}<br>" +
+                               f"{plotstate.y.value}:" + " %{y}<br>" +
+                               f"{colorlabel}: " + "%{z}<extra></extra>"),
+            )
             # update coloraxis & label information
             fig_widget.update_coloraxes(
                 cmax=cmax,
@@ -896,7 +950,8 @@ def skyplot(plotstate):
             set_local_filter(df[f"({lat} > {latlow})"]
                              & df[f"({lat}< {lathigh})"])
 
-    sl.use_thread(update_filter, dependencies=[relayout])
+    sl.use_thread(update_filter,
+                  dependencies=[plotstate.geo_coords.value, relayout])
 
     # Apply global and local filters
     if filter is not None:
@@ -962,7 +1017,7 @@ def skyplot(plotstate):
         )
         # axes markers
         dtick = 30
-        x = list(range(0, 360 + dtick, dtick))
+        x = list(range(0, 360, dtick))
         y = list(range(-90, 90 + dtick, dtick))
         xpos = 0
         ypos = 0
@@ -973,6 +1028,8 @@ def skyplot(plotstate):
                 "showlegend": False,
                 "text": x + y,
                 "mode": "text",
+                "hoverinfo": "skip",
+                "name": "text",
             }))
         figure.update_layout(margin={"t": 30, "b": 10, "l": 0, "r": 0})
         return figure
@@ -998,30 +1055,38 @@ def skyplot(plotstate):
             # log is meaningless on the projected skyplots
             pass
 
+        def update_projection():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            fig_widget.update_geos(projection_type=plotstate.projection.value)
+
         def update_data():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
 
             # update main trace
-            data = fig_widget.data[0]
             if plotstate.geo_coords.value == "celestial":
-                data.lon = dff["ra"].values
-                data.lat = dff["dec"].values
+                lon = dff["ra"].values
+                lat = dff["dec"].values
             else:
-                data.lon = dff["l"].values
-                data.lat = dff["b"].values
-            data.customdata = dff["sdss_id"].values
-            data.marker = dict(
-                color=dff[plotstate.color.value].values,
-                colorbar=dict(title=plotstate.color.value),
-                colorscale=plotstate.colorscale.value,
+                lon = dff["l"].values
+                lat = dff["b"].values
+            fig_widget.update_traces(
+                lon=lon,
+                lat=lat,
+                customdata=dff["sdss_id"].values,
+                marker=dict(
+                    color=dff[plotstate.color.value].values,
+                    colorbar=dict(title=plotstate.color.value),
+                    colorscale=plotstate.colorscale.value,
+                ),
+                hovertemplate=
+                (f"<b>{'RA' if plotstate.geo_coords.value == 'celestial' else 'l'}</b>:"
+                 + " %{lon:.6f}<br>" +
+                 f"<b>{'DEC' if plotstate.geo_coords.value == 'celestial' else 'b'}</b>:"
+                 + " %{lat:.6f}<br>" + f"<b>{plotstate.color.value}</b>:" +
+                 " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
+                 " %{customdata:.d}"),
+                selector=dict(type="scattergeo", name=""),
             )
-            data.hovertemplate = (
-                f"<b>{'RA' if plotstate.geo_coords.value == 'celestial' else 'l'}</b>:"
-                + " %{lon:.6f}<br>" +
-                f"<b>{'DEC' if plotstate.geo_coords.value == 'celestial' else 'b'}</b>:"
-                + " %{lat:.6f}<br>" + f"<b>{plotstate.color.value}</b>:" +
-                " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
-                " %{customdata:.d}")
 
         def update_color():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
@@ -1051,8 +1116,11 @@ def skyplot(plotstate):
         #        lataxis_gridcolor="#616161", # if dark else "#BDBDBD",
         #    )
 
-        sl.use_effect(update_data,
-                      dependencies=[local_filter, plotstate.geo_coords.value])
+        sl.use_effect(
+            update_data,
+            dependencies=[filter, local_filter, plotstate.geo_coords.value])
+        sl.use_effect(update_projection,
+                      dependencies=[plotstate.projection.value])
         sl.use_effect(
             update_color,
             dependencies=[
@@ -1082,7 +1150,10 @@ def skyplot(plotstate):
 
     def on_select(data):
         if len(data["points"]["xs"]) > 0:
-            set_filter(df[df == dff[data["points"]["point_indexes"]]])
+            bool_arr = np.array(data["points"]["trace_indexes"]) == 0
+            print(np.array(data["points"]["point_indexes"])[bool_arr])
+
+            # set_filter(df[df == dff[data["points"]["point_indexes"]]])
 
     def on_deselect(_data):
         set_filter(None)
@@ -1151,16 +1222,25 @@ def scatter_menu(plotstate):
     columns = list(map(str, df.columns))
     with sl.Columns([1, 1]):
         with Card(margin=0):
-            with Columns([1, 1]):
+            with Columns([3, 3, 1], gutters_dense=True):
                 sl.Select(
                     "Column x",
-                    values=columns,
+                    values=[
+                        col for col in columns if col != plotstate.y.value
+                    ],
                     value=plotstate.x,
                 )
                 sl.Select(
                     "Column y",
-                    values=columns,
+                    values=[
+                        col for col in columns if col != plotstate.x.value
+                    ],
                     value=plotstate.y,
+                )
+                sl.Button(
+                    icon=True,
+                    icon_name="mdi-swap-horizontal",
+                    on_click=plotstate.swap_axes,
                 )
             sl.Select(
                 label="Color",
@@ -1220,19 +1300,28 @@ def aggregate_menu(plotstate):
     columns = list(map(str, df.columns))
     with sl.Columns([1, 1]):
         with Card(margin=0):
-            with Columns([1, 1]):
+            with Columns([3, 3, 1], gutters_dense=True):
                 with sl.Column():
                     sl.Select(
                         "Column x",
-                        values=columns,
+                        values=[
+                            col for col in columns if col != plotstate.y.value
+                        ],
                         value=plotstate.x,
                     )
                 with sl.Column():
                     sl.Select(
                         "Column y",
-                        values=columns,
+                        values=[
+                            col for col in columns if col != plotstate.x.value
+                        ],
                         value=plotstate.y,
                     )
+                sl.Button(
+                    icon=True,
+                    icon_name="mdi-swap-horizontal",
+                    on_click=plotstate.swap_axes,
+                )
             sl.Select(
                 label="Colorscale",
                 values=plotstate.Lookup["colorscales"],
