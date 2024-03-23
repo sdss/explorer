@@ -12,6 +12,7 @@ from .state import State
 def SumCard():
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "summary")
+    print(filter)
     # filter logic
     if filter:
         filtered = True
