@@ -1,4 +1,4 @@
-from typing import cast
+from typing import cast, Optional
 import os
 
 import solara as sl
@@ -37,6 +37,7 @@ class State:
     def load_dataset(dataset):
         State.dataset.value = dataset
         datapath = load_datapath()
+        # TODO: verify auth status when attempting to load a working group dataset
         if dataset is None:
             df = vx.open(f"{datapath}/{State.dataset.value}.parquet")
         else:

@@ -97,17 +97,27 @@ def QuickFilterMenu():
 
 
 @sl.component()
+def CartonMapperPanel():
+    """Filter by carton and mapper. May be merged into another panel in future."""
+    df = State.df.value
+    filter, set_filter = sl.use_cross_filter(id(df), "cartonmapper")
+
+
+@sl.component()
 def PivotTablePanel():
-    df: vx.DataFrame = State.df.value
+    df = State.df.value
+    print(type(df))
     with rv.ExpansionPanel() as main:
         with rv.ExpansionPanelHeader():
             rv.Icon(children=["mdi-table-plus"])
             with rv.CardTitle(children=["Pivot Table"]):
                 pass
         with rv.ExpansionPanelContent():
-            sl.Markdown("### currently bugged")
-            # BUG: says the df is a dictionary when it isnt ONLY on DEV refreshes
-            sl.PivotTableCard(df, y=["telescope"], x=["release"])
+            if ~isinstance(df, dict):
+                # BUG: says the df is a dictionary when it isnt, no idea why this occurs
+                # NOTE: the fix below fixes it, but is weird
+                if type(df) != dict:
+                    sl.PivotTableCard(df, y=["telescope"], x=["release"])
     return main
 
 
