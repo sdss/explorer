@@ -6,6 +6,8 @@ import solara as sl
 import vaex as vx
 import numpy as np
 import reacton.ipyvuetify as rv
+from solara.lab import task
+from sdss_semaphore.targeting import TargetingFlags
 
 from .state import State
 from .editor import ExprEditor, SumCard
@@ -101,6 +103,66 @@ def CartonMapperPanel():
     """Filter by carton and mapper. May be merged into another panel in future."""
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "cartonmapper")
+    # flags, set_flags = sl.use_state(cast(TargetingFlags, None))
+    mapper, set_mapper = sl.use_state([])
+    program, set_program = sl.use_state([])
+    dataset, set_dataset = sl.use_state([])
+
+    if filter:
+        dff = df[filter]
+    else:
+        dff = df
+
+    def set_targeting_flags():
+        return TargetingFlags(list(df["sdss5_target_flags"].values.to_numpy()))
+
+    flags = sl.use_memo(set_targeting_flags, dependencies=[])
+
+    @task
+    def get_counts():
+        pass
+
+    def update_filter():
+        # convert chosens to bool mask
+        filters = list()
+
+        if len(mapper) > 0:
+            for map in mapper:
+                mask = flags.in_mapper(map)
+                filters.append(mask)
+
+        # reduce the mask
+        cmp_filter = reduce(operator.and_, filters[1:], filters[0])
+
+        # convert mask to vaex expression
+
+        # set_filter(cmp_filter)
+        return
+
+    sl.use_thread(update_filter, dependencies=[mapper, program, dataset])
+
+    with rv.ExpansionPanel() as main:
+        with rv.ExpansionPanelHeader():
+            rv.Icon(children=["mdi-magnify-scan"])
+            with rv.CardTitle(children=["Mapper, carton, programs, dataset"]):
+                pass
+        with rv.ExpansionPanelContent():
+            # mappers
+            sl.SelectMultiple(
+                label="Mapper",
+                values=mapper,
+                on_value=set_mapper,
+                all_values=flags.all_mappers,
+                classes=['variant="solo"'],
+            )
+            sl.SelectMultiple(
+                label="program",
+                values=program,
+                on_value=set_program,
+                all_values=flags.all_alt_carton_names,
+                classes=['variant="solo"'],
+            )
+    return main
 
 
 @sl.component()
@@ -126,11 +188,12 @@ def sidebar():
     ds = State.dataset.value
     df = State.df.value
     with sl.Sidebar():
-        if ds != "" and df is not None:
+        if ds != "" and df is not None and type(df) != dict:
             SumCard()
             with rv.ExpansionPanels(accordion=True):
                 ExprEditor()
                 QuickFilterMenu()
+                CartonMapperPanel()
                 PivotTablePanel()
                 DownloadMenu()
         else:
