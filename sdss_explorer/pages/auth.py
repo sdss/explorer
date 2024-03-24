@@ -11,7 +11,7 @@ from solara.lab import headers, ConfirmationDialog  # noqa
 from solara.components.input import use_change
 from ipyvue import VueWidget
 
-from .state import State
+from .state import State, Alert
 
 
 def get_url():
@@ -49,8 +49,8 @@ def login(username: str, password: str):
 
     try:
         # check for a username and password
-        assert username, "username not defined"
-        assert password, "password not defined"
+        assert username, "username not specified."
+        assert password, "password not specified."
 
         # check for a response
         response = rq.post(
@@ -65,9 +65,11 @@ def login(username: str, password: str):
             },
         )
         print("response received:", response.json())
+        if "502" in response.json()["detail"]:
+            assert False, "upstream server error (api.sdss.org/crown)."
 
         # check response is okay
-        assert response.ok, "response not okay"
+        assert response.ok, "invalid username or password."
 
         # set the token
         print("token received:", response.json()["access_token"])
@@ -76,18 +78,10 @@ def login(username: str, password: str):
         # save to header
         # TODO: write to header with solara
 
-        return True
+        return True, ""
     except AssertionError as e:
         print("request failed:", e)
-
-        print("attempting hello world")
-        response = rq.get(api_url + "/", json={"release": "dr17"})
-        if response.ok:
-            print("hello world returned!")
-            # TODO: remove this hello world check
-        else:
-            print("response received:", response.json())
-        return False
+        return False, e
 
 
 def logout():
@@ -122,7 +116,6 @@ def LoginPrompt(open, set_open, login):
     password = sl.use_reactive("")
     visible, set_visible = sl.use_state(False)
     processing = sl.use_reactive(False)
-    snackbar, set_snackbar = sl.use_state(False)
     result = sl.use_reactive(False)
 
     def close():
@@ -134,29 +127,15 @@ def LoginPrompt(open, set_open, login):
 
     def validate():
         # keep menu open, process it
-        set_open(True)
         processing.set(True)
-        result.set(login(username.value, password.value))
-        set_snackbar(True)
+        result.value, e = login(username.value, password.value)
+        Alert.update(
+            "Login successful!" if result.value else "Login failed: " + str(e),
+            "success" if result.value else "error",
+            closeable=True,
+        )
         processing.set(False)
         close()
-
-    # TODO: move this snackbar alert and add it into solara's source
-    with rv.Snackbar(
-            v_model=snackbar,
-            on_v_model=set_snackbar,
-            color="success" if result.value else "error",
-            top=True,
-            right=True,
-            timeout=3000.0,
-    ):
-        rv.Alert(
-            value=True,
-            type="success" if result.value else "error",
-            children=["Login successful"]
-            if result.value else ["Login failed"],
-        )
-        sl.Button(icon=True, icon_name="mdi-close", text=True)
 
     with ConfirmationDialog(open,
                             content="Login to SDSS",

@@ -3,7 +3,7 @@ from solara import lab  # noqa, save for when 1.28 bug is fixed.
 import reacton.ipyvuetify as rv
 
 from .auth import LoginButton
-from .state import State
+from .state import State, AlertSystem
 from .dataframe import NoDF
 from .sidebar import sidebar
 from .grid import ObjectGrid
@@ -49,6 +49,8 @@ def Page():
     sidebar()
     # MAIN GRID
     ObjectGrid()
+    # snackbar
+    AlertSystem()
 
 
 @sl.component
