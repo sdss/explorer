@@ -19,9 +19,12 @@ def load_datapath():
 
 
 class State:
+    """Holds app-wide state"""
+
     dataset = sl.reactive("")
     df = sl.reactive(cast(vx.DataFrame, None))
     token = sl.reactive("")  # access token
+    mapping = sl.reactive(vx.open(f"{load_datapath()}/bitmappings.csv"))
     datasets = [
         "apogeenet",
         "aspcap",
