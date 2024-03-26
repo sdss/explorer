@@ -26,11 +26,18 @@ cd sdss-explorer
 pip install -e .
 ```
 
-## Starting
+### Data files
+Currently, the dashboard uses custom parquet versions of the allStar summary files from each pipeline. You can download the parquet files from [here](https://data.sdss5.org/sas/sdsswork/users/u6054929/). These are proprietary SDSS data files, and should not be shared outside the collaboration.
 
+There are 3 avaliable at the moment:
+- apogeenet
+- aspcap
+- thecannon
+
+## Starting the server
 To run, the environment variables must be exported to the shell environment. These are:
 
- - `EXPLORER_DATAPATH` :: path to data files (prioprietary SDSS data, found on the SAS).
+ - `EXPLORER_DATAPATH` :: path to data files (proprietary SDSS data, found on the SAS).
  - `VALIS_API_URL` :: url for [valis](https://www.github.com/sdss/valis). This is required for login functionality.
 
 there will likely be more in future.
