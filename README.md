@@ -71,4 +71,4 @@ We assure you - the little voice in your head is wrong. If you can write code at
 
 Being an open source contributor doesn't just mean writing code, either. You can help out by writing documentation, tests, or even giving feedback about the project (and yes - that includes giving feedback about the contribution process). Some of these contributions may be the most valuable to the project as a whole, because you're coming to the project with fresh eyes, so you can see the errors and assumptions that seasoned contributors have glossed over.
 
-Note: This disclaimer was originally written by Adrienne Lowe for a PyCon talk, and was adapted by sdss_solara based on its use in the README file for the MetPy project.
+Note: This disclaimer was originally written by Adrienne Lowe for a PyCon talk, and was adapted by `explorer` based on its use in the README file for the MetPy project.
