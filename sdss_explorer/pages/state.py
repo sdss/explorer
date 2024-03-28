@@ -1,9 +1,10 @@
-from typing import cast, Optional
+from typing import cast
 import os
 
 import solara as sl
 import vaex as vx
-import pyarrow as pa
+import pyarrow as pa  # noqa
+import numpy as np
 
 
 def load_datapath():
@@ -51,16 +52,21 @@ class State:
         else:
             df = vx.open(f"{datapath}/{dataset}.parquet")
 
-        # unpack the bitmapping into each flag
-        flags = df["sdss5_target_flags"].values
-        cols = {
-            f"flag_{i}": pa.compute.list_element(flags, i)
-            for i in range(57)
-        }
+        # force cast flags as a numpy array via my method bypassing pyarrow
+        flags = np.array(list(
+            df["sdss5_target_flags"].values.to_numpy())).astype("uint8")
+        df["sdss5_target_flags"] = flags
 
-        # add flag into the columns
-        for k, v in cols.items():
-            df[k] = v
+        # unpack the bitmapping into each flag
+        # flags = df["sdss5_target_flags"].values
+        # cols = {
+        #    f"flag_{i}": pa.compute.list_element(flags, i)
+        #    for i in range(57)
+        # }
+
+        ## add flag into the columns
+        # for k, v in cols.items():
+        #    df[k] = v
 
         # shuffle to ensure skyplot looks nice, constant seed for reproducibility
         df = df.shuffle(random_state=42)

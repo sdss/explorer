@@ -15,6 +15,11 @@ from .state import State
 from .editor import ExprEditor, SumCard
 
 
+@vx.register_function()
+def check_flags(flags, vals):
+    return np.any(np.logical_and(flags, vals), axis=1)
+
+
 @sl.component()
 def DownloadMenu():
     df = State.df.value
@@ -129,13 +134,13 @@ def CartonMapperPanel():
             return
 
         start = timer()
+        # TODO: add functionality to do AND comparison
         mask = np.logical_or(
             mapping["alt_name"].isin(carton).values,
             mapping["mapper"].isin(mapper).values,
         )
         bits = np.arange(len(mapping))[mask]
         print("Timer for bit selection:", timer() - start)
-        print(len(bits))
 
         start = timer()
         # get flag_number & offset
@@ -144,28 +149,25 @@ def CartonMapperPanel():
         setbits = 57 > num  # ensure bits in flags
 
         # convert to unique flag filters
-        filters = list()
+        filters = np.zeros(57).astype("uint8")
         for unique in np.unique(num[setbits]):
             offsets = 1 << offset[setbits][np.where(num[setbits] == unique)]
-            actives = reduce(operator.or_, offsets)
+            actives = reduce(operator.or_, offsets)  # INFO: must always be OR
             if actives == 0:
-                continue
-            flag = f"flag_{unique}"  # get flag name
-            filters.append(
-                f"(({flag}&{actives}) > 0)")  # make and append filter
+                continue  # skip
+            filters[unique] = (
+                actives  # the required active bit(s) ACTIVES for bitmask position "UNIQUE"
+            )
 
         print("Timer for active mask creation:", timer() - start)
 
+        # generate a filter based on the vaex function defined above
+
         start = timer()
-        if len(filters) == 0:
-            print("Timer for filter reduction:", timer() - start)
-            set_filter(None)
-            return
-        else:
-            cmp_filter = "(" + "|".join(filters) + ")"
-        print("Timer for filter reduction:", timer() - start)
+        cmp_filter = df.func.check_flags(df["sdss5_target_flags"], filters)
+        print("Timer for filter creation:", timer() - start)
         print(cmp_filter)
-        set_filter(df[cmp_filter])
+        set_filter(cmp_filter)
 
         return
 
