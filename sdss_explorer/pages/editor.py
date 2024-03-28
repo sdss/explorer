@@ -137,8 +137,8 @@ def ExprEditor():
             expr = "(" + "".join(subexpressions) + ")"
 
             # query to see if it reduces to an unplottable length
-            dfq = df[df[expr]]
-            assert len(dfq) > 0, "expression reduces dataset to 0 rows"
+            assert (len(df[df[expr] & filter])
+                    > 0), "expression reduces dataset to 0 rows"
 
             # set filter & exit
             set_filter(df[expr])
