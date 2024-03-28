@@ -1,5 +1,6 @@
 import re
 from functools import reduce
+from timeit import default_timer as timer
 import operator
 
 import solara as sl
@@ -116,57 +117,56 @@ def CartonMapperPanel():
     else:
         dff = df
 
-    # instantiate targeting flags only if dataset changes
-    def set_targeting_flags():
-        print("cartonmapper:recreating TargetingFlags...")
-        return TargetingFlags(list(df["sdss5_target_flags"].values.to_numpy()))
-
-    flags = sl.use_memo(set_targeting_flags, dependencies=[df])
-
     def update_filter():
         # convert chosens to bool mask
-        print("startig filter update")
-        print(mapper, carton, dataset)
+        mapping = State.mapping.value
+        print("starting filter update")
+        print(mapper, carton)
+
+        if len(mapper) == 0 and len(carton) == 0:
+            print("empty exit case")
+            set_filter(None)
+            return
+
+        start = timer()
+        mask = np.logical_or(
+            mapping["alt_name"].isin(carton).values,
+            mapping["mapper"].isin(mapper).values,
+        )
+        bits = np.arange(len(mapping))[mask]
+        print("Timer for bit selection:", timer() - start)
+        print(len(bits))
+
+        start = timer()
+        # get flag_number & offset
+        # NOTE: hardcoded nbits as 8
+        num, offset = np.divmod(bits, 8)
+        setbits = 57 > num  # ensure bits in flags
+
+        # convert to unique flag filters
         filters = list()
+        for unique in np.unique(num[setbits]):
+            offsets = 1 << offset[setbits][np.where(num[setbits] == unique)]
+            actives = reduce(operator.or_, offsets)
+            if actives == 0:
+                continue
+            flag = f"flag_{unique}"  # get flag name
+            filters.append(
+                f"(({flag}&{actives}) > 0)")  # make and append filter
 
-        if len(mapper) > 0:
-            for map in mapper:
-                mask = flags.in_mapper(map)
-                filters.append(mask)
+        print("Timer for active mask creation:", timer() - start)
 
-        if len(carton) > 0:
-            for cart in carton:
-                mask = flags.in_alt_name(cart)
-                filters.append(mask)
-
-        if len(dataset) > 0:
-            # TODO: when ipl3 render comes in
-            pass
-        print("filters:", filters)
-
-        # reduce the mask
+        start = timer()
         if len(filters) == 0:
+            print("Timer for filter reduction:", timer() - start)
             set_filter(None)
             return
         else:
-            cmp_filter = reduce(np.logical_or, filters)
-        print("reduced filter is done: ", end="")
+            cmp_filter = "(" + "|".join(filters) + ")"
+        print("Timer for filter reduction:", timer() - start)
         print(cmp_filter)
+        set_filter(df[cmp_filter])
 
-        # convert mask to vaex expression
-        # NOTE: super janky method to bypass how vaex has no boolean flagging
-        # create virtual column
-        df["flagged"] = pa.array(cmp_filter)
-
-        # force reevaluation through
-        if flipflop.value:
-            set_filter(None)
-            set_filter(df["flagged"] == 1)
-        else:
-            set_filter(None)
-            set_filter(df["flagged"] == True)
-        flipflop.set(not flipflop.value)
-        print("filter object set")
         return
 
     sl.use_thread(update_filter, dependencies=[mapper, carton, dataset])
@@ -183,21 +183,21 @@ def CartonMapperPanel():
                     label="Mapper",
                     values=mapper,
                     on_value=set_mapper,
-                    all_values=flags.all_mappers,
+                    all_values=State.mapping.value["mapper"].unique(),
                     classes=['variant="solo"'],
                 )
-                sl.SelectMultiple(
-                    label="Dataset",
-                    values=dataset,
-                    on_value=set_dataset,
-                    all_values=State.datasets,
-                    classes=['variant="solo"'],
-                )
+                # sl.SelectMultiple(
+                #    label="Dataset",
+                #    values=dataset,
+                #    on_value=set_dataset,
+                #    all_values=State.datasets,
+                #    classes=['variant="solo"'],
+                # )
             sl.SelectMultiple(
                 label="Carton",
                 values=carton,
                 on_value=set_carton,
-                all_values=flags.all_alt_carton_names,
+                all_values=State.mapping.value["alt_name"].unique(),
                 classes=['variant="solo"'],
             )
     return main

@@ -3,7 +3,7 @@ requires = ["hatchling >=0.25"]
 build-backend = "hatchling.build"
 
 [project]
-name = "sdss_explorer"
+name = "sdss-explorer"
 authors = [{name = "Riley Thai", email = "rtha0022@student.monash.edu"}]
 license = {file = "LICENSE"}
 classifiers = ["Intended Audience :: Developers",  "Programming Language :: Python :: 3.10"]

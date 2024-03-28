@@ -3,6 +3,7 @@ import os
 
 import solara as sl
 import vaex as vx
+import pyarrow as pa
 
 
 def load_datapath():
@@ -23,6 +24,7 @@ class State:
 
     dataset = sl.reactive("")
     df = sl.reactive(cast(vx.DataFrame, None))
+    flags = sl.reactive(cast(vx.DataFrame, None))
     token = sl.reactive("")  # access token
     mapping = sl.reactive(vx.open(f"{load_datapath()}/bitmappings.csv"))
     datasets = [
@@ -38,14 +40,31 @@ class State:
 
     @staticmethod
     def load_dataset(dataset):
+        # get dataset name
         State.dataset.value = dataset
         datapath = load_datapath()
         # TODO: verify auth status when attempting to load a working group dataset
+
+        # stupid bug fix
         if dataset is None:
             df = vx.open(f"{datapath}/{State.dataset.value}.parquet")
         else:
             df = vx.open(f"{datapath}/{dataset}.parquet")
-        df = df.shuffle()
+
+        # unpack the bitmapping into each flag
+        flags = df["sdss5_target_flags"].values
+        cols = {
+            f"flag_{i}": pa.compute.list_element(flags, i)
+            for i in range(57)
+        }
+
+        # add flag into the columns
+        for k, v in cols.items():
+            df[k] = v
+
+        # shuffle to ensure skyplot looks nice, constant seed for reproducibility
+        df = df.shuffle(random_state=42)
+
         State.df.value = df
 
     class Lookup:
