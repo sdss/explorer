@@ -1,15 +1,11 @@
-import re
 from functools import reduce
 from timeit import default_timer as timer
 import operator
 
 import solara as sl
-import pyarrow as pa
 import vaex as vx
 import numpy as np
 import reacton.ipyvuetify as rv
-from solara.lab import use_task, task
-from sdss_semaphore.targeting import TargetingFlags
 
 from .state import State
 from .editor import ExprEditor, SumCard

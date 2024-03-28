@@ -57,17 +57,6 @@ class State:
             df["sdss5_target_flags"].values.to_numpy())).astype("uint8")
         df["sdss5_target_flags"] = flags
 
-        # unpack the bitmapping into each flag
-        # flags = df["sdss5_target_flags"].values
-        # cols = {
-        #    f"flag_{i}": pa.compute.list_element(flags, i)
-        #    for i in range(57)
-        # }
-
-        ## add flag into the columns
-        # for k, v in cols.items():
-        #    df[k] = v
-
         # shuffle to ensure skyplot looks nice, constant seed for reproducibility
         df = df.shuffle(random_state=42)
 
