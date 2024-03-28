@@ -116,6 +116,7 @@ def CartonMapperPanel():
     mapper, set_mapper = sl.use_state([])
     carton, set_carton = sl.use_state([])
     dataset, set_dataset = sl.use_state([])
+    combotype, set_combotype = sl.use_state("OR")
 
     if filter:
         dff = df[filter]
@@ -125,32 +126,46 @@ def CartonMapperPanel():
     def update_filter():
         # convert chosens to bool mask
         mapping = State.mapping.value
-        print("starting filter update")
+        print("MapperCarton ::: starting filter update")
         print(mapper, carton)
 
         if len(mapper) == 0 and len(carton) == 0:
-            print("empty exit case")
+            print("No selections: empty exit case")
             set_filter(None)
             return
 
         start = timer()
-        # TODO: add functionality to do AND comparison
-        mask = np.logical_or(
-            mapping["alt_name"].isin(carton).values,
-            mapping["mapper"].isin(mapper).values,
-        )
+        if combotype.lower() == "or":
+            c = mapping["alt_name"].isin(carton)
+            m = mapping["mapper"].isin(mapper)
+            mask = c | m
+            mask = mask.values
+        elif combotype.lower() == "xor":
+            c = mapping["alt_name"].isin(carton).values
+            m = mapping["mapper"].isin(mapper).values
+            mask = np.logical_xor(c, m)
+        elif combotype.lower() == "and":
+            c = mapping["alt_name"].isin(carton)
+            m = mapping["mapper"].isin(mapper)
+            mask = c & m
+            mask = mask.values
+        else:
+            raise ValueError(
+                "illegal combination type set for combining mapper/carton filter"
+            )
         bits = np.arange(len(mapping))[mask]
-        print("Timer for bit selection:", timer() - start)
+        print("Timer for bit selection via mask:", round(timer() - start, 5))
 
         start = timer()
         # get flag_number & offset
-        # NOTE: hardcoded nbits as 8
+        # NOTE: hardcoded nbits as 8, and nflags as 57
         num, offset = np.divmod(bits, 8)
         setbits = 57 > num  # ensure bits in flags
 
-        # convert to unique flag filters
+        # construct hashmap for each unique flag
         filters = np.zeros(57).astype("uint8")
         for unique in np.unique(num[setbits]):
+            # ANDs all the bitshifted values for the given unique flag
             offsets = 1 << offset[setbits][np.where(num[setbits] == unique)]
             actives = reduce(operator.or_, offsets)  # INFO: must always be OR
             if actives == 0:
@@ -159,19 +174,19 @@ def CartonMapperPanel():
                 actives  # the required active bit(s) ACTIVES for bitmask position "UNIQUE"
             )
 
-        print("Timer for active mask creation:", timer() - start)
+        print("Timer for active mask creation:", round(timer() - start, 5))
 
         # generate a filter based on the vaex function defined above
 
         start = timer()
         cmp_filter = df.func.check_flags(df["sdss5_target_flags"], filters)
-        print("Timer for filter creation:", timer() - start)
-        print(cmp_filter)
+        print("Timer for expression generation:", round(timer() - start, 5))
         set_filter(cmp_filter)
 
         return
 
-    sl.use_thread(update_filter, dependencies=[mapper, carton, dataset])
+    sl.use_thread(update_filter,
+                  dependencies=[mapper, carton, dataset, combotype])
 
     with rv.ExpansionPanel() as main:
         with rv.ExpansionPanelHeader():
@@ -200,6 +215,13 @@ def CartonMapperPanel():
                 values=carton,
                 on_value=set_carton,
                 all_values=State.mapping.value["alt_name"].unique(),
+                classes=['variant="solo"'],
+            )
+            sl.Select(
+                label="Reduction method",
+                value=combotype,
+                on_value=set_combotype,
+                values=["OR", "AND", "XOR"],
                 classes=['variant="solo"'],
             )
     return main
