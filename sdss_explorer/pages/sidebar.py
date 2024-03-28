@@ -1,17 +1,19 @@
-import re
 from functools import reduce
+from timeit import default_timer as timer
 import operator
 
 import solara as sl
-import pyarrow as pa
 import vaex as vx
 import numpy as np
 import reacton.ipyvuetify as rv
-from solara.lab import use_task, task
-from sdss_semaphore.targeting import TargetingFlags
 
 from .state import State
 from .editor import ExprEditor, SumCard
+
+
+@vx.register_function()
+def check_flags(flags, vals):
+    return np.any(np.logical_and(flags, vals), axis=1)
 
 
 @sl.component()
@@ -110,66 +112,77 @@ def CartonMapperPanel():
     mapper, set_mapper = sl.use_state([])
     carton, set_carton = sl.use_state([])
     dataset, set_dataset = sl.use_state([])
+    combotype, set_combotype = sl.use_state("OR")
 
     if filter:
         dff = df[filter]
     else:
         dff = df
 
-    # instantiate targeting flags only if dataset changes
-    def set_targeting_flags():
-        print("cartonmapper:recreating TargetingFlags...")
-        return TargetingFlags(list(df["sdss5_target_flags"].values.to_numpy()))
-
-    flags = sl.use_memo(set_targeting_flags, dependencies=[df])
-
     def update_filter():
         # convert chosens to bool mask
-        print("startig filter update")
-        print(mapper, carton, dataset)
-        filters = list()
+        mapping = State.mapping.value
+        print("MapperCarton ::: starting filter update")
+        print(mapper, carton)
 
-        if len(mapper) > 0:
-            for map in mapper:
-                mask = flags.in_mapper(map)
-                filters.append(mask)
-
-        if len(carton) > 0:
-            for cart in carton:
-                mask = flags.in_alt_name(cart)
-                filters.append(mask)
-
-        if len(dataset) > 0:
-            # TODO: when ipl3 render comes in
-            pass
-        print("filters:", filters)
-
-        # reduce the mask
-        if len(filters) == 0:
+        if len(mapper) == 0 and len(carton) == 0:
+            print("No selections: empty exit case")
             set_filter(None)
             return
-        else:
-            cmp_filter = reduce(np.logical_or, filters)
-        print("reduced filter is done: ", end="")
-        print(cmp_filter)
 
-        # convert mask to vaex expression
-        # NOTE: super janky method to bypass how vaex has no boolean flagging
-        # create virtual column
-        df["flagged"] = pa.array(cmp_filter)
-
-        # force reevaluation through
-        if flipflop.value:
-            set_filter(None)
-            set_filter(df["flagged"] == 1)
+        start = timer()
+        if combotype.lower() == "or":
+            c = mapping["alt_name"].isin(carton)
+            m = mapping["mapper"].isin(mapper)
+            mask = c | m
+            mask = mask.values
+        elif combotype.lower() == "xor":
+            c = mapping["alt_name"].isin(carton).values
+            m = mapping["mapper"].isin(mapper).values
+            mask = np.logical_xor(c, m)
+        elif combotype.lower() == "and":
+            c = mapping["alt_name"].isin(carton)
+            m = mapping["mapper"].isin(mapper)
+            mask = c & m
+            mask = mask.values
         else:
-            set_filter(None)
-            set_filter(df["flagged"] == True)
-        flipflop.set(not flipflop.value)
-        print("filter object set")
+            raise ValueError(
+                "illegal combination type set for combining mapper/carton filter"
+            )
+        bits = np.arange(len(mapping))[mask]
+        print("Timer for bit selection via mask:", round(timer() - start, 5))
+
+        start = timer()
+        # get flag_number & offset
+        # NOTE: hardcoded nbits as 8, and nflags as 57
+        num, offset = np.divmod(bits, 8)
+        setbits = 57 > num  # ensure bits in flags
+
+        # construct hashmap for each unique flag
+        filters = np.zeros(57).astype("uint8")
+        for unique in np.unique(num[setbits]):
+            # ANDs all the bitshifted values for the given unique flag
+            offsets = 1 << offset[setbits][np.where(num[setbits] == unique)]
+            actives = reduce(operator.or_, offsets)  # INFO: must always be OR
+            if actives == 0:
+                continue  # skip
+            filters[unique] = (
+                actives  # the required active bit(s) ACTIVES for bitmask position "UNIQUE"
+            )
+
+        print("Timer for active mask creation:", round(timer() - start, 5))
+
+        # generate a filter based on the vaex function defined above
+
+        start = timer()
+        cmp_filter = df.func.check_flags(df["sdss5_target_flags"], filters)
+        print("Timer for expression generation:", round(timer() - start, 5))
+        set_filter(cmp_filter)
+
         return
 
-    sl.use_thread(update_filter, dependencies=[mapper, carton, dataset])
+    sl.use_thread(update_filter,
+                  dependencies=[mapper, carton, dataset, combotype])
 
     with rv.ExpansionPanel() as main:
         with rv.ExpansionPanelHeader():
@@ -183,21 +196,28 @@ def CartonMapperPanel():
                     label="Mapper",
                     values=mapper,
                     on_value=set_mapper,
-                    all_values=flags.all_mappers,
+                    all_values=State.mapping.value["mapper"].unique(),
                     classes=['variant="solo"'],
                 )
-                sl.SelectMultiple(
-                    label="Dataset",
-                    values=dataset,
-                    on_value=set_dataset,
-                    all_values=State.datasets,
-                    classes=['variant="solo"'],
-                )
+                # sl.SelectMultiple(
+                #    label="Dataset",
+                #    values=dataset,
+                #    on_value=set_dataset,
+                #    all_values=State.datasets,
+                #    classes=['variant="solo"'],
+                # )
             sl.SelectMultiple(
                 label="Carton",
                 values=carton,
                 on_value=set_carton,
-                all_values=flags.all_alt_carton_names,
+                all_values=State.mapping.value["alt_name"].unique(),
+                classes=['variant="solo"'],
+            )
+            sl.Select(
+                label="Reduction method",
+                value=combotype,
+                on_value=set_combotype,
+                values=["OR", "AND", "XOR"],
                 classes=['variant="solo"'],
             )
     return main
