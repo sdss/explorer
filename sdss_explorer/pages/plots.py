@@ -165,6 +165,7 @@ def show_plot(type, del_func):
 @sl.component
 def scatter(plotstate):
     df: vx.DataFrame = State.df.value
+    columns = df.get_column_names()
     # dark = use_dark_effective()
     filter, set_filter = sl.use_cross_filter(id(df), "scatter")
     relayout, set_relayout = sl.use_state({})
@@ -1214,9 +1215,9 @@ def sky_menu(plotstate):
 @sl.component()
 def scatter_menu(plotstate):
     df = State.df.value
-    columns = list(map(str, df.columns))
-    with sl.Columns([1, 1]):
-        with Card(margin=0):
+    columns = df.get_column_names()
+    with sl.Card():
+        with sl.Columns([1, 1]):
             with Columns([3, 3, 1], gutters_dense=True):
                 sl.Select(
                     "Column x",
@@ -1237,17 +1238,17 @@ def scatter_menu(plotstate):
                     icon_name="mdi-swap-horizontal",
                     on_click=plotstate.swap_axes,
                 )
-            sl.Select(
-                label="Color",
-                values=columns,
-                value=plotstate.color,
-            )
-            sl.Select(
-                label="Colorscale",
-                values=plotstate.Lookup["colorscales"],
-                value=plotstate.colorscale,
-            )
-        with Card(margin=0):
+            with sl.Column():
+                sl.Select(
+                    label="Color",
+                    values=columns,
+                    value=plotstate.color,
+                )
+                sl.Select(
+                    label="Colorscale",
+                    values=plotstate.Lookup["colorscales"],
+                    value=plotstate.colorscale,
+                )
             with Columns([1, 1]):
                 with sl.Column():
                     sl.Switch(label="Flip x", value=plotstate.flipx)

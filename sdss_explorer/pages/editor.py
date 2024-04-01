@@ -136,10 +136,6 @@ def ExprEditor():
             # create expression as str
             expr = "(" + "".join(subexpressions) + ")"
 
-            # query to see if it reduces to an unplottable length
-            assert (len(df[df[expr] & filter])
-                    > 0), "expression reduces dataset to 0 rows"
-
             # set filter & exit
             set_filter(df[expr])
             return True

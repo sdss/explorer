@@ -3,11 +3,12 @@ from timeit import default_timer as timer
 import operator
 
 import solara as sl
+from solara.lab import use_task
 import vaex as vx
 import numpy as np
 import reacton.ipyvuetify as rv
 
-from .state import State
+from .state import State, load_datapath
 from .editor import ExprEditor, SumCard
 
 
@@ -106,13 +107,13 @@ def CartonMapperPanel():
     """Filter by carton and mapper. May be merged into another panel in future."""
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), "cartonmapper")
-    # flags, set_flags = sl.use_state(cast(TargetingFlags, None))
-    flipflop = sl.use_reactive(
-        False)  # NOTE: stupid workaround for no boolean indexing
     mapper, set_mapper = sl.use_state([])
     carton, set_carton = sl.use_state([])
     dataset, set_dataset = sl.use_state([])
     combotype, set_combotype = sl.use_state("OR")
+    mapping = sl.use_memo(
+        lambda: vx.open(f"{load_datapath()}/mappings.parquet"),
+        dependencies=[])
 
     if filter:
         dff = df[filter]
@@ -121,7 +122,6 @@ def CartonMapperPanel():
 
     def update_filter():
         # convert chosens to bool mask
-        mapping = State.mapping.value
         print("MapperCarton ::: starting filter update")
         print(mapper, carton)
 
@@ -155,6 +155,7 @@ def CartonMapperPanel():
         start = timer()
         # get flag_number & offset
         # NOTE: hardcoded nbits as 8, and nflags as 57
+        # TODO: in future, change to read from mappings parquet
         num, offset = np.divmod(bits, 8)
         setbits = 57 > num  # ensure bits in flags
 
@@ -187,7 +188,7 @@ def CartonMapperPanel():
     with rv.ExpansionPanel() as main:
         with rv.ExpansionPanelHeader():
             rv.Icon(children=["mdi-magnify-scan"])
-            with rv.CardTitle(children=["Mapper, carton, cartons, dataset"]):
+            with rv.CardTitle(children=["Targeting catalogs"]):
                 pass
         with rv.ExpansionPanelContent():
             # mappers
