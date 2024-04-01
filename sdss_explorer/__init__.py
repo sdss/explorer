@@ -1,4 +1,5 @@
 """Explorer, powered by solara and vaex."""
 
-__title__ = "sdss_explorer"
-__version__ = "0.0.1"
+__title__ = "explorer"
+__description__ = "Multi-dimensional parameter explorer for astronomical data."
+__version__ = "0.0.2"
