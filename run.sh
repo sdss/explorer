@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-solara run --workers 8 --theme-variant=dark sdss_explorer.pages
+solara run --theme-variant=dark --log-level-uvicorn=info sdss_explorer.pages
