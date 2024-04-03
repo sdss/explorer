@@ -1,26 +1,29 @@
-[build-system]
-requires = ["hatchling >=0.25"]
-build-backend = "hatchling.build"
-
 [project]
 name = "sdss-explorer"
-authors = [{name = "Riley Thai", email = "rtha0022@student.monash.edu"}]
+authors = [
+    {name = "Riley Thai", email = "rtha0022@student.monash.edu"},
+]
 license = {file = "LICENSE"}
 classifiers = ["Intended Audience :: Developers",  "Programming Language :: Python :: 3.10"]
 dynamic = ["version", "description"]
 dependencies = [
     "solara==1.27.0",
     "plotly",
-    "vaex",
+    "vaex>=4.17.0",
     "numpy",
 ]
-requires-python = ">= 3.10"
+requires-python = "==3.10.*"
+readme = "README.md"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.hatch.version]
 path = "sdss_explorer/__init__.py"
 
 [project.urls]
-repository = "https://www.github.com/rileythai/phs3350"
+repository = "https://www.github.com/sdss_explorer"
 
 [tool.black]
 line-length = 160

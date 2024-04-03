@@ -26,8 +26,6 @@ class State:
 
     dataset = sl.reactive("")
     df = sl.reactive(cast(vx.DataFrame, None))
-    flags = sl.reactive(cast(vx.DataFrame, None))
-    token = sl.reactive("")  # access token
     mapping = sl.reactive(vx.open(f"{load_datapath()}/mappings.parquet"))
     datasets = [
         "apogeenet",
