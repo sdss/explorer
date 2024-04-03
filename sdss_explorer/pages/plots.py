@@ -18,7 +18,7 @@ from solara.lab import Menu, task
 # NOTE: solara is locked to 1.27.0 due to FastAPI theming issues
 # from solara.lab import use_dark_effective
 
-from .state import State
+from .state import State, Alert
 from .util import check_catagorical
 
 # TEMPLATES AND STATE
@@ -165,7 +165,6 @@ def show_plot(type, del_func):
 @sl.component
 def scatter(plotstate):
     df: vx.DataFrame = State.df.value
-    columns = df.get_column_names()
     # dark = use_dark_effective()
     filter, set_filter = sl.use_cross_filter(id(df), "scatter")
     relayout, set_relayout = sl.use_state({})
@@ -409,7 +408,6 @@ def scatter(plotstate):
 
     # Plotly-side callbacks (relayout, select, and deselect)
     def on_relayout(data):
-        print(data)
         if data is not None:
             # full limit reset, resetting relayout data + local filter
             if "xaxis.autorange" in data["relayout_data"].keys():
@@ -456,13 +454,29 @@ def histogram(plotstate):
     def perform_binning():
         if check_catagorical(expr):
             # NOTE: under the hood, vaex uses pandas for this
-            series = expr.value_counts()
+            series = expr.value_counts()  # value_counts as in Pandas
             x = series.index.values
             y = series.values
         else:
+            # check for length < 0
+            try:
+                assert len(dff) > 0
+            except AssertionError:
+                Alert.update("Applied filters reduced length to zero!",
+                             color="warning")
+                return None, None
             # make x (bin centers) and y (counts)
-            # TODO: raise issue about stride bug on value change
-            limits = dff.minmax(plotstate.x.value)
+            try:
+                limits = dff.minmax(plotstate.x.value)
+            except:
+                Alert.update(
+                    "Binning routine encountered stride bug, excepting...",
+                    color="warning",
+                )
+                limits = [
+                    dff.min(plotstate.x.value),
+                    dff.max(plotstate.x.value)
+                ]
 
             x = dff.bin_centers(
                 expression=expr,
@@ -666,20 +680,59 @@ def aggregated(plotstate):
 
         # error checking
         try:
+            assert (
+                len(dff)
+                > 40), "0"  # NOTE: trial and error found this value. arbitrary
             assert plotstate.x.value != plotstate.y.value, "1"
 
-            assert not check_catagorical(dff[plotstate.x.value])
-            assert not check_catagorical(dff[plotstate.y.value])
+            assert not check_catagorical(dff[plotstate.x.value]), "2"
+            assert not check_catagorical(dff[plotstate.y.value]), "2"
         except AssertionError as e:
-            if e == "1":
+            msg = str(e)
+
+            # length checks
+            if msg == "0":
+                Alert.update(
+                    "Dataset too small to bin via aggregated. Use scatter view!",
+                    color="warning",
+                )
+                # generate a flat xarray
+                y = xarray.DataArray(
+                    [[0, 0], [0, 0]],
+                    coords={
+                        plotstate.x.value: [0, 1],
+                        plotstate.y.value: [0, 1],
+                    },
+                )
+                return (y, 0, 1)
+            elif msg == "1":
+                # NOTE: for autoswap
                 pass
-            elif e == "2":
-                pass
-                # TODO: activate snackbar to show that we don't like catagorical selections
+            elif msg == "2":
+                Alert.update(
+                    "Catagorical data column set for aggregated -- not yet implemented! Not updating.",
+                    color="error",
+                )
+
             return (None, None, None)
 
         # TODO: report weird stride bug that occurs on this code
-        limits = [dff.minmax(plotstate.x.value), dff.minmax(plotstate.y.value)]
+        try:
+            limits = [
+                dff.minmax(plotstate.x.value),
+                dff.minmax(plotstate.y.value)
+            ]
+        except:
+            Alert.update(
+                "Binning routine encountered stride bug, excepting...",
+                color="warning",
+            )
+            limits = [
+                [dff.min(plotstate.x.value),
+                 dff.max(plotstate.x.value)],
+                [dff.min(plotstate.y.value),
+                 dff.max(plotstate.y.value)],
+            ]
 
         if bintype == "count":
             y = dff.count(
@@ -705,7 +758,6 @@ def aggregated(plotstate):
                 array_type="xarray",
             )
         elif bintype == "median":
-            # NOTE: i can convert the numpy out into an xarray, should work fine
             y = dff.median_approx(
                 expr_c,
                 binby=expr,
@@ -734,10 +786,7 @@ def aggregated(plotstate):
             y = dff.mode(
                 expression=expr,
                 binby=[expr_x, expr_y],
-                limits=[
-                    dff.minmax(plotstate.x.value),
-                    dff.minmax(plotstate.y.value)
-                ],
+                limits=limits,
                 shape=plotstate.nbins.value,
             )
         elif bintype == "min":
@@ -807,7 +856,6 @@ def aggregated(plotstate):
                 fig_widget.update_xaxes(autorange="reversed")
             else:
                 fig_widget.update_xaxes(autorange=True)
-            print(fig_widget.layout.xaxis)
 
         def set_yflip():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
@@ -816,7 +864,6 @@ def aggregated(plotstate):
             else:
                 fig_widget.update_yaxes(autorange=False)
                 fig_widget.update_yaxes(autorange=True)
-            print(fig_widget.layout.yaxis)
 
         def update_data():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
@@ -824,6 +871,7 @@ def aggregated(plotstate):
             # update data information
             z, cmin, cmax = perform_binning()
             if z is None:
+                print("z none")
                 # TODO: in binning func return snackbar error based on check failure
                 return
 

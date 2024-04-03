@@ -75,6 +75,7 @@ class Alert:
 
     @staticmethod
     def update(message, color="info", closeable=True):
+        # possible colors are success, info, warning, and error
         Alert.color.set(color)
         Alert.message.set(message)
         Alert.closeable.set(closeable)
