@@ -133,6 +133,18 @@ def range_loop(start, offset):
     return (start + (offset % 360) + 360) % 360
 
 
+def check_cat_color(color: vx.Expression) -> bool:
+    """Helper function to check color expression with catagorical error check."""
+    try:
+        assert not check_catagorical(color)
+    except AssertionError:
+        Alert.update(
+            "Discrete/catagorical color not supported. Please revert.",
+            color="warning")
+        return False
+    return True
+
+
 # SHOW PLOT
 def show_plot(type, del_func):
     with rv.Card(class_="grey darken-3", style_="width: 100%; height: 100%"):
@@ -265,9 +277,8 @@ def scatter(plotstate):
                 # right click
                 if selector.button == 2:
                     print(trace.customdata[points.point_inds[0]])
-                # NOTE: below is <Shift+LMB>
                 elif selector.button == 0 and selector.shift:
-                    # TODO: add proper valis/zora lookup here
+                    # NOTE: binding is <Shift+LMB>
                     zora_url = "http://localhost:8080"
                     wb.open(
                         f"{zora_url}/target/{trace.customdata[points.point_inds[0]]}"
@@ -327,12 +338,11 @@ def scatter(plotstate):
                 yaxis_title=plotstate.y.value,
             )
 
-        def redraw():
+        def update_xy():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
             fig_widget.update_traces(
                 x=dff[plotstate.x.value].values,
                 y=dff[plotstate.y.value].values,
-                customdata=dff["sdss_id"].values,
                 hovertemplate=(f"<b>{plotstate.x.value}</b>:" +
                                " %{x:.6f}<br>" +
                                f"<b>{plotstate.y.value}</b>:" +
@@ -362,11 +372,7 @@ def scatter(plotstate):
             fig_widget: FigureWidget = sl.get_widget(fig_element)
 
             # error checker for color update
-            try:
-                assert not check_catagorical(dff[plotstate.color.value])
-            except AssertionError:
-                Alert.update("Catagorical colors not supported.",
-                             color="warning")
+            if not check_cat_color(dff[plotstate.color.value]):
                 return
 
             fig_widget.update_traces(
@@ -406,7 +412,7 @@ def scatter(plotstate):
                 plotstate.colorscale.value,
             ],
         )
-        sl.use_effect(redraw,
+        sl.use_effect(update_xy,
                       dependencies=[plotstate.x.value, plotstate.y.value])
         sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
         sl.use_effect(set_yflip, dependencies=[plotstate.flipy.value])
@@ -876,6 +882,10 @@ def aggregated(plotstate):
         def update_data():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
 
+            # error checker for color update
+            if not check_cat_color(dff[plotstate.color.value]):
+                return
+
             # update data information
             z, cmin, cmax = perform_binning()
             if z is None:
@@ -1005,28 +1015,6 @@ def skyplot(plotstate):
     sl.use_thread(update_filter,
                   dependencies=[plotstate.geo_coords.value, relayout])
 
-    def get_values():
-        """Helper function to obtain lon/lat + color with error checkers"""
-        try:
-            assert len(dff) > 0, "0"
-            assert not check_catagorical(dff[plotstate.color.value]), "1"
-        except AssertionError as e:
-            msg = str(e)
-            if msg == "0":
-                pass
-            elif msg == "1":
-                Alert.update("Catagorical colors not supported.",
-                             color="warning")
-
-            return (None, None, None)
-        if plotstate.geo_coords.value == "celestial":
-            lon = dff["ra"]
-            lat = dff["dec"]
-        else:
-            lon = dff["l"]
-            lat = dff["b"]
-        return lon, lat, dff[plotstate.color.value]
-
     # Apply global and local filters
     if filter is not None:
         dff = df[filter]
@@ -1039,22 +1027,24 @@ def skyplot(plotstate):
         dff = dff
 
     # cut dff to renderable length
-    dff = dff[:3_000]
+    if len(dff) > 3000:
+        dff = dff[:3_000]
 
     def create_fig():
         dtick = 30  # for tickers
 
         # always initialized as RA/DEC
-        lon, lat, c = get_values()
-        print("i got the vals")
-        ids = dff["sdss_id"]
+        lon = dff["ra"].values
+        lat = dff["dec"].values
+        c = dff[plotstate.color.value].values
+        ids = dff["sdss_id"].values
 
         figure = go.Figure(
             data=go.Scattergeo(
-                lat=lat.values,
-                lon=lon.values,
+                lat=lat,
+                lon=lon,
                 mode="markers",
-                customdata=ids.values,
+                customdata=ids,
                 hovertemplate="<b>RA</b>:" + " %{lon:.6f}<br>" +
                 "<b>DEC</b>:" + " %{lat:.6f}<br>" +
                 f"<b>{plotstate.color.value}</b>:" +
@@ -1062,7 +1052,7 @@ def skyplot(plotstate):
                 " %{customdata:.d}",
                 name="",
                 marker=dict(
-                    color=c.values,
+                    color=c,
                     colorbar=dict(title=plotstate.color.value),
                     colorscale=plotstate.colorscale.value,
                 ),
@@ -1071,7 +1061,7 @@ def skyplot(plotstate):
                 xaxis_title=plotstate.x.value,
                 yaxis_title=plotstate.y.value,
                 template=DARK_TEMPLATE,  # if dark else LIGHT_TEMPLATE,
-                coloraxis=dict(
+                coloraxis=dict(  # TODO: why have i done this?
                     cmin=np.float32(dff.min(plotstate.color.value)),
                     cmax=np.float32(dff.max(plotstate.color.value)),
                 ),
@@ -1136,16 +1126,31 @@ def skyplot(plotstate):
             fig_widget: FigureWidget = sl.get_widget(fig_element)
 
             # update main trace
-            lon, lat, c = get_values()
-            if not isinstance(lon, vx.Expression):
-                print("not expression")
-                return
+            if plotstate.geo_coords.value == "celestial":
+                lon = "ra"
+                lat = "dec"
+            else:
+                lon = "l"
+                lat = "b"
+
             fig_widget.update_traces(
-                lon=lon.values,
-                lat=lat.values,
+                lon=dff[lon].values,
+                lat=dff[lat].values,
                 customdata=dff["sdss_id"].values,
+                selector=dict(type="scattergeo", name=""),
+            )
+
+        def update_color():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+
+            # error checker for color update
+            if not check_cat_color(dff[plotstate.color.value]):
+                return
+
+            # update main trace
+            fig_widget.update_traces(
                 marker=dict(
-                    color=c.values,
+                    color=dff[plotstate.color.value].values,
                     colorbar=dict(title=plotstate.color.value),
                     colorscale=plotstate.colorscale.value,
                 ),
@@ -1159,53 +1164,6 @@ def skyplot(plotstate):
                 selector=dict(type="scattergeo", name=""),
             )
 
-        def update_xy():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-
-            # update main trace
-            lon, lat, _c = get_values()
-            if not isinstance(lon, vx.Expression):
-                print("not expression")
-                return
-            fig_widget.update_traces(
-                lon=lon.values,
-                lat=lat.values,
-                hovertemplate=
-                (f"<b>{'RA' if plotstate.geo_coords.value == 'celestial' else 'l'}</b>:"
-                 + " %{lon:.6f}<br>" +
-                 f"<b>{'DEC' if plotstate.geo_coords.value == 'celestial' else 'b'}</b>:"
-                 + " %{lat:.6f}<br>" + f"<b>{plotstate.color.value}</b>:" +
-                 " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
-                 " %{customdata:.d}"),
-                selector=dict(type="scattergeo", name=""),
-            )
-
-        def update_color():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-
-            # error checker for color update
-            try:
-                assert not check_catagorical(dff[plotstate.color.value])
-            except AssertionError:
-                Alert.update("Catagorical colors not supported.",
-                             color="warning")
-                return
-
-            # update main trace
-            data = fig_widget.data[0]
-            data.marker = dict(
-                color=dff[plotstate.color.value].values,
-                colorbar=dict(title=plotstate.color.value),
-                colorscale=plotstate.colorscale.value,
-            )
-            data.hovertemplate = (
-                f"<b>{'RA' if plotstate.geo_coords.value == 'celestial' else 'l'}</b>:"
-                + " %{lon:.6f}<br>" +
-                f"<b>{'DEC' if plotstate.geo_coords.value == 'celestial' else 'b'}</b>:"
-                + " %{lat:.6f}<br>" + f"<b>{plotstate.color.value}</b>:" +
-                " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
-                " %{customdata:.d}")
-
         # def update_theme():
         #    fig_widget: FigureWidget = sl.get_widget(fig_element)
         #    fig_widget.update_layout(
@@ -1216,13 +1174,15 @@ def skyplot(plotstate):
         #        lataxis_gridcolor="#616161", # if dark else "#BDBDBD",
         #    )
 
-        sl.use_effect(update_data, dependencies=[filter, local_filter])
-        sl.use_effect(update_xy, dependencies=[plotstate.geo_coords.value])
+        sl.use_effect(
+            update_data,
+            dependencies=[filter, local_filter, plotstate.geo_coords.value])
         sl.use_effect(update_projection,
                       dependencies=[plotstate.projection.value])
         sl.use_effect(
             update_color,
             dependencies=[
+                filter,
                 local_filter,
                 plotstate.color.value,
                 plotstate.colorscale.value,
