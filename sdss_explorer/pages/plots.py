@@ -445,8 +445,10 @@ def scatter(plotstate):
 
     def on_select(data):
         if len(data["points"]["xs"]) > 0:
-            set_filter((df[plotstate.x.value].isin(data["points"]["xs"])
-                        & (df[plotstate.y.value].isin(data["points"]["ys"]))))
+            xs = data["points"]["xs"]
+            ys = data["points"]["ys"]
+            set_filter((df[plotstate.x.value].isin(xs) &
+                        (df[plotstate.y.value].isin(ys))))
 
     def on_deselect(_data):
         set_filter(None)
@@ -497,8 +499,9 @@ def histogram(plotstate):
                     color="warning",
                 )
                 limits = [
-                    dff.min(plotstate.x.value),
-                    dff.max(plotstate.x.value)
+                    # NOTE: empty tuple acts as index for the 0th of 0D array
+                    dff.min(plotstate.x.value)[()],
+                    dff.max(plotstate.x.value)[()],
                 ]
 
             x = dff.bin_centers(
@@ -663,9 +666,11 @@ def histogram(plotstate):
 
     def on_select(data):
         if len(data["points"]["xs"]) > 0:
+            print(data["points"]["xs"])
             filters = list()
-            binsize = data["points"]["xs"][1] - data["points"]["xs"][0]
-            for cent in np.unique(data["points"]["xs"]):
+            uniques = np.unique(data["points"]["xs"])
+            binsize = uniques[1] - uniques[0]
+            for cent in uniques:
                 filters.append(
                     df[f"({plotstate.x.value} <= {cent + binsize})"]
                     & df[f"({plotstate.x.value} >= {cent - binsize})"])
@@ -750,11 +755,16 @@ def aggregated(plotstate):
                 "Binning routine encountered stride bug, excepting...",
                 color="warning",
             )
+            # NOTE: empty tuple acts as index for the 0th of 0D array
             limits = [
-                [dff.min(plotstate.x.value),
-                 dff.max(plotstate.x.value)],
-                [dff.min(plotstate.y.value),
-                 dff.max(plotstate.y.value)],
+                [
+                    dff.min(plotstate.x.value)[()],
+                    dff.max(plotstate.x.value)[()]
+                ],
+                [
+                    dff.min(plotstate.y.value)[()],
+                    dff.max(plotstate.y.value)[()]
+                ],
             ]
 
         if bintype == "count":
