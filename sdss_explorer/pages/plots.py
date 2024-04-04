@@ -73,6 +73,8 @@ class PlotState:
         if type != "aggregated" and type != "skyplot":
             self.logx = sl.use_reactive(False)
             self.logy = sl.use_reactive(False)
+        if type in ["scatter", "skyplot"]:
+            self.colorlog = sl.use_reactive(cast(str, None))
 
         # statistics settings
         if type == "aggregated" or type == "histogram":
@@ -156,7 +158,6 @@ def show_plot(type, del_func):
                 elif type == "aggregated":
                     aggregated(plotstate)
                 elif type == "scatter":
-                    # scatterplot()
                     scatter(plotstate)
                 elif type == "skyplot":
                     skyplot(plotstate)
@@ -375,9 +376,16 @@ def scatter(plotstate):
             if not check_cat_color(dff[plotstate.color.value]):
                 return
 
+            # scale by log if wanted
+            c = dff[plotstate.color.value].values
+            if plotstate.colorlog.value == "log1p":
+                c = np.log1p(c)
+            elif plotstate.colorlog.value == "log10":
+                c = np.log10(c)
+
             fig_widget.update_traces(
                 marker=dict(
-                    color=dff[plotstate.color.value].values,
+                    color=c,
                     colorbar=dict(title=plotstate.color.value),
                     colorscale=plotstate.colorscale.value,
                 ),
@@ -410,6 +418,7 @@ def scatter(plotstate):
                 local_filter,
                 plotstate.color.value,
                 plotstate.colorscale.value,
+                plotstate.colorlog.value,
             ],
         )
         sl.use_effect(update_xy,
@@ -1147,10 +1156,17 @@ def skyplot(plotstate):
             if not check_cat_color(dff[plotstate.color.value]):
                 return
 
+            # scale by log if wanted
+            c = dff[plotstate.color.value].values
+            if plotstate.colorlog.value == "log1p":
+                c = np.log1p(c)
+            elif plotstate.colorlog.value == "log10":
+                c = np.log10(c)
+
             # update main trace
             fig_widget.update_traces(
                 marker=dict(
-                    color=dff[plotstate.color.value].values,
+                    color=c,
                     colorbar=dict(title=plotstate.color.value),
                     colorscale=plotstate.colorscale.value,
                 ),
@@ -1186,6 +1202,7 @@ def skyplot(plotstate):
                 local_filter,
                 plotstate.color.value,
                 plotstate.colorscale.value,
+                plotstate.colorlog.value,
             ],
         )
         sl.use_effect(
@@ -1267,6 +1284,11 @@ def sky_menu(plotstate):
                     values=plotstate.Lookup["colorscales"],
                     value=plotstate.colorscale,
                 )
+                sl.Select(
+                    label="Color log",
+                    values=plotstate.Lookup["binscales"],
+                    value=plotstate.colorlog,
+                )
         with Card(margin=0):
             with Columns([1, 1]):
                 with sl.Column():
@@ -1281,37 +1303,44 @@ def scatter_menu(plotstate):
     columns = df.get_column_names()
     with sl.Card():
         with sl.Columns([1, 1]):
-            with Columns([3, 3, 1], gutters_dense=True):
-                sl.Select(
-                    "Column x",
-                    values=[
-                        col for col in columns if col != plotstate.y.value
-                    ],
-                    value=plotstate.x,
-                )
-                sl.Select(
-                    "Column y",
-                    values=[
-                        col for col in columns if col != plotstate.x.value
-                    ],
-                    value=plotstate.y,
-                )
-                sl.Button(
-                    icon=True,
-                    icon_name="mdi-swap-horizontal",
-                    on_click=plotstate.swap_axes,
-                )
             with sl.Column():
-                sl.Select(
-                    label="Color",
-                    values=columns,
-                    value=plotstate.color,
-                )
-                sl.Select(
-                    label="Colorscale",
-                    values=plotstate.Lookup["colorscales"],
-                    value=plotstate.colorscale,
-                )
+                with Columns([8, 8, 2], gutters_dense=True):
+                    sl.Select(
+                        "Column x",
+                        values=[
+                            col for col in columns if col != plotstate.y.value
+                        ],
+                        value=plotstate.x,
+                    )
+                    sl.Select(
+                        "Column y",
+                        values=[
+                            col for col in columns if col != plotstate.x.value
+                        ],
+                        value=plotstate.y,
+                    )
+                    sl.Button(
+                        icon=True,
+                        icon_name="mdi-swap-horizontal",
+                        on_click=plotstate.swap_axes,
+                    )
+                with sl.Column():
+                    sl.Select(
+                        label="Color",
+                        values=columns,
+                        value=plotstate.color,
+                    )
+                    with sl.Row(gap="2px"):
+                        sl.Select(
+                            label="Colorscale",
+                            values=plotstate.Lookup["colorscales"],
+                            value=plotstate.colorscale,
+                        )
+                        sl.Select(
+                            label="Color log",
+                            values=plotstate.Lookup["binscales"],
+                            value=plotstate.colorlog,
+                        )
             with Columns([1, 1]):
                 with sl.Column():
                     sl.Switch(label="Flip x", value=plotstate.flipx)
