@@ -361,6 +361,14 @@ def scatter(plotstate):
         def update_color():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
 
+            # error checker for color update
+            try:
+                assert not check_catagorical(dff[plotstate.color.value])
+            except AssertionError:
+                Alert.update("Catagorical colors not supported.",
+                             color="warning")
+                return
+
             fig_widget.update_traces(
                 marker=dict(
                     color=dff[plotstate.color.value].values,
@@ -997,6 +1005,28 @@ def skyplot(plotstate):
     sl.use_thread(update_filter,
                   dependencies=[plotstate.geo_coords.value, relayout])
 
+    def get_values():
+        """Helper function to obtain lon/lat + color with error checkers"""
+        try:
+            assert len(dff) > 0, "0"
+            assert not check_catagorical(dff[plotstate.color.value]), "1"
+        except AssertionError as e:
+            msg = str(e)
+            if msg == "0":
+                pass
+            elif msg == "1":
+                Alert.update("Catagorical colors not supported.",
+                             color="warning")
+
+            return (None, None, None)
+        if plotstate.geo_coords.value == "celestial":
+            lon = dff["ra"]
+            lat = dff["dec"]
+        else:
+            lon = dff["l"]
+            lat = dff["b"]
+        return lon, lat, dff[plotstate.color.value]
+
     # Apply global and local filters
     if filter is not None:
         dff = df[filter]
@@ -1015,9 +1045,8 @@ def skyplot(plotstate):
         dtick = 30  # for tickers
 
         # always initialized as RA/DEC
-        lon = dff["ra"]
-        lat = dff["dec"]
-        c = dff[plotstate.color.value]
+        lon, lat, c = get_values()
+        print("i got the vals")
         ids = dff["sdss_id"]
 
         figure = go.Figure(
@@ -1107,18 +1136,16 @@ def skyplot(plotstate):
             fig_widget: FigureWidget = sl.get_widget(fig_element)
 
             # update main trace
-            if plotstate.geo_coords.value == "celestial":
-                lon = dff["ra"].values
-                lat = dff["dec"].values
-            else:
-                lon = dff["l"].values
-                lat = dff["b"].values
+            lon, lat, c = get_values()
+            if not isinstance(lon, vx.Expression):
+                print("not expression")
+                return
             fig_widget.update_traces(
-                lon=lon,
-                lat=lat,
+                lon=lon.values,
+                lat=lat.values,
                 customdata=dff["sdss_id"].values,
                 marker=dict(
-                    color=dff[plotstate.color.value].values,
+                    color=c.values,
                     colorbar=dict(title=plotstate.color.value),
                     colorscale=plotstate.colorscale.value,
                 ),
@@ -1132,8 +1159,37 @@ def skyplot(plotstate):
                 selector=dict(type="scattergeo", name=""),
             )
 
+        def update_xy():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+
+            # update main trace
+            lon, lat, _c = get_values()
+            if not isinstance(lon, vx.Expression):
+                print("not expression")
+                return
+            fig_widget.update_traces(
+                lon=lon.values,
+                lat=lat.values,
+                hovertemplate=
+                (f"<b>{'RA' if plotstate.geo_coords.value == 'celestial' else 'l'}</b>:"
+                 + " %{lon:.6f}<br>" +
+                 f"<b>{'DEC' if plotstate.geo_coords.value == 'celestial' else 'b'}</b>:"
+                 + " %{lat:.6f}<br>" + f"<b>{plotstate.color.value}</b>:" +
+                 " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
+                 " %{customdata:.d}"),
+                selector=dict(type="scattergeo", name=""),
+            )
+
         def update_color():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
+
+            # error checker for color update
+            try:
+                assert not check_catagorical(dff[plotstate.color.value])
+            except AssertionError:
+                Alert.update("Catagorical colors not supported.",
+                             color="warning")
+                return
 
             # update main trace
             data = fig_widget.data[0]
@@ -1160,9 +1216,8 @@ def skyplot(plotstate):
         #        lataxis_gridcolor="#616161", # if dark else "#BDBDBD",
         #    )
 
-        sl.use_effect(
-            update_data,
-            dependencies=[filter, local_filter, plotstate.geo_coords.value])
+        sl.use_effect(update_data, dependencies=[filter, local_filter])
+        sl.use_effect(update_xy, dependencies=[plotstate.geo_coords.value])
         sl.use_effect(update_projection,
                       dependencies=[plotstate.projection.value])
         sl.use_effect(
@@ -1173,10 +1228,10 @@ def skyplot(plotstate):
                 plotstate.colorscale.value,
             ],
         )
-        # sl.use_effect(update_theme, dependencies=[dark])
         sl.use_effect(
             set_flip,
             dependencies=[plotstate.flipx.value, plotstate.flipy.value])
+        # sl.use_effect(update_theme, dependencies=[dark])
 
     # Plotly-side callbacks (relayout, select, deselect)
     def on_relayout(data):
