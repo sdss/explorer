@@ -5,7 +5,7 @@
 groups = ["default"]
 strategy = ["cross_platform", "inherit_metadata"]
 lock_version = "4.4.1"
-content_hash = "sha256:a6bd2f6b0ab7b16fd4f0b6b6cae70d3f08251e4ec1851ff93a5b3ea22fb05c7a"
+content_hash = "sha256:9317acc5657c9841fc15d13a934f19cfb46a89b0b91c82a343938d9d7712c776"
 
 [[package]]
 name = "annotated-types"
@@ -2130,7 +2130,7 @@ files = [
 
 [[package]]
 name = "solara"
-version = "1.27.0"
+version = "1.30.0"
 summary = ""
 groups = ["default"]
 dependencies = [
@@ -2158,8 +2158,8 @@ dependencies = [
     "websockets",
 ]
 files = [
-    {file = "solara-1.27.0-py2.py3-none-any.whl", hash = "sha256:f3aca56b6ff316f94d7b69bce9563f3c9c4a6e20abd1a6ae4ac70b9fd431c6c1"},
-    {file = "solara-1.27.0.tar.gz", hash = "sha256:a44641b2ba88ee6e9b20f6158f551301e665fd6e42e06169290aed4e3710610a"},
+    {file = "solara-1.30.0-py2.py3-none-any.whl", hash = "sha256:ea7a996cac7def5b05fc2bfa6821e2cae0b7fe0d142c66b77cf2af4a66ad6b29"},
+    {file = "solara-1.30.0.tar.gz", hash = "sha256:718731c674628265c09560f2990794b6d308bdcfc0a07829bffae2f50c85f155"},
 ]
 
 [[package]]
