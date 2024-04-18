@@ -1,4 +1,6 @@
 import operator
+import time as t
+import asyncio
 from functools import reduce
 from typing import cast
 import webbrowser as wb
@@ -13,7 +15,7 @@ import xarray
 from plotly.graph_objs._figurewidget import FigureWidget
 from solara.components.card import Card
 from solara.components.columns import Columns
-from solara.lab import Menu, task
+from solara.lab import Menu, use_task, task
 
 # NOTE: solara is locked to 1.27.0 due to FastAPI theming issues
 # from solara.lab import use_dark_effective
@@ -468,13 +470,15 @@ def scatter(plotstate):
 def histogram(plotstate):
     """histogram"""
     df: vx.DataFrame = State.df.value
+    xcol = plotstate.x.value
+    nbins = plotstate.nbins.value
     filter, set_filter = sl.use_cross_filter(id(df), "histogram")
     # dark = use_dark_effective()
 
     dff = df
     if filter:
         dff = df[filter]
-    expr: vx.Expression = dff[plotstate.x.value]
+    expr: vx.Expression = dff[xcol]
 
     def perform_binning():
         if check_catagorical(expr):
@@ -490,9 +494,11 @@ def histogram(plotstate):
                 Alert.update("Applied filters reduced length to zero!",
                              color="warning")
                 return None, None
-            # make x (bin centers) and y (counts)
+
+            # get limits
+            # INFO: can't be asynchronous; result is required
             try:
-                limits = dff.minmax(plotstate.x.value)
+                limits = dff.minmax(xcol)
             except:
                 Alert.update(
                     "Binning routine encountered stride bug, excepting...",
@@ -500,44 +506,49 @@ def histogram(plotstate):
                 )
                 limits = [
                     # NOTE: empty tuple acts as index for the 0th of 0D array
-                    dff.min(plotstate.x.value)[()],
-                    dff.max(plotstate.x.value)[()],
+                    dff.min(xcol)[()],
+                    dff.max(xcol)[()],
                 ]
 
+            # make x (bin centers)
+            # NOTE: no delay on this because it sucks
             x = dff.bin_centers(
                 expression=expr,
                 limits=limits,
-                shape=plotstate.nbins.value,
+                shape=nbins,
             )
-
             # create y (data) based on setting
             bintype = str(plotstate.bintype.value)
             if bintype == "count":
                 y = dff.count(
-                    binby=plotstate.x.value,
+                    binby=xcol,
                     limits=limits,
-                    shape=plotstate.nbins.value,
+                    shape=nbins,
+                    delay=True,
                 )
             elif bintype == "sum":
                 y = dff.sum(
                     expr,
-                    binby=plotstate.x.value,
+                    binby=xcol,
                     limits=limits,
-                    shape=plotstate.nbins.value,
+                    shape=nbins,
+                    delay=True,
                 )
             elif bintype == "mean":
                 y = dff.mean(
                     expr,
                     binby=expr,
                     limits=limits,
-                    shape=plotstate.nbins.value,
+                    shape=nbins,
+                    delay=True,
                 )
             elif bintype == "median":
                 y = dff.median_approx(
                     expr,
                     binby=expr,
                     limits=limits,
-                    shape=plotstate.nbins.value,
+                    shape=nbins,
+                    delay=True,
                 )
 
             elif bintype == "mode":
@@ -545,27 +556,31 @@ def histogram(plotstate):
                     expression=expr,
                     binby=expr,
                     limits=limits,
-                    shape=plotstate.nbins.value,
+                    shape=nbins,
+                    delay=True,
                 )
             elif bintype == "min":
                 y = dff.min(
                     expression=expr,
                     binby=expr,
                     limits=limits,
-                    shape=plotstate.nbins.value,
+                    shape=nbins,
                     array_type="xarray",
+                    delay=True,
                 )
             elif bintype == "max":
                 y = dff.max(
                     expression=expr,
                     binby=expr,
                     limits=limits,
-                    shape=plotstate.nbins.value,
+                    shape=nbins,
                     array_type="xarray",
+                    delay=True,
                 )
             else:
                 raise ValueError("no assigned bintype for histogram.")
-        return x, y
+            df.execute()
+            return x, y.get()
 
     if check_catagorical(expr):
         logx = False
@@ -577,13 +592,13 @@ def histogram(plotstate):
         fig = px.histogram(
             x=x,
             y=y,
-            nbins=plotstate.nbins.value,
+            nbins=nbins,
             log_x=logx,
             log_y=plotstate.logy.value,
             histnorm=plotstate.norm.value,
             labels={
-                "x": plotstate.x.value,
-                "y": f"{plotstate.bintype.value}({plotstate.x.value})",
+                "x": xcol,
+                "y": f"{plotstate.bintype.value}({xcol})",
             },
             template=DARK_TEMPLATE,  # if dark else LIGHT_TEMPLATE,
         )
@@ -635,13 +650,12 @@ def histogram(plotstate):
                 x=x,
                 y=y,
                 nbinsx=plotstate.nbins.value,
-                hovertemplate=f"<b>{plotstate.x.value}</b>:" + " %{x}<br>" +
-                f"<b>{plotstate.bintype.value}({plotstate.x.value})</b>:" +
-                " %{y}<br>",
+                hovertemplate=f"<b>{xcol}</b>:" + " %{x}<br>" +
+                f"<b>{plotstate.bintype.value}({xcol})</b>:" + " %{y}<br>",
             )
             fig_widget.update_layout(
-                xaxis_title=plotstate.x.value,
-                yaxis_title=f"{plotstate.bintype.value}({plotstate.x.value})",
+                xaxis_title=xcol,
+                yaxis_title=f"{plotstate.bintype.value}({xcol})",
             )
 
         # def update_theme():
@@ -653,7 +667,7 @@ def histogram(plotstate):
             update_data,
             dependencies=[
                 filter,
-                plotstate.x.value,
+                xcol,
                 plotstate.nbins.value,
                 plotstate.bintype.value,
             ],
@@ -671,9 +685,8 @@ def histogram(plotstate):
             uniques = np.unique(data["points"]["xs"])
             binsize = uniques[1] - uniques[0]
             for cent in uniques:
-                filters.append(
-                    df[f"({plotstate.x.value} <= {cent + binsize})"]
-                    & df[f"({plotstate.x.value} >= {cent - binsize})"])
+                filters.append(df[f"({xcol} <= {cent + binsize})"]
+                               & df[f"({xcol} >= {cent - binsize})"])
             filters = reduce(operator.or_, filters[1:], filters[0])
             set_filter(filters)
 
@@ -687,7 +700,6 @@ def histogram(plotstate):
         dependencies=[],
     )
     add_effects(fig_el)
-
     return fig_el
 
 
@@ -773,6 +785,7 @@ def aggregated(plotstate):
                 limits=limits,
                 shape=plotstate.nbins.value,
                 array_type="xarray",
+                delay=True,
             )
         elif bintype == "sum":
             y = dff.sum(
@@ -781,6 +794,7 @@ def aggregated(plotstate):
                 limits=limits,
                 shape=plotstate.nbins.value,
                 array_type="xarray",
+                delay=True,
             )
         elif bintype == "mean":
             y = dff.mean(
@@ -789,13 +803,48 @@ def aggregated(plotstate):
                 limits=limits,
                 shape=plotstate.nbins.value,
                 array_type="xarray",
+                delay=True,
             )
         elif bintype == "median":
             y = dff.median_approx(
                 expr_c,
                 binby=expr,
+                limits=limits,
                 shape=plotstate.nbins.value,
+                delay=True,
             )
+
+        elif bintype == "mode":
+            y = dff.mode(
+                expression=expr_c,
+                binby=expr,
+                limits=limits,
+                shape=plotstate.nbins.value,
+                delay=True,
+            )
+        elif bintype == "min":
+            y = dff.min(
+                expression=expr_c,
+                binby=expr,
+                limits=limits,
+                shape=plotstate.nbins.value,
+                array_type="xarray",
+                delay=True,
+            )
+        elif bintype == "max":
+            y = dff.max(
+                expression=expr_c,
+                binby=expr,
+                limits=limits,
+                shape=plotstate.nbins.value,
+                array_type="xarray",
+                delay=True,
+            )
+        else:
+            raise ValueError("no assigned bintype for aggregated")
+        df.execute()
+        y = y.get()
+        if bintype == "median":
             # convert to xarray
             y = xarray.DataArray(
                 y,
@@ -814,32 +863,6 @@ def aggregated(plotstate):
                     ),
                 },
             )
-
-        elif bintype == "mode":
-            y = dff.mode(
-                expression=expr,
-                binby=[expr_x, expr_y],
-                limits=limits,
-                shape=plotstate.nbins.value,
-            )
-        elif bintype == "min":
-            y = dff.min(
-                expression=expr_c,
-                binby=expr,
-                limits=limits,
-                shape=plotstate.nbins.value,
-                array_type="xarray",
-            )
-        elif bintype == "max":
-            y = dff.max(
-                expression=expr_c,
-                binby=expr,
-                limits=limits,
-                shape=plotstate.nbins.value,
-                array_type="xarray",
-            )
-        else:
-            raise ValueError("no assigned bintype for aggregated")
 
         binscale = str(plotstate.binscale.value)
         if binscale == "log1p":

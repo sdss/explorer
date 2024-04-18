@@ -1,6 +1,7 @@
 import solara as sl
 from solara import lab  # noqa, save for when 1.28 bug is fixed.
 import reacton.ipyvuetify as rv
+import vaex as vx
 
 from .auth import LoginButton
 from .state import State, AlertSystem
@@ -8,10 +9,7 @@ from .dataframe import NoDF
 from .sidebar import sidebar
 from .grid import ObjectGrid
 
-
-def create_callable(dataset):
-    """Doubly wrapped lambda generator."""
-    return lambda: State.load_dataset(dataset)
+vx.cache.on()
 
 
 @sl.component
@@ -26,20 +24,19 @@ def Page():
         sl.AppBarTitle(children=[rv.Icon(children=["mdi-orbit"]), " SDSS"])
 
         # dataset selection
-        # NOTE: may be moved in future!
-        btn = sl.Button(label=State.dataset.value,
-                        icon_name="mdi-database",
-                        text=True)
-        if State.dataset.value is not None:
-            with lab.Menu(activator=btn, close_on_content_click=True):
-                with sl.Column(gap="0px"):
-                    [
-                        sl.Button(
-                            label=dataset,
-                            on_click=create_callable(dataset),
-                        ) for dataset in State.datasets
-                        if dataset != State.dataset.value
-                    ]
+        # NOTE: deactivated
+        # TODO: change to use routing to change between IPL/DR, similarly to how it's done in Zora's interface
+        sl.Button(label="IPL-3", icon_name="mdi-database", text=True)
+        # if State.dataset.value is not None:
+        #    with lab.Menu(activator=btn, close_on_content_click=True):
+        #        with sl.Column(gap="0px"):
+        #            [
+        #                sl.Button(
+        #                    label=dataset,
+        #                    on_click=create_callable(dataset),
+        #                ) for dataset in State.datasets
+        #                if dataset != State.dataset.value
+        #            ]
 
         # appbar buttons
         # lab.ThemeToggle()

@@ -57,9 +57,6 @@ def QuickFilterMenu():
         set_flag_nonzero(False)
         set_flag_snr50(False)
 
-    # INFO: full reset on dataset change
-    sl.use_thread(reset_filters, dependencies=[State.dataset.value])
-
     def work():
         filters = []
         flags = [flag_nonzero, flag_snr50]
@@ -115,69 +112,77 @@ def CartonMapperPanel():
         lambda: vx.open(f"{load_datapath()}/mappings.parquet"),
         dependencies=[])
 
-    if filter:
-        dff = df[filter]
-    else:
-        dff = df
-
     def update_filter():
         # convert chosens to bool mask
         print("MapperCarton ::: starting filter update")
         print(mapper, carton)
 
-        if len(mapper) == 0 and len(carton) == 0:
+        cmp_filter = None
+        if len(mapper) == 0 and len(carton) == 0 and len(dataset) == 0:
             print("No selections: empty exit case")
             set_filter(None)
             return
 
-        start = timer()
-        if combotype.lower() == "or":
-            c = mapping["alt_name"].isin(carton)
-            m = mapping["mapper"].isin(mapper)
-            mask = c | m
-            mask = mask.values
-        elif combotype.lower() == "xor":
-            c = mapping["alt_name"].isin(carton).values
-            m = mapping["mapper"].isin(mapper).values
-            mask = np.logical_xor(c, m)
-        elif combotype.lower() == "and":
-            c = mapping["alt_name"].isin(carton)
-            m = mapping["mapper"].isin(mapper)
-            mask = c & m
-            mask = mask.values
-        else:
-            raise ValueError(
-                "illegal combination type set for combining mapper/carton filter"
-            )
-        bits = np.arange(len(mapping))[mask]
-        print("Timer for bit selection via mask:", round(timer() - start, 5))
+        # mapper + cartons
+        elif len(mapper) != 0 or len(carton) != 0:
+            start = timer()
+            if combotype.lower() == "or":
+                c = mapping["alt_name"].isin(carton)
+                m = mapping["mapper"].isin(mapper)
+                mask = c | m
+                mask = mask.values
+            elif combotype.lower() == "xor":
+                c = mapping["alt_name"].isin(carton).values
+                m = mapping["mapper"].isin(mapper).values
+                mask = np.logical_xor(c, m)
+            elif combotype.lower() == "and":
+                c = mapping["alt_name"].isin(carton)
+                m = mapping["mapper"].isin(mapper)
+                mask = c & m
+                mask = mask.values
+            else:
+                raise ValueError(
+                    "illegal combination type set for combining mapper/carton filter"
+                )
+            bits = np.arange(len(mapping))[mask]
+            print("Timer for bit selection via mask:",
+                  round(timer() - start, 5))
 
-        start = timer()
-        # get flag_number & offset
-        # NOTE: hardcoded nbits as 8, and nflags as 57
-        # TODO: in future, change to read from mappings parquet
-        num, offset = np.divmod(bits, 8)
-        setbits = 57 > num  # ensure bits in flags
+            start = timer()
+            # get flag_number & offset
+            # NOTE: hardcoded nbits as 8, and nflags as 57
+            # TODO: in future, change to read from mappings parquet
+            num, offset = np.divmod(bits, 8)
+            setbits = 57 > num  # ensure bits in flags
 
-        # construct hashmap for each unique flag
-        filters = np.zeros(57).astype("uint8")
-        for unique in np.unique(num[setbits]):
-            # ANDs all the bitshifted values for the given unique flag
-            offsets = 1 << offset[setbits][np.where(num[setbits] == unique)]
-            actives = reduce(operator.or_, offsets)  # INFO: must always be OR
-            if actives == 0:
-                continue  # skip
-            filters[unique] = (
-                actives  # the required active bit(s) ACTIVES for bitmask position "UNIQUE"
-            )
+            # construct hashmap for each unique flag
+            filters = np.zeros(57).astype("uint8")
+            for unique in np.unique(num[setbits]):
+                # ANDs all the bitshifted values for the given unique flag
+                offsets = 1 << offset[setbits][np.where(
+                    num[setbits] == unique)]
+                actives = reduce(operator.or_,
+                                 offsets)  # INFO: must always be OR
+                if actives == 0:
+                    continue  # skip
+                filters[unique] = (
+                    actives  # the required active bit(s) ACTIVES for bitmask position "UNIQUE"
+                )
 
-        print("Timer for active mask creation:", round(timer() - start, 5))
+            print("Timer for active mask creation:", round(timer() - start, 5))
 
-        # generate a filter based on the vaex function defined above
+            # generate a filter based on the vaex function defined above
 
-        start = timer()
-        cmp_filter = df.func.check_flags(df["sdss5_target_flags"], filters)
-        print("Timer for expression generation:", round(timer() - start, 5))
+            start = timer()
+            cmp_filter = df.func.check_flags(df["sdss5_target_flags"], filters)
+            print("Timer for expression generation:",
+                  round(timer() - start, 5))
+
+        elif len(dataset) > 0:
+            if cmp_filter is not None:
+                cmp_filter = cmp_filter & df["dataset"].isin(dataset)
+            else:
+                cmp_filter = df["dataset"].isin(dataset)
         set_filter(cmp_filter)
 
         return
@@ -200,13 +205,13 @@ def CartonMapperPanel():
                     all_values=State.mapping.value["mapper"].unique(),
                     classes=['variant="solo"'],
                 )
-                # sl.SelectMultiple(
-                #    label="Dataset",
-                #    values=dataset,
-                #    on_value=set_dataset,
-                #    all_values=State.datasets,
-                #    classes=['variant="solo"'],
-                # )
+                sl.SelectMultiple(
+                    label="Dataset",
+                    values=dataset,
+                    on_value=set_dataset,
+                    all_values=["apogeenet", "thecannon", "aspcap"],
+                    classes=['variant="solo"'],
+                )
             sl.SelectMultiple(
                 label="Carton",
                 values=carton,
@@ -244,16 +249,15 @@ def PivotTablePanel():
 
 @sl.component()
 def sidebar():
-    ds = State.dataset.value
     df = State.df.value
     with sl.Sidebar():
-        if ds != "" and df is not None and type(df) != dict:
+        if df is not None:
             SumCard()
             with rv.ExpansionPanels(accordion=True):
                 ExprEditor()
                 QuickFilterMenu()
                 CartonMapperPanel()
-                PivotTablePanel()
-                DownloadMenu()
+                # PivotTablePanel()
+                # DownloadMenu()
         else:
             sl.Info("No data loaded.")

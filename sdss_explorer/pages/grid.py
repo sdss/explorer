@@ -82,9 +82,6 @@ def ObjectGrid():
         GridState.grid_layout.value = []
         GridState.objects.value = []
 
-    # full reset layout on dataframe change
-    sl.use_thread(reset_layout, dependencies=[State.dataset.value])
-
     def set_grid_layout(data):
         GridState.grid_layout.value = data
 
@@ -131,7 +128,6 @@ def ObjectGrid():
             btn = sl.Button(
                 "Add View",
                 outlined=False,
-                disabled=True if State.dataset.value == "" else False,
                 icon_name="mdi-image-plus",
             )
             with Menu(activator=btn):

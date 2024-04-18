@@ -24,14 +24,7 @@ def load_datapath():
 class State:
     """Holds app-wide state"""
 
-    dataset = sl.reactive("")
-    df = sl.reactive(cast(vx.DataFrame, None))
     mapping = sl.reactive(vx.open(f"{load_datapath()}/mappings.parquet"))
-    datasets = [
-        "apogeenet",
-        "aspcap",
-        "thecannon",
-    ]  # TODO: convert to a function which http.get requests to find the list of "releases" for given authorization level
 
     @staticmethod
     def load_from_file(file):
@@ -41,15 +34,10 @@ class State:
     @staticmethod
     def load_dataset(dataset):
         # get dataset name
-        State.dataset.value = dataset
         datapath = load_datapath()
         # TODO: verify auth status when attempting to load a working group dataset
 
-        # stupid bug fix
-        if dataset is None:
-            df = vx.open(f"{datapath}/{State.dataset.value}.parquet")
-        else:
-            df = vx.open(f"{datapath}/{dataset}.parquet")
+        df = vx.open(f"{datapath}/{dataset}.parquet")
 
         # force cast flags as a numpy array via my method bypassing pyarrow
         flags = np.array(list(
@@ -59,7 +47,17 @@ class State:
         # shuffle to ensure skyplot looks nice, constant seed for reproducibility
         df = df.shuffle(random_state=42)
 
-        State.df.value = df
+        # force materialization of column to maximize the performance
+        # NOTE: embedded in a worker process, we will eat up significant memory with this command
+        #  this is because all workers will materialize the column
+        #  to minimize this, we need to add --preload option to solara or FastAPI runner, so that it forks the workers
+        #
+        #  for more info, see: https://vaex.io/docs/guides/performance.html
+        df = df.materialize()
+
+        return df
+
+    df = sl.reactive(load_dataset("ipl3_partial"))
 
     class Lookup:
         views = ["histogram", "histogram2d", "scatter", "skyplot"]
