@@ -126,24 +126,28 @@ def CartonMapperPanel():
         # mapper + cartons
         elif len(mapper) != 0 or len(carton) != 0:
             start = timer()
+            c = mapping["alt_name"].isin(carton).values
+            m = mapping["mapper"].isin(mapper).values
+
             if combotype.lower() == "or":
-                c = mapping["alt_name"].isin(carton)
-                m = mapping["mapper"].isin(mapper)
-                mask = c | m
-                mask = mask.values
+                operation = operator.or_
             elif combotype.lower() == "xor":
-                c = mapping["alt_name"].isin(carton).values
-                m = mapping["mapper"].isin(mapper).values
-                mask = np.logical_xor(c, m)
+                operation = np.logical_xor
             elif combotype.lower() == "and":
-                c = mapping["alt_name"].isin(carton)
-                m = mapping["mapper"].isin(mapper)
-                mask = c & m
-                mask = mask.values
+                operation = operator.and_
             else:
                 raise ValueError(
                     "illegal combination type set for combining mapper/carton filter"
                 )
+
+            # mask
+            if len(mapper) == 0:
+                mask = c
+            elif len(carton) == 0:
+                mask = m
+            else:
+                mask = operation(m, c)
+
             bits = np.arange(len(mapping))[mask]
             print("Timer for bit selection via mask:",
                   round(timer() - start, 5))
@@ -178,9 +182,9 @@ def CartonMapperPanel():
             print("Timer for expression generation:",
                   round(timer() - start, 5))
 
-        elif len(dataset) > 0:
+        if len(dataset) > 0:
             if cmp_filter is not None:
-                cmp_filter = cmp_filter & df["dataset"].isin(dataset)
+                cmp_filter = operation(cmp_filter, df["dataset"].isin(dataset))
             else:
                 cmp_filter = df["dataset"].isin(dataset)
         set_filter(cmp_filter)
