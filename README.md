@@ -29,10 +29,9 @@ pip install -e .
 ### Data files
 Currently, the dashboard uses custom parquet versions of the allStar summary files from each pipeline. You can download the parquet files from [here](https://data.sdss5.org/sas/sdsswork/users/u6054929/). These are proprietary SDSS data files, and should not be shared outside the collaboration.
 
-There are 3 avaliable at the moment:
-- apogeenet
-- aspcap
-- thecannon
+The app uses two files:
+- `ipl3-partial.parquet` :: a parquet of 3 allStar redux files (APOGEENet, ASPCAP, The Cannon) -- to be expanded upon with more
+- `mappings.parquet` :: a converted version of the `bitmappings.csv` used in [sdss/semaphore](https://github.com/sdss/semaphore), for creating filters for cartons and mappers
 
 ## Starting the server
 To run, the environment variables must be exported to the shell environment. These are:
