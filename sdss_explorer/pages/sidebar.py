@@ -9,6 +9,7 @@ import numpy as np
 import reacton.ipyvuetify as rv
 
 from .state import State, load_datapath
+from .dialog import Dialog
 from .editor import ExprEditor, SumCard
 
 
@@ -249,6 +250,103 @@ def PivotTablePanel():
                 if type(df) != dict:
                     sl.PivotTableCard(df, y=["telescope"], x=["release"])
     return main
+
+
+def VirtualColumnList():
+    """Holds list of created virtual columns with deletes"""
+    sl
+
+
+@sl.component()
+def VirtualColumnsPanel():
+    df = State.df.value
+    open, set_open = sl.use_state(False)
+    expression, set_expression = sl.use_reactive("")
+    name, set_name = sl.use_reactive("")
+    error, set_error = sl.use_state("")
+
+    with rv.ExpansionPanel() as main:
+        with rv.ExpansionPanelHeader():
+            rv.Icon(children=["mdi-calculator"])
+            with rv.CardTitle(children=["Virtual calculations"]):
+                pass
+        with rv.ExpansionPanelContent():
+            VirtualColumnList()
+            btn = sl.Button(label="Add virtual column",
+                            on_click=lambda: set_open(True))
+
+    @task
+    def validate():
+        "Ensure syntax is correct"
+        try:
+            if expression == "":
+                return None
+            df.validate_expression(expression)
+
+            # all good
+            assert name not in df.get_column_names(virtual=True)
+
+            # add virtual column
+            close()
+            return True
+
+        except Exception as e:  # noqa
+            # any exception, exit and report
+            set_error(str(e))
+            return False
+
+    def close():
+        """Clears state variables and closes dialog."""
+        set_open(False)
+        set_name("")
+        set_expression("")
+
+    with Dialog(
+            open,
+            title="Add virtual column",
+            on_cancel=close,
+            ok="Add",
+            close_on_ok=False,
+            on_ok=validate,
+    ):
+        sl.InputText(
+            label="Enter an name for the new column.",
+            value=name,
+            on_value=set_name,
+        )
+        sl.InputText(
+            label="Enter an expression for the new column.",
+            value=expression,
+            on_value=set_expression,
+        )
+        if result.finished:
+            if result.value:
+                sl.Success(
+                    label="Valid expression entered.",
+                    icon=True,
+                    dense=True,
+                    outlined=False,
+                )
+            elif result.value is None:
+                sl.Info(
+                    label="No expression entered. Filter unset.",
+                    icon=True,
+                    dense=True,
+                    outlined=False,
+                )
+            else:
+                sl.Error(
+                    label=f"Invalid expression entered: {error}",
+                    icon=True,
+                    dense=True,
+                    outlined=False,
+                )
+
+        elif result.state == sl.ResultState.ERROR:
+            sl.Error(f"Error occurred: {result.error}")
+        else:
+            sl.Info("Evaluating expression...")
+            rv.ProgressLinear(indeterminate=True)
 
 
 @sl.component()
