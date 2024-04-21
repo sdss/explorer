@@ -50,8 +50,8 @@ class State:
         # force materialization of column to maximize the performance
         # NOTE: embedded in a worker process, we will eat up significant memory with this command
         #  this is because all workers will materialize the column
-        #  to minimize this, we need to add --preload option to solara or FastAPI runner, so that it forks the workers
-        #
+        # TODO: to minimize this, we need to add --preload option to solara or FastAPI runner, so that it forks the workers from the base instance.
+        # NOTE: vaex has an add_column method, but as stated above, it will overload our worker processes.
         #  for more info, see: https://vaex.io/docs/guides/performance.html
         df = df.materialize()
 

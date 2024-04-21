@@ -260,8 +260,8 @@ def scatter(plotstate):
                 yaxis_title=plotstate.y.value,
                 template=DARK_TEMPLATE,  # if dark else LIGHT_TEMPLATE,
                 coloraxis=dict(
-                    cmin=np.float32(dff.min(plotstate.color.value)),
-                    cmax=np.float32(dff.max(plotstate.color.value)),
+                    cmin=dff.min(plotstate.color.value)[()],
+                    cmax=dff.max(plotstate.color.value)[()],
                 ),
             ),
         )
@@ -282,7 +282,7 @@ def scatter(plotstate):
                     print(trace.customdata[points.point_inds[0]])
                 elif selector.button == 0 and selector.shift:
                     # NOTE: binding is <Shift+LMB>
-                    zora_url = "http://localhost:8080"
+                    zora_url = "http://localhost:8080"  # TODO: get zora url from ENVVAR
                     wb.open(
                         f"{zora_url}/target/{trace.customdata[points.point_inds[0]]}"
                     )
@@ -757,10 +757,11 @@ def aggregated(plotstate):
             return (None, None, None)
 
         # TODO: report weird stride bug that occurs on this code
+
         try:
             limits = [
                 dff.minmax(plotstate.x.value),
-                dff.minmax(plotstate.y.value)
+                dff.minmax(plotstate.y.value),
             ]
         except:
             Alert.update(
@@ -771,11 +772,11 @@ def aggregated(plotstate):
             limits = [
                 [
                     dff.min(plotstate.x.value)[()],
-                    dff.max(plotstate.x.value)[()]
+                    dff.max(plotstate.x.value)[()],
                 ],
                 [
                     dff.min(plotstate.y.value)[()],
-                    dff.max(plotstate.y.value)[()]
+                    dff.max(plotstate.y.value)[()],
                 ],
             ]
 
@@ -1103,9 +1104,9 @@ def skyplot(plotstate):
                 xaxis_title=plotstate.x.value,
                 yaxis_title=plotstate.y.value,
                 template=DARK_TEMPLATE,  # if dark else LIGHT_TEMPLATE,
-                coloraxis=dict(  # TODO: why have i done this?
-                    cmin=np.float32(dff.min(plotstate.color.value)),
-                    cmax=np.float32(dff.max(plotstate.color.value)),
+                coloraxis=dict(
+                    cmin=dff.min(plotstate.color.value)[()],
+                    cmax=dff.max(plotstate.color.value)[()],
                 ),
                 geo=dict(
                     bgcolor="#212121",
