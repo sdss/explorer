@@ -17,7 +17,8 @@ class GridLayout(v.VuetifyTemplate):
     """
     A draggable & resizable grid layout which can be dragged via a toolbar.
 
-    Arguably, this should use solara's components directly, but it doesn't function correctly with "component_vue" decorator.
+    Arguably, this should use solara's components directly, but it
+    doesn't function correctly with "component_vue" decorator.
     """
 
     template_file = os.path.join(os.path.dirname(__file__),
