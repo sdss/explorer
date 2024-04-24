@@ -14,6 +14,7 @@ def Dialog(
     title: str = "Confirm action",
     ok: Union[str, sl.Element] = "OK",
     on_ok: Callable[[], None] = lambda: None,
+    ok_enable: Union[sl.Reactive[bool], bool] = True,
     close_on_ok: bool = True,
     cancel: Union[str, sl.Element] = "Cancel",
     on_cancel: Callable[[], None] = lambda: None,
@@ -28,7 +29,9 @@ def Dialog(
                 on_close()
 
     open_reactive = sl.use_reactive(open, on_open)
+    ok_reactive = sl.use_reactive(ok_enable)
     del open
+    del ok_enable
 
     def close():
         open_reactive.set(False)
@@ -93,6 +96,7 @@ def Dialog(
                         on_click=perform_ok,
                         dark=True,
                         color="primary",
+                        disabled=not ok_reactive.value,
                         elevation=0,
                     )
                 else:

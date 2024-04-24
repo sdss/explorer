@@ -3,12 +3,12 @@ from timeit import default_timer as timer
 import operator
 
 import solara as sl
-from solara.lab import use_task
+from solara.lab import use_task, Task
 import vaex as vx
 import numpy as np
 import reacton.ipyvuetify as rv
 
-from .state import State, load_datapath
+from .state import State, load_datapath, VCData
 from .dialog import Dialog
 from .editor import ExprEditor, SumCard
 
@@ -253,17 +253,88 @@ def PivotTablePanel():
 
 
 def VirtualColumnList():
-    """Holds list of created virtual columns with deletes"""
-    sl
+    """Renders list of created virtual columns with delete buttons"""
+    # NOTE: this should be efficient, but it could also just not be
+    print(VCData.columns.value)
+    with sl.Column(gap="0px"):
+        for name, expression in VCData.columns.value:
+            with rv.Card():
+                rv.CardTitle(children=[name])
+                rv.CardSubtitle(children=[expression])
+                with rv.CardActions(class_="justify-center"):
+                    sl.Button(
+                        label="",
+                        icon_name="mdi-delete-outline",
+                        text=True,
+                        icon=True,
+                        color="red",
+                        on_click=lambda: VCData.delete_column(
+                            name, expression),
+                    )
 
 
 @sl.component()
 def VirtualColumnsPanel():
     df = State.df.value
     open, set_open = sl.use_state(False)
-    expression, set_expression = sl.use_reactive("")
-    name, set_name = sl.use_reactive("")
+    expression, set_expression = sl.use_state("")
+    name, set_name = sl.use_state("")
     error, set_error = sl.use_state("")
+    active = sl.use_reactive(False)
+
+    def validate():
+        "Ensure syntax is correct"
+        try:
+            if expression == "" and name == "":
+                return None
+            # none cases
+            assert name != "", "no name given"
+            # check name
+            assert name not in df.get_column_names(), "name already exists"
+
+            # validate via AST
+            assert expression != "", "no expression set"
+            df.validate_expression(expression)
+
+            # set button to active
+            active.set(True)
+            return True
+
+        except Exception as e:
+            set_error(str(e))
+            return False
+
+    def add_column():
+        """Adds virtual column"""
+        df.add_virtual_column(name, expression)
+        VCData.add_column(name, expression)
+        close()
+
+    result: sl.Result = sl.use_thread(validate,
+                                      dependencies=[expression, name])
+
+    def update_columns():
+        """Manually updates columns on VCData update"""
+        df = State.df.value
+        print("current VCD:", VCData.columns.value)
+        columns = df.get_column_names(virtual=False)
+        virtuals = list()
+        for name, _expr in VCData.columns.value:
+            virtuals.append(name)
+        print("current virtuals:", virtuals)
+        State.columns.value = virtuals + columns
+
+    sl.use_thread(
+        update_columns,
+        dependencies=[len(VCData.columns.value)],
+    )
+
+    def close():
+        """Clears state variables and closes dialog."""
+        set_open(False)
+        set_name("")
+        set_expression("")
+        active.set(False)
 
     with rv.ExpansionPanel() as main:
         with rv.ExpansionPanelHeader():
@@ -274,79 +345,56 @@ def VirtualColumnsPanel():
             VirtualColumnList()
             btn = sl.Button(label="Add virtual column",
                             on_click=lambda: set_open(True))
+            sl.Button
 
-    @task
-    def validate():
-        "Ensure syntax is correct"
-        try:
-            if expression == "":
-                return None
-            df.validate_expression(expression)
-
-            # all good
-            assert name not in df.get_column_names(virtual=True)
-
-            # add virtual column
-            close()
-            return True
-
-        except Exception as e:  # noqa
-            # any exception, exit and report
-            set_error(str(e))
-            return False
-
-    def close():
-        """Clears state variables and closes dialog."""
-        set_open(False)
-        set_name("")
-        set_expression("")
-
-    with Dialog(
-            open,
-            title="Add virtual column",
-            on_cancel=close,
-            ok="Add",
-            close_on_ok=False,
-            on_ok=validate,
-    ):
-        sl.InputText(
-            label="Enter an name for the new column.",
-            value=name,
-            on_value=set_name,
-        )
-        sl.InputText(
-            label="Enter an expression for the new column.",
-            value=expression,
-            on_value=set_expression,
-        )
-        if result.finished:
-            if result.value:
-                sl.Success(
-                    label="Valid expression entered.",
-                    icon=True,
-                    dense=True,
-                    outlined=False,
-                )
-            elif result.value is None:
-                sl.Info(
-                    label="No expression entered. Filter unset.",
-                    icon=True,
-                    dense=True,
-                    outlined=False,
-                )
+        with Dialog(
+                open,
+                title="Add virtual column",
+                on_cancel=close,
+                ok="Add",
+                close_on_ok=False,
+                on_ok=add_column,
+                persistent=True,
+                ok_enable=active,
+        ):
+            sl.InputText(
+                label="Enter an name for the new column.",
+                value=name,
+                on_value=set_name,
+            )
+            sl.InputText(
+                label="Enter an expression for the new column.",
+                value=expression,
+                on_value=set_expression,
+            )
+            if result.state == sl.ResultState.FINISHED:
+                if result.value:
+                    sl.Success(
+                        label="Valid expression & name entered.",
+                        icon=True,
+                        dense=True,
+                        outlined=False,
+                    )
+                elif result.value is None:
+                    sl.Info(
+                        label="Enter an expression and a name for the column.",
+                        icon=True,
+                        dense=True,
+                        outlined=False,
+                    )
+                else:
+                    sl.Error(
+                        label=f"Invalid expression/name entered: {error}",
+                        icon=True,
+                        dense=True,
+                        outlined=False,
+                    )
+            elif result.state == sl.ResultState.ERROR:
+                sl.Error(f"Error occurred: {result.error}")
             else:
-                sl.Error(
-                    label=f"Invalid expression entered: {error}",
-                    icon=True,
-                    dense=True,
-                    outlined=False,
-                )
-
-        elif result.state == sl.ResultState.ERROR:
-            sl.Error(f"Error occurred: {result.error}")
-        else:
-            sl.Info("Evaluating expression...")
-            rv.ProgressLinear(indeterminate=True)
+                sl.Info("Evaluating expression...")
+                rv.ProgressLinear(indeterminate=True)
+    return main
 
 
 @sl.component()
@@ -359,6 +407,7 @@ def sidebar():
                 ExprEditor()
                 QuickFilterMenu()
                 CartonMapperPanel()
+                VirtualColumnsPanel()
                 # PivotTablePanel()
                 # DownloadMenu()
         else:

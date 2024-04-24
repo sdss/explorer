@@ -1295,8 +1295,7 @@ def show_settings(type, state):
 
 @sl.component()
 def sky_menu(plotstate):
-    df = State.df.value
-    columns = list(map(str, df.columns))
+    columns = State.columns.value
     with sl.Columns([1, 1]):
         with Card(margin=0):
             with sl.Column():
@@ -1333,8 +1332,7 @@ def sky_menu(plotstate):
 
 @sl.component()
 def scatter_menu(plotstate):
-    df = State.df.value
-    columns = df.get_column_names()
+    columns = State.columns.value
     with sl.Card():
         with sl.Columns([1, 1]):
             with sl.Column():
@@ -1386,8 +1384,7 @@ def scatter_menu(plotstate):
 
 @sl.component()
 def histogram_menu(plotstate):
-    df = State.df.value
-    columns = list(map(str, df.columns))
+    columns = State.columns.value
     with sl.Columns([1, 1]):
         with Card(margin=0):
             with sl.Column():
@@ -1418,8 +1415,7 @@ def histogram_menu(plotstate):
 
 @sl.component()
 def aggregate_menu(plotstate):
-    df = State.df.value
-    columns = list(map(str, df.columns))
+    columns = State.columns.value
     with sl.Columns([1, 1]):
         with Card(margin=0):
             with Columns([3, 3, 1], gutters_dense=True):
