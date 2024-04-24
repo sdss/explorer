@@ -6,12 +6,14 @@ import dotenv
 import solara as sl
 import requests as rq
 import reacton.ipyvuetify as rv
+from solara.lab import task
 
-from solara.lab import headers, ConfirmationDialog  # noqa
+from solara.lab import headers
 from solara.components.input import use_change
 from ipyvue import VueWidget
 
 from .state import State, Alert
+from .dialog import Dialog
 
 
 def get_url():
@@ -66,17 +68,19 @@ def login(username: str, password: str):
         )
         print("response received:", response.json())
         if "502" in response.json()["detail"]:
-            assert False, "upstream server error (api.sdss.org/crown)."
+            assert (
+                False
+            ), "upstream server error, please inform admins (api.sdss.org/crown)."
 
         # check response is okay
         assert response.ok, "invalid username or password."
 
         # set the token
         print("token received:", response.json()["access_token"])
-        State.token.set(response.json()["access_token"])
 
         # save to header
         # TODO: write to header with solara
+        headers["credentials"] = response.json()["access_token"]
 
         return True, ""
     except AssertionError as e:
@@ -86,7 +90,6 @@ def login(username: str, password: str):
 
 def logout():
     """Forces token reset & expires token."""
-    State.token.set("")
     # TODO: update header and tell valis the token is no longer valid
     return
 
@@ -111,38 +114,46 @@ def LoginButton():
 @sl.component()
 def LoginPrompt(open, set_open, login):
     """The prompt menu for the login"""
-    # TODO: cut down on states
     username = sl.use_reactive("")
     password = sl.use_reactive("")
+    error, set_error = sl.use_state(cast(str, None))
+    # TODO: ensure this not available as plaintext in debug logs -- big security risk.
     visible, set_visible = sl.use_state(False)
-    processing = sl.use_reactive(False)
-    result = sl.use_reactive(False)
 
     def close():
         """Resets state vars"""
         set_open(False)
-        processing.set(False)
         username.value = ""
         password.value = ""
 
+    @task
     def validate():
         # keep menu open, process it
-        processing.set(True)
-        result.value, e = login(username.value, password.value)
-        Alert.update(
-            "Login successful!" if result.value else "Login failed: " + str(e),
-            "success" if result.value else "error",
-            closeable=True,
-        )
-        processing.set(False)
-        close()
+        result, e = login(username.value, password.value)
+        if result:
+            Alert.update(
+                f"Logged in as {username.value}, welcome!",
+                color="success",
+                closeable=True,
+            )
+            close()
+        else:
+            set_error(e)
+            Alert.update(
+                f"Login failed: {e}",
+                color="error",
+            )
+            raise Exception
 
-    with ConfirmationDialog(open,
-                            content="Login to SDSS",
-                            on_cancel=close,
-                            ok="Login",
-                            on_ok=validate):
-        sl.ProgressLinear(value=processing.value)
+    with Dialog(
+            open,
+            content="Login to SDSS",
+            on_cancel=close,
+            ok="Login",
+            close_on_ok=False,
+            on_ok=validate,
+    ):
+        sl.ProgressLinear(value=validate.pending)
         uname_field = sl.InputText("Username", value=username)
         pword_field = rv.TextField(
             v_model=password.value,
@@ -150,6 +161,23 @@ def LoginPrompt(open, set_open, login):
             type="password" if not visible else "text",
             label="Password",
         )
+        if validate.finished:
+            if validate.error:
+                sl.Error(
+                    label=f"Login failed: {error}",
+                    icon=True,
+                    dense=True,
+                    outlined=False,
+                )
+            else:
+                sl.Success(
+                    label="Login successful.",
+                    icon=True,
+                    dense=True,
+                    outlined=False,
+                )
+                close()
+
         use_change(pword_field,
                    password.set,
                    update_events=["blur", "keyup.enter"])
