@@ -6,7 +6,7 @@ import dotenv
 import solara as sl
 import requests as rq
 import reacton.ipyvuetify as rv
-from solara.lab import task
+from solara.lab import task, ConfirmationDialog
 
 from solara.lab import headers
 from solara.components.input import use_change
@@ -34,10 +34,10 @@ api_url: str = get_url()
 
 def check_auth():
     """Checks if logged in."""
-    # TODO: make proper header check
     try:
-        raise KeyError
-        # print(headers.value["authentication"])
+        # TODO: add verify
+        token = headers.value["authorization"]
+
     except KeyError:
         return False
     return True
@@ -67,9 +67,9 @@ def login(username: str, password: str):
             },
         )
         print("response received:", response.json())
-        if "502" in response.json()["detail"]:
+        if not response.ok:
             assert (
-                False
+                "502" not in response.json()["detail"]
             ), "upstream server error, please inform admins (api.sdss.org/crown)."
 
         # check response is okay
@@ -80,17 +80,13 @@ def login(username: str, password: str):
 
         # save to header
         # TODO: write to header with solara
-        headers["credentials"] = response.json()["access_token"]
+        State.token.value = response.json()["access_token"]
 
         return True, ""
     except AssertionError as e:
         print("request failed:", e)
         return False, e
 
-
-def logout():
-    """Forces token reset & expires token."""
-    # TODO: update header and tell valis the token is no longer valid
     return
 
 
@@ -98,21 +94,35 @@ def logout():
 def LoginButton():
     """Holds login button and prompter."""
     open, set_open = sl.use_state(False)
-    logged = check_auth()
+    logged, set_logged = sl.use_state(check_auth())
+    confirm = sl.use_reactive(False)
+
+    def logout():
+        """Forces token reset & expires token."""
+        headers.value["credentials"] = ""
+        set_logged(False)
+        # TODO: update header and tell valis the token is no longer valid
 
     with rv.AppBarNavIcon() as main:
         sl.Button(
             icon_name="mdi-logout-variant" if logged else "mdi-login-variant",
             icon=True,
             outlined=True,
-            on_click=lambda: logout if logged else set_open(True),
+            on_click=lambda: confirm.set(True) if logged else set_open(True),
         )
-        LoginPrompt(open, set_open, login)
+        LoginPrompt(open, set_open, set_logged)
+        ConfirmationDialog(
+            confirm,
+            title="Are you sure you want to logout?",
+            cancel="no",
+            ok="yes",
+            on_ok=logout,
+        )
     return main
 
 
 @sl.component()
-def LoginPrompt(open, set_open, login):
+def LoginPrompt(open, set_open, set_logged):
     """The prompt menu for the login"""
     username = sl.use_reactive("")
     password = sl.use_reactive("")
@@ -125,10 +135,13 @@ def LoginPrompt(open, set_open, login):
         set_open(False)
         username.value = ""
         password.value = ""
+        set_visible(False)
 
     @task
     def validate():
         # keep menu open, process it
+        if username.value == "" and password.value == "":
+            return None
         result, e = login(username.value, password.value)
         if result:
             Alert.update(
@@ -137,13 +150,15 @@ def LoginPrompt(open, set_open, login):
                 closeable=True,
             )
             close()
+            set_logged(True)
+            return True
         else:
             set_error(e)
             Alert.update(
                 f"Login failed: {e}",
                 color="error",
             )
-            raise Exception
+            return False
 
     with Dialog(
             open,
@@ -153,7 +168,6 @@ def LoginPrompt(open, set_open, login):
             close_on_ok=False,
             on_ok=validate,
     ):
-        sl.ProgressLinear(value=validate.pending)
         uname_field = sl.InputText("Username", value=username)
         pword_field = rv.TextField(
             v_model=password.value,
@@ -161,22 +175,17 @@ def LoginPrompt(open, set_open, login):
             type="password" if not visible else "text",
             label="Password",
         )
-        if validate.finished:
-            if validate.error:
-                sl.Error(
-                    label=f"Login failed: {error}",
-                    icon=True,
-                    dense=True,
-                    outlined=False,
-                )
-            else:
-                sl.Success(
-                    label="Login successful.",
-                    icon=True,
-                    dense=True,
-                    outlined=False,
-                )
-                close()
+        # NOTE: these reactive updates don't work for some reason
+        # if validate.pending:
+        #    sl.ProgressLinear(indeterminate=True)
+        # elif validate.finished:
+        #    if not validate.value:
+        #        sl.Error(
+        #            label=f"Login failed: {error}",
+        #            icon=True,
+        #            dense=True,
+        #            outlined=False,
+        #        )
 
         use_change(pword_field,
                    password.set,

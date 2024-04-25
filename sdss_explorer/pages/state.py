@@ -25,6 +25,7 @@ class State:
     """Holds app-wide state"""
 
     mapping = sl.reactive(vx.open(f"{load_datapath()}/mappings.parquet"))
+    token = sl.reactive(None)
 
     @staticmethod
     def load_from_file(file):
