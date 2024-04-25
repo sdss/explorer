@@ -22,7 +22,9 @@ from solara.lab import Menu, use_task, task
 
 from .state import State, Alert
 from .util import check_catagorical
+from .subsets import use_subset
 
+subsets = ["A", "Q"]
 # TEMPLATES AND STATE
 DARK_TEMPLATE = dict(layout=go.Layout(
     font=dict(color="white", size=16),
@@ -63,6 +65,7 @@ class PlotState:
 
     def __init__(self, type):
         # common settings
+        self.subset = sl.use_reactive("global")
         self.x = sl.use_reactive("teff")
         self.flipx = sl.use_reactive(False)
         self.flipy = sl.use_reactive(False)
@@ -181,7 +184,7 @@ def show_plot(type, del_func):
 def scatter(plotstate):
     df: vx.DataFrame = State.df.value
     # dark = use_dark_effective()
-    filter, set_filter = sl.use_cross_filter(id(df), "scatter")
+    filter, set_filter = use_subset(id(df), plotstate.subset, "scatter")
     relayout, set_relayout = sl.use_state({})
     local_filter, set_local_filter = sl.use_state(None)
 
@@ -472,7 +475,7 @@ def histogram(plotstate):
     df: vx.DataFrame = State.df.value
     xcol = plotstate.x.value
     nbins = plotstate.nbins.value
-    filter, set_filter = sl.use_cross_filter(id(df), "histogram")
+    filter, set_filter = use_subset(id(df), plotstate.subset, "histogram")
     # dark = use_dark_effective()
 
     dff = df
@@ -486,6 +489,7 @@ def histogram(plotstate):
             series = expr.value_counts()  # value_counts as in Pandas
             x = series.index.values
             y = series.values
+            return x, y
         else:
             # check for length < 0
             try:
@@ -706,7 +710,8 @@ def histogram(plotstate):
 @sl.component
 def aggregated(plotstate):
     df = State.df.value
-    filter, set_filter = sl.use_cross_filter(id(df), "filter-aggregated")
+    filter, set_filter = use_subset(id(df), plotstate.subset,
+                                    "filter-aggregated")
     # dark = use_dark_effective()
 
     dff = df
@@ -1004,9 +1009,7 @@ def aggregated(plotstate):
 @sl.component
 def skyplot(plotstate):
     df = State.df.value
-    filter, set_filter = sl.use_cross_filter(
-        id(df), "skyplot"
-    )  # TODO: check if filters interfere because they have the same ID
+    filter, set_filter = use_subset(id(df), plotstate.subset, "filter-skyplot")
     # dark = use_dark_effective()
     relayout, set_relayout = sl.use_state({})
     local_filter, set_local_filter = sl.use_state(None)
@@ -1334,6 +1337,11 @@ def sky_menu(plotstate):
 def scatter_menu(plotstate):
     columns = State.columns.value
     with sl.Card():
+        sl.Select(
+            label="Subset",
+            values=subsets,
+            value=plotstate.subset,
+        )
         with sl.Columns([1, 1]):
             with sl.Column():
                 with Columns([8, 8, 2], gutters_dense=True):
@@ -1385,6 +1393,12 @@ def scatter_menu(plotstate):
 @sl.component()
 def histogram_menu(plotstate):
     columns = State.columns.value
+
+    sl.Select(
+        label="Subset",
+        values=subsets,
+        value=plotstate.subset,
+    )
     with sl.Columns([1, 1]):
         with Card(margin=0):
             with sl.Column():
@@ -1418,6 +1432,11 @@ def aggregate_menu(plotstate):
     columns = State.columns.value
     with sl.Columns([1, 1]):
         with Card(margin=0):
+            sl.Select(
+                label="Subset",
+                values=subsets,
+                value=plotstate.subset,
+            )
             with Columns([3, 3, 1], gutters_dense=True):
                 with sl.Column():
                     sl.Select(

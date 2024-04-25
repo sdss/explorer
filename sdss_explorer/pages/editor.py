@@ -1,18 +1,19 @@
 from typing import cast
 import re
+from timeit import default_timer as timer
 
 import solara as sl
 import numpy as np
 import reacton.ipyvuetify as rv
 
 from .state import State
+from .subsets import use_subset
 
 
 @sl.component
-def SumCard():
+def SumCard(name):
     df = State.df.value
-    filter, set_filter = sl.use_cross_filter(id(df), "summary")
-    print(filter)
+    filter, set_filter = use_subset(id(df), name, "summary")
     # filter logic
     if filter:
         filtered = True
@@ -21,15 +22,9 @@ def SumCard():
         filtered = False
         dff = df
 
-    # title logic
-    if filtered:
-        title = "Filtered"
-    else:
-        title = "Showing all"
     progress = len(dff) / len(df) * 100
 
-    with sl.Card(title=title, margin=0) as main:
-        sl.ProgressLinear(value=progress, color="blue")
+    with sl.Column(gap="0px") as main:
         with rv.CardText():
             if filtered:
                 summary = f"{len(dff):,} / {len(df):,}"
@@ -40,12 +35,14 @@ def SumCard():
                 style_="opacity: 0.1" if not filtered else "",
             )
             rv.Html(tag="h3", children=[summary], style_="display: inline")
+        sl.ProgressLinear(value=progress, color="blue")
+    return main
 
 
 @sl.component
-def ExprEditor():
+def ExprEditor(name):
     df = State.df.value
-    filter, set_filter = sl.use_cross_filter(id(df), "filter-expression")
+    filter, set_filter = use_subset(id(df), name, "filter-expression")
     dff = df
     if filter is not None:
         dff = dff[filter]
@@ -57,9 +54,11 @@ def ExprEditor():
         Validates if the expression is valid, and returns
         a precise error message for any issues in the expression.
         """
+        print("EXPR: start")
         columns = State.columns.value
         try:
             # TODO: this is hella spaghetti how fix
+            start = timer()
             if expression is None or expression == "":
                 set_filter(None)
                 return None
@@ -135,57 +134,58 @@ def ExprEditor():
 
             # create expression as str
             expr = "(" + "".join(subexpressions) + ")"
+            print("EXPR: validation = ", timer() - start)
 
             # set filter & exit
+            start = timer()
             set_filter(df[expr])
+            print("EXPR: setting = ", timer() - start)
             return True
 
-        except AssertionError as e:
-            # INFO: it's probably better NOT to unset filters if assertions fail.
-            # set_filter(None)
-            set_error(e)  # saves error msg to state
-            return False
-        except SyntaxError as e:
-            set_error("modifier at end of sequence with no expression")
+        # except AssertionError as e:
+        #    # INFO: it's probably better NOT to unset filters if assertions fail.
+        #    # set_filter(None)
+        #    set_error(e)  # saves error msg to state
+        #    return False
+        # except SyntaxError as e:
+        #    set_error("modifier at end of sequence with no expression")
+        #    return False
+        except ValueError:
+            set_error("idkwhathappens")
             return False
 
     result: sl.Result[bool] = sl.use_thread(work, dependencies=[expression])
 
-    with rv.ExpansionPanel() as main:
-        with rv.ExpansionPanelHeader():
-            rv.Icon(children=["mdi-function-variant"])
-            with rv.CardTitle(children=["Expressions"]):
-                pass
-        with rv.ExpansionPanelContent():
-            sl.InputText(label="Enter an expression",
-                         value=expression,
-                         on_value=set_expression)
-            if result.state == sl.ResultState.FINISHED:
-                if result.value:
-                    sl.Success(
-                        label="Valid expression entered.",
-                        icon=True,
-                        dense=True,
-                        outlined=False,
-                    )
-                elif result.value is None:
-                    sl.Info(
-                        label="No expression entered. Filter unset.",
-                        icon=True,
-                        dense=True,
-                        outlined=False,
-                    )
-                else:
-                    sl.Error(
-                        label=f"Invalid expression entered: {error}",
-                        icon=True,
-                        dense=True,
-                        outlined=False,
-                    )
-
-            elif result.state == sl.ResultState.ERROR:
-                sl.Error(f"Error occurred: {result.error}")
+    with sl.Column() as main:
+        sl.InputText(label="Enter an expression",
+                     value=expression,
+                     on_value=set_expression)
+        if result.state == sl.ResultState.FINISHED:
+            if result.value:
+                sl.Success(
+                    label="Valid expression entered.",
+                    icon=True,
+                    dense=True,
+                    outlined=False,
+                )
+            elif result.value is None:
+                sl.Info(
+                    label="No expression entered. Filter unset.",
+                    icon=True,
+                    dense=True,
+                    outlined=False,
+                )
             else:
-                sl.Info("Evaluating expression...")
-                rv.ProgressLinear(indeterminate=True)
+                sl.Error(
+                    label=f"Invalid expression entered: {error}",
+                    icon=True,
+                    dense=True,
+                    outlined=False,
+                )
+
+        elif result.state == sl.ResultState.ERROR:
+            sl.Error(f"Error occurred: {result.error}")
+        else:
+            sl.Info("Evaluating expression...")
+            rv.ProgressLinear(indeterminate=True)
     return main

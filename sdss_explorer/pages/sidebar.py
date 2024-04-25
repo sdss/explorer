@@ -1,21 +1,57 @@
+from ast import Sub
 from functools import reduce
 from timeit import default_timer as timer
 import operator
 
 import solara as sl
-from solara.lab import use_task, Task
+from solara.lab import Menu
 import vaex as vx
 import numpy as np
 import reacton.ipyvuetify as rv
 
-from .state import State, load_datapath, VCData
+from .state import State, load_datapath, VCData, Alert
 from .dialog import Dialog
 from .editor import ExprEditor, SumCard
+from .subsets import use_subset, remove_subset
 
 
 @vx.register_function()
 def check_flags(flags, vals):
     return np.any(np.logical_and(flags, vals), axis=1)
+
+
+@sl.component()
+def SubsetMenu():
+    """Control and display subset cards"""
+
+    with rv.ExpansionPanel() as main:
+        rv.ExpansionPanelHeader(children=["Subsets"])
+        with rv.ExpansionPanelContent():
+            with sl.Column(gap="0px"):
+                SubsetCard("A")
+
+
+@sl.component()
+def SubsetCard(name):
+    """Card containing functions for a single subset."""
+    invert, set_invert = sl.use_state(False)
+
+    with rv.Card(style_="width: 100%; height: 100%") as main:
+        rv.CardTitle(children=[name])
+        with rv.CardSubtitle():
+            SumCard(name)
+        with rv.CardText():
+            ExprEditor(name)
+            CartonMapperSelect(name)
+        with rv.CardActions(class_="justify-right"):
+            sl.Button(
+                label="",
+                icon_name="mdi-delete-outline",
+                icon=True,
+                text=True,
+                color="red",
+            )
+    return main
 
 
 @sl.component()
@@ -41,14 +77,14 @@ def DownloadMenu():
 
 
 @sl.component()
-def QuickFilterMenu():
+def QuickFilterMenu(name):
     """
     Apply quick filters via check boxes.
     """
     df = State.df.value
-    # TODO: find out how flags work, currently using 3 cols as plceholders:
-    flag_cols = ["result_flags", "flag_bad", "flag_warn"]
-    _filter, set_filter = sl.use_cross_filter(id(df), "quickflags")
+    # TODO: find out how flags work, currently using 1 col as plceholders:
+    flag_cols = ["result_flags"]
+    _filter, set_filter = use_subset(id(df), name, "quickflags")
 
     # Quick filter states
     flag_nonzero, set_flag_nonzero = sl.use_state(False)
@@ -83,12 +119,10 @@ def QuickFilterMenu():
         dependencies=[flag_nonzero, flag_snr50],
     )
 
-    with rv.ExpansionPanel() as main:
-        with rv.ExpansionPanelHeader():
+    with rv.Card() as main:
+        with rv.CardTitle(children=["Quick filters"]):
             rv.Icon(children=["mdi-filter-plus-outline"])
-            with rv.CardTitle(children=["Quick filters"]):
-                pass
-        with rv.ExpansionPanelContent():
+        with rv.CardText():
             sl.Checkbox(
                 label="All flags zero",
                 value=flag_nonzero,
@@ -97,14 +131,14 @@ def QuickFilterMenu():
             sl.Checkbox(label="SNR > 50",
                         value=flag_snr50,
                         on_value=set_flag_snr50)
-    return
+    return main
 
 
 @sl.component()
-def CartonMapperPanel():
+def CartonMapperSelect(name):
     """Filter by carton and mapper. May be merged into another panel in future."""
     df = State.df.value
-    filter, set_filter = sl.use_cross_filter(id(df), "cartonmapper")
+    filter, set_filter = use_subset(id(df), name, "cartonmapper")
     mapper, set_mapper = sl.use_state([])
     carton, set_carton = sl.use_state([])
     dataset, set_dataset = sl.use_state([])
@@ -195,42 +229,36 @@ def CartonMapperPanel():
     sl.use_thread(update_filter,
                   dependencies=[mapper, carton, dataset, combotype])
 
-    with rv.ExpansionPanel() as main:
-        with rv.ExpansionPanelHeader():
-            rv.Icon(children=["mdi-magnify-scan"])
-            with rv.CardTitle(children=["Targeting catalogs"]):
-                pass
-        with rv.ExpansionPanelContent():
-            # mappers
-            with sl.Columns([1, 1]):
-                sl.SelectMultiple(
-                    label="Mapper",
-                    values=mapper,
-                    on_value=set_mapper,
-                    all_values=State.mapping.value["mapper"].unique(),
-                    classes=['variant="solo"'],
-                )
-                sl.SelectMultiple(
-                    label="Dataset",
-                    values=dataset,
-                    on_value=set_dataset,
-                    all_values=["apogeenet", "thecannon", "aspcap"],
-                    classes=['variant="solo"'],
-                )
+    with sl.Column(gap="2px") as main:
+        with sl.Columns([1, 1], gutters=False):
             sl.SelectMultiple(
-                label="Carton",
-                values=carton,
-                on_value=set_carton,
-                all_values=State.mapping.value["alt_name"].unique(),
+                label="Mapper",
+                values=mapper,
+                on_value=set_mapper,
+                all_values=State.mapping.value["mapper"].unique(),
                 classes=['variant="solo"'],
             )
-            sl.Select(
-                label="Reduction method",
-                value=combotype,
-                on_value=set_combotype,
-                values=["OR", "AND", "XOR"],
+            sl.SelectMultiple(
+                label="Dataset",
+                values=dataset,
+                on_value=set_dataset,
+                all_values=["apogeenet", "thecannon", "aspcap"],
                 classes=['variant="solo"'],
             )
+        sl.SelectMultiple(
+            label="Carton",
+            values=carton,
+            on_value=set_carton,
+            all_values=State.mapping.value["alt_name"].unique(),
+            classes=['variant="solo"'],
+        )
+        sl.Select(
+            label="Reduction method",
+            value=combotype,
+            on_value=set_combotype,
+            values=["OR", "AND", "XOR"],
+            classes=['variant="solo"'],
+        )
     return main
 
 
@@ -296,6 +324,13 @@ def VirtualColumnsPanel():
             assert expression != "", "no expression set"
             df.validate_expression(expression)
 
+            # alert user about powers
+            if r"^" in expression:
+                Alert.update(
+                    "'^' is a bit operator. If you're looking to use powers, use '**' (Python syntax) instead.",
+                    color="warning",
+                )
+
             # set button to active
             active.set(True)
             return True
@@ -337,10 +372,7 @@ def VirtualColumnsPanel():
         active.set(False)
 
     with rv.ExpansionPanel() as main:
-        with rv.ExpansionPanelHeader():
-            rv.Icon(children=["mdi-calculator"])
-            with rv.CardTitle(children=["Virtual calculations"]):
-                pass
+        rv.ExpansionPanelHeader(children=["Virtual calculations"])
         with rv.ExpansionPanelContent():
             VirtualColumnList()
             btn = sl.Button(label="Add virtual column",
@@ -400,15 +432,16 @@ def VirtualColumnsPanel():
 @sl.component()
 def sidebar():
     df = State.df.value
-    with sl.Sidebar():
+    with sl.Sidebar() as main:
         if df is not None:
-            SumCard()
-            with rv.ExpansionPanels(accordion=True):
-                ExprEditor()
-                QuickFilterMenu()
-                CartonMapperPanel()
+            with rv.ExpansionPanels(accordion=True, multiple=True):
+                SubsetMenu()
+                # ExprEditor()
+                # QuickFilterMenu()
+                # CartonMapperPanel()
                 VirtualColumnsPanel()
                 # PivotTablePanel()
                 # DownloadMenu()
         else:
             sl.Info("No data loaded.")
+    return main
