@@ -57,6 +57,7 @@ def ExprEditor():
         Validates if the expression is valid, and returns
         a precise error message for any issues in the expression.
         """
+        columns = State.columns.value
         try:
             # TODO: this is hella spaghetti how fix
             if expression is None or expression == "":
@@ -69,7 +70,6 @@ def ExprEditor():
             # get expression in parts, saving split via () regex
             subexpressions = re.split(r"(&|\||\)|\()", expr)
             n = 1
-            cols = dff.get_column_names()
             for i, expr in enumerate(subexpressions):
                 # saved regex info -> skip w/o enumerating
                 if expr in ["", "&", "(", ")", "|"]:
@@ -87,7 +87,7 @@ def ExprEditor():
 
                     # check middle
                     assert (
-                        parts[2] in dff.columns
+                        parts[2] in columns
                     ), f"expression {n} is invalid: must be comparing a data column (a < col <= b)"
 
                     # check a and b & if a < b
@@ -104,7 +104,7 @@ def ExprEditor():
                     )
 
                 elif len(parts) == 3:
-                    check = (parts[0] in dff.columns, parts[2] in dff.columns)
+                    check = (parts[0] in columns, parts[2] in columns)
                     if np.any(check):
                         if check[0]:
                             col = parts[0]
