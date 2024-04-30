@@ -1,10 +1,9 @@
-from ast import Sub
 from functools import reduce
 from timeit import default_timer as timer
 import operator
 
 import solara as sl
-from solara.lab import Menu
+from solara.lab import ConfirmationDialog, Menu
 import vaex as vx
 import numpy as np
 import reacton.ipyvuetify as rv
@@ -23,18 +22,47 @@ def check_flags(flags, vals):
 @sl.component()
 def SubsetMenu():
     """Control and display subset cards"""
+    add = sl.use_reactive(False)
+    name, set_name = sl.use_state("")
+
+    def add_subset():
+        State.subsets.value.append(name)
+        add.set(False)
+        close()
+        return
+
+    def close():
+        """Dialog close handler, resetting state vars"""
+        add.set(False)
+        set_name("")
+        return
 
     with rv.ExpansionPanel() as main:
         rv.ExpansionPanelHeader(children=["Subsets"])
         with rv.ExpansionPanelContent():
             with sl.Column(gap="0px"):
-                SubsetCard("A")
+                sl.Button(label="Add new subset",
+                          on_click=lambda: add.set(True),
+                          block=True)
+                for subset in State.subsets.value:
+                    SubsetCard(subset, State.create_ss_remover(subset))
+            with Dialog(add,
+                        title="Enter a name for the new subset",
+                        on_ok=add_subset):
+                sl.InputText(
+                    label="Subset name",
+                    value=name,
+                    on_value=set_name,
+                )
+
+    return main
 
 
 @sl.component()
-def SubsetCard(name):
+def SubsetCard(name, deleter):
     """Card containing functions for a single subset."""
     invert, set_invert = sl.use_state(False)
+    delete = sl.use_reactive(False)
 
     with rv.Card(style_="width: 100%; height: 100%") as main:
         rv.CardTitle(children=[name])
@@ -49,8 +77,17 @@ def SubsetCard(name):
                 icon_name="mdi-delete-outline",
                 icon=True,
                 text=True,
+                disabled=True if len(State.subsets.value) == 1 else False,
                 color="red",
+                on_click=lambda: delete.set(True),
             )
+        ConfirmationDialog(
+            delete,
+            title="Are you sure you want to delete this subset?",
+            ok="yes",
+            cancel="no",
+            on_ok=deleter,
+        )
     return main
 
 

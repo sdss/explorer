@@ -57,7 +57,7 @@ class SubsetStore:
 
             return cleanup
 
-        solara.use_effect(connect, [key])
+        solara.use_effect(connect, [subset_key, key])
 
         def setter(filter):
             data_subset_filters[key] = filter

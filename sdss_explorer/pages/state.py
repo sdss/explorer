@@ -22,9 +22,10 @@ def load_datapath():
 
 
 class State:
-    """Holds app-wide state"""
+    """Holds app-wide state variables"""
 
     mapping = sl.reactive(vx.open(f"{load_datapath()}/mappings.parquet"))
+    subsets = sl.reactive(["A"])
     token = sl.reactive(None)
 
     @staticmethod
@@ -57,6 +58,28 @@ class State:
         df = df.materialize()
 
         return df
+
+    @staticmethod
+    def create_ss_remover(name):
+        """Generates a remover for subset of name given.
+
+        name: str :: subset name
+        """
+
+        def remover():
+            """
+            q: index of subset in list; variate
+            """
+            for n, obj in enumerate(State.subsets.value):
+                if obj == name:
+                    q = n
+                    break
+
+            # cut subsets
+            State.subsets.value = State.subsets.value[:q] + State.subsets.value[
+                q + 1:]
+
+        return remover
 
     df = sl.reactive(load_dataset("ipl3_partial"))
 

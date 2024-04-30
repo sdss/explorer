@@ -24,7 +24,6 @@ from .state import State, Alert
 from .util import check_catagorical
 from .subsets import use_subset
 
-subsets = ["A", "Q"]
 # TEMPLATES AND STATE
 DARK_TEMPLATE = dict(layout=go.Layout(
     font=dict(color="white", size=16),
@@ -65,7 +64,7 @@ class PlotState:
 
     def __init__(self, type):
         # common settings
-        self.subset = sl.use_reactive("global")
+        self.subset = sl.use_reactive("A")
         self.x = sl.use_reactive("teff")
         self.flipx = sl.use_reactive(False)
         self.flipy = sl.use_reactive(False)
@@ -1301,6 +1300,11 @@ def sky_menu(plotstate):
     columns = State.columns.value
     with sl.Columns([1, 1]):
         with Card(margin=0):
+            sl.Select(
+                label="Subset",
+                values=State.subsets.value,
+                value=plotstate.subset,
+            )
             with sl.Column():
                 sl.ToggleButtonsSingle(value=plotstate.geo_coords,
                                        values=["celestial", "galactic"])
@@ -1339,7 +1343,7 @@ def scatter_menu(plotstate):
     with sl.Card():
         sl.Select(
             label="Subset",
-            values=subsets,
+            values=State.subsets.value,
             value=plotstate.subset,
         )
         with sl.Columns([1, 1]):
@@ -1396,7 +1400,7 @@ def histogram_menu(plotstate):
 
     sl.Select(
         label="Subset",
-        values=subsets,
+        values=State.subsets.value,
         value=plotstate.subset,
     )
     with sl.Columns([1, 1]):
@@ -1434,7 +1438,7 @@ def aggregate_menu(plotstate):
         with Card(margin=0):
             sl.Select(
                 label="Subset",
-                values=subsets,
+                values=State.subsets.value,
                 value=plotstate.subset,
             )
             with Columns([3, 3, 1], gutters_dense=True):
