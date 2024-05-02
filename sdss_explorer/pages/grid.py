@@ -124,21 +124,38 @@ def ObjectGrid():
     def add_table():
         add_view("table")
 
-    with sl.Column(style={"width": "100%"}):
+    length = len(State.subsets.value)
+    with sl.Column(style={"width": "100%"}) as main:
         with sl.Row():
             btn = sl.Button(
                 "Add View",
                 outlined=False,
                 icon_name="mdi-image-plus",
             )
+            deltabtn = sl.Button(
+                "Add Comparative View",
+                disabled=True if length <= 1 else False,
+                outlined=False,
+                icon_name="mdi-image-multiple",
+            )
             with Menu(activator=btn):
                 with sl.Column(gap="0px"):
                     [
-                        sl.Button(label="histogram", on_click=add_histogram),
-                        sl.Button(label="aggregated", on_click=add_aggregated),
+                        sl.Button(label="histogram",
+                                  on_click=lambda: add_view("histogram")),
+                        sl.Button(label="heatmap", on_click=add_aggregated),
                         sl.Button(label="table", on_click=add_table),
                         sl.Button(label="scatter", on_click=add_scatter),
                         sl.Button(label="skyplot", on_click=add_skyplot),
+                    ]
+            with Menu(activator=deltabtn):
+                with sl.Column(gap="0px"):
+                    # TODO: change names to be more informative
+                    [
+                        sl.Button(label="delta1d",
+                                  on_click=lambda: add_view("delta1d")),
+                        sl.Button(label="delta2d",
+                                  on_click=lambda: add_view("delta2d")),
                     ]
             rv.Spacer()
             sl.Button(
@@ -154,4 +171,4 @@ def ObjectGrid():
             resizable=True,
             draggable=True,
         )
-    return
+    return main

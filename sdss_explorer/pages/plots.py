@@ -81,9 +81,9 @@ class PlotState:
             self.colorlog = sl.use_reactive(cast(str, None))
 
         # statistics settings
-        if type == "aggregated" or type == "histogram":
+        if type == "aggregated" or type == "histogram" or "delta" in type:
             self.nbins = sl.use_reactive(200)
-            if type == "aggregated":
+            if type == "aggregated" or type == "delta2d":
                 self.bintype = sl.use_reactive("mean")
                 self.binscale = sl.use_reactive(None)
             else:
@@ -94,6 +94,11 @@ class PlotState:
         if type == "skyplot":
             self.geo_coords = sl.use_reactive("celestial")
             self.projection = sl.use_reactive("hammer")
+
+        # delta view settings
+        if "delta" in type:
+            self.subset_b = sl.use_reactive(State.subsets.value[-1] if len(
+                State.subsets.value) > 1 else "")
 
         # all lookup data for types
         # TODO: move this lookup data elsewhere to reduce the size of the plotstate objects
@@ -134,6 +139,13 @@ class PlotState:
         self.x.value = q
         self.y.value = p
 
+    def swap_subsets(self):
+        # saves current to p and q
+        p = self.subset.value
+        q = self.subset_b.value
+        self.subset.value = q
+        self.subset_b.value = p
+
 
 def range_loop(start, offset):
     return (start + (offset % 360) + 360) % 360
@@ -165,6 +177,10 @@ def show_plot(type, del_func):
                     scatter(plotstate)
                 elif type == "skyplot":
                     skyplot(plotstate)
+                elif type == "delta1d":
+                    delta1d(plotstate)
+                elif type == "delta2d":
+                    delta2d(plotstate)
                 btn = sl.Button(icon_name="mdi-settings",
                                 outlined=False,
                                 classes=["grey darken-3"])
@@ -1280,6 +1296,578 @@ def skyplot(plotstate):
     add_effects(fig_el)
 
 
+@sl.component
+def delta1d(plotstate):
+    """1D comparative histogram"""
+    df: vx.DataFrame = State.df.value
+    xcol = plotstate.x.value
+    nbins = plotstate.nbins.value
+    filterA, set_filterA = use_subset(id(df), plotstate.subset, "delta1d")
+    filterB, set_filterB = use_subset(id(df), plotstate.subset_b, "delta1d")
+    # dark = use_dark_effective()
+
+    dff = df
+    if filterA:
+        if filterB:
+            dff = df[filterA & filterB]
+        else:
+            dff = df[filterA]
+    elif filterB:
+        dff = df[filterB]
+    expr: vx.Expression = dff[xcol]
+
+    def perform_binning():
+        if check_catagorical(expr):
+            # NOTE: under the hood, vaex uses pandas for this
+            series = expr.value_counts()  # value_counts as in Pandas
+            x = series.index.values
+            y = series.values
+            return x, y
+        else:
+            # check for length < 0
+            try:
+                assert len(dff) > 0, "0"
+                assert plotstate.subset_b.value != "", "1"
+            except AssertionError as e:
+                e = str(e)
+                if e == "0":
+                    Alert.update(
+                        "Applied filters reduced length to zero! No update.",
+                        color="warning",
+                    )
+                    return None, None
+                elif e == "1":
+                    Alert.update("Please ", color="warning")
+                    return None, None
+
+            # get limits
+            # INFO: can't be asynchronous; result is required
+            try:
+                limits = dff.minmax(xcol)
+            except:
+                Alert.update(
+                    "Binning routine encountered stride bug, excepting...",
+                    color="warning",
+                )
+                limits = [
+                    # NOTE: empty tuple acts as index for the 0th of 0D array
+                    dff.min(xcol)[()],
+                    dff.max(xcol)[()],
+                ]
+
+            # make x (bin centers)
+            # NOTE: no delay on this because it sucks
+            x = dff.bin_centers(
+                expression=expr,
+                limits=limits,
+                shape=nbins,
+            )
+            # create y (data) based on setting
+            bintype = str(plotstate.bintype.value)
+            if bintype == "count":
+                y = dff.count(
+                    binby=xcol,
+                    limits=limits,
+                    shape=nbins,
+                    delay=True,
+                )
+            elif bintype == "sum":
+                y = dff.sum(
+                    expr,
+                    binby=xcol,
+                    limits=limits,
+                    shape=nbins,
+                    delay=True,
+                )
+            elif bintype == "mean":
+                y = dff.mean(
+                    expr,
+                    binby=expr,
+                    limits=limits,
+                    shape=nbins,
+                    delay=True,
+                )
+            elif bintype == "median":
+                y = dff.median_approx(
+                    expr,
+                    binby=expr,
+                    limits=limits,
+                    shape=nbins,
+                    delay=True,
+                )
+
+            elif bintype == "mode":
+                y = dff.mode(
+                    expression=expr,
+                    binby=expr,
+                    limits=limits,
+                    shape=nbins,
+                    delay=True,
+                )
+            elif bintype == "min":
+                y = dff.min(
+                    expression=expr,
+                    binby=expr,
+                    limits=limits,
+                    shape=nbins,
+                    array_type="xarray",
+                    delay=True,
+                )
+            elif bintype == "max":
+                y = dff.max(
+                    expression=expr,
+                    binby=expr,
+                    limits=limits,
+                    shape=nbins,
+                    array_type="xarray",
+                    delay=True,
+                )
+            else:
+                raise ValueError("no assigned bintype for histogram.")
+            df.execute()
+            return x, y.get()
+
+    if check_catagorical(expr):
+        logx = False
+    else:
+        logx = plotstate.logx.value
+
+    def create_fig():
+        x, y = perform_binning()
+        fig = px.histogram(
+            x=x,
+            y=y,
+            nbins=nbins,
+            log_x=logx,
+            log_y=plotstate.logy.value,
+            histnorm=plotstate.norm.value,
+            labels={
+                "x": xcol,
+                "y": f"{plotstate.bintype.value}({xcol})",
+            },
+            template=DARK_TEMPLATE,  # if dark else LIGHT_TEMPLATE,
+        )
+        fig.update_yaxes(title="Frequency")
+        fig.update_layout(margin_r=10)
+
+        return fig
+
+    # only instantiate the figure widget once
+    figure = sl.use_memo(create_fig, dependencies=[])
+
+    # Effect based callbacks (flip, log, & data array updates)
+    def add_effects(fig_element: sl.Element):
+
+        def set_xflip():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            if fig_widget.layout.xaxis.range is not None:
+                if plotstate.flipx.value:
+                    fig_widget.update_xaxes(autorange="reversed")
+                else:
+                    fig_widget.update_xaxes(
+                        range=fig_widget.layout.xaxis.range[::-1])
+
+        def set_yflip():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            if fig_widget.layout.yaxis.range is not None:
+                if plotstate.flipy.value:
+                    fig_widget.update_yaxes(autorange="reversed")
+                else:
+                    fig_widget.update_yaxes(
+                        range=fig_widget.layout.yaxis.range[::-1])
+
+        def set_log():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            if plotstate.logx.value:
+                fig_widget.update_xaxes(type="log")
+            else:
+                fig_widget.update_xaxes(type="linear")
+            if plotstate.logy.value:
+                fig_widget.update_yaxes(type="log")
+            else:
+                fig_widget.update_yaxes(type="linear")
+
+        def update_data():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            x, y = perform_binning()
+
+            fig_widget.update_traces(
+                x=x,
+                y=y,
+                nbinsx=plotstate.nbins.value,
+                hovertemplate=f"<b>{xcol}</b>:" + " %{x}<br>" +
+                f"<b>{plotstate.bintype.value}({xcol})</b>:" + " %{y}<br>",
+            )
+            fig_widget.update_layout(
+                xaxis_title=xcol,
+                yaxis_title=f"{plotstate.bintype.value}({xcol})",
+            )
+
+        # def update_theme():
+        #    fig_widget: FigureWidget = sl.get_widget(fig_element)
+        #    fig_widget.update_layout(
+        #        template=DARK_TEMPLATE,
+        #    )
+        sl.use_effect(
+            update_data,
+            dependencies=[
+                filterA,
+                xcol,
+                plotstate.nbins.value,
+                plotstate.bintype.value,
+            ],
+        )
+        # sl.use_effect(update_theme, dependencies=[dark])
+        sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
+        sl.use_effect(set_yflip, dependencies=[plotstate.flipy.value])
+        sl.use_effect(
+            set_log, dependencies=[plotstate.logx.value, plotstate.logy.value])
+
+    fig_el = sl.FigurePlotly(
+        figure,
+        dependencies=[],
+    )
+    add_effects(fig_el)
+    return fig_el
+
+
+@sl.component
+def delta2d(plotstate):
+    """Heatmap on regular grid for Subset A - Subset B"""
+    df = State.df.value
+    filterA, set_filterA = use_subset(id(df), plotstate.subset, "delta2d")
+    filterB, set_filterB = use_subset(id(df), plotstate.subset_b, "delta2d")
+    # dark = use_dark_effective()
+
+    if filterA:
+        dfa = df[filterA]
+    else:
+        dfa = df
+    if filterB:
+        dfb = df[filterB]
+    else:
+        dfb = df
+
+    def perform_binning():
+        # create limits
+
+        # the limits/grid must be of an identical size, so we MUST use the same limits
+        # for both dataframes
+        try:
+            limits = [
+                dfa.minmax(plotstate.x.value),
+                dfa.minmax(plotstate.y.value),
+            ]
+        except:
+            Alert.update(
+                "Binning routine encountered stride bug, excepting...",
+                color="warning",
+            )
+            # NOTE: empty tuple acts as index for the 0th of 0D array
+            limits = [
+                [
+                    dfa.min(plotstate.x.value)[()],
+                    dfa.max(plotstate.x.value)[()],
+                ],
+                [
+                    dfa.min(plotstate.y.value)[()],
+                    dfa.max(plotstate.y.value)[()],
+                ],
+            ]
+
+        q = list()  # list for z nD promises
+
+        # iterate through
+        for dff in (dfa, dfb):
+            expr = (dff[plotstate.x.value], dff[plotstate.y.value])
+            expr_c = dff[plotstate.color.value]
+            bintype = str(plotstate.bintype.value)
+
+            # error checking
+            try:
+                assert (
+                    len(dff) > 40
+                ), "0"  # NOTE: trial and error found this value. arbitrary
+                assert plotstate.x.value != plotstate.y.value, "1"
+                assert plotstate.subset.value != plotstate.subset_b.value, "1"
+
+                assert not check_catagorical(dff[plotstate.x.value]), "2"
+                assert not check_catagorical(dff[plotstate.y.value]), "2"
+            except AssertionError as e:
+                msg = str(e)
+
+                # length checks
+                if msg == "0":
+                    Alert.update(
+                        "Subset too small to bin via aggregated. Use scatter view!",
+                        color="warning",
+                    )
+                    # generate a flat xarray
+                    y = xarray.DataArray(
+                        [[0, 0], [0, 0]],
+                        coords={
+                            plotstate.x.value: [0, 1],
+                            plotstate.y.value: [0, 1],
+                        },
+                    )
+                    return (y, 0, 1)
+                elif msg == "1":
+                    # NOTE: for autoswaps
+                    pass
+                elif msg == "2":
+                    Alert.update(
+                        "Catagorical data column set for aggregated -- not yet implemented! Not updating.",
+                        color="error",
+                    )
+
+                return (None, None, None)
+
+            if bintype == "count":
+                y = dff.count(
+                    binby=expr,
+                    limits=limits,
+                    shape=plotstate.nbins.value,
+                    array_type="xarray",
+                    delay=True,
+                )
+            elif bintype == "sum":
+                y = dff.sum(
+                    expr_c,
+                    binby=expr,
+                    limits=limits,
+                    shape=plotstate.nbins.value,
+                    array_type="xarray",
+                    delay=True,
+                )
+            elif bintype == "mean":
+                y = dff.mean(
+                    expr_c,
+                    binby=expr,
+                    limits=limits,
+                    shape=plotstate.nbins.value,
+                    array_type="xarray",
+                    delay=True,
+                )
+            elif bintype == "median":
+                # y = dff.median_approx(
+                #    expr_c,
+                #    binby=expr,
+                #    limits=limits,
+                #    shape=plotstate.nbins.value,
+                #    delay=True,
+                # )
+                # generate a flat xarray
+                y = xarray.DataArray(
+                    [[0, 0], [0, 0]],
+                    coords={
+                        plotstate.x.value: [0, 1],
+                        plotstate.y.value: [0, 1],
+                    },
+                )
+                return (y, 0, 1)
+
+            elif bintype == "mode":
+                y = dff.mode(
+                    expression=expr_c,
+                    binby=expr,
+                    limits=limits,
+                    shape=plotstate.nbins.value,
+                    delay=True,
+                )
+            elif bintype == "min":
+                y = dff.min(
+                    expression=expr_c,
+                    binby=expr,
+                    limits=limits,
+                    shape=plotstate.nbins.value,
+                    array_type="xarray",
+                    delay=True,
+                )
+            elif bintype == "max":
+                y = dff.max(
+                    expression=expr_c,
+                    binby=expr,
+                    limits=limits,
+                    shape=plotstate.nbins.value,
+                    array_type="xarray",
+                    delay=True,
+                )
+            else:
+                raise ValueError("no assigned bintype for aggregated")
+            q.append(y)
+
+        df.execute()  # run all promises
+
+        for i, y in enumerate(q):
+            y = y.get()  # fetch numerical promise value
+            if bintype == "median":
+                # convert to xarray
+                if i == 0:
+                    dff = dfa
+                else:
+                    dff = dfb
+                expr = (dff[plotstate.x.value], dff[plotstate.y.value])
+
+                y = xarray.DataArray(
+                    y,
+                    coords={
+                        plotstate.x.value:
+                        dff.bin_centers(
+                            expression=expr[0],
+                            limits=limits[0],
+                            shape=plotstate.nbins.value,
+                        ),
+                        plotstate.y.value:
+                        dff.bin_centers(
+                            expression=expr[1],
+                            limits=limits[1],
+                            shape=plotstate.nbins.value,
+                        ),
+                    },
+                )
+            q[i] = y
+
+        y = q[0] - q[1]  # get differences
+
+        binscale = str(plotstate.binscale.value)
+        if binscale == "log1p":
+            y = np.log1p(y)
+        elif binscale == "log10":
+            y = np.log10(y)
+
+        # TODO: clean this code
+        y = y.where(np.abs(y) != np.inf, np.nan)
+        cmin = float(np.min(y).values)
+        cmax = float(np.max(y).values)
+        y = y.fillna(-999)
+        return y, cmin, cmax
+
+    def set_colorlabel():
+        if plotstate.bintype.value == "count":
+            return f"Delta count ({plotstate.binscale.value})"
+        else:
+            return f"Delta {plotstate.color.value} ({plotstate.bintype.value})"
+
+    def create_fig():
+        z, cmin, cmax = perform_binning()
+        colorlabel = set_colorlabel()
+        fig = px.imshow(
+            z.T,
+            zmin=cmin,
+            zmax=cmax,
+            origin="lower",
+            color_continuous_scale=plotstate.colorscale.value,
+            labels={
+                "x": plotstate.x.value,
+                "y": plotstate.y.value,
+                "color": colorlabel,
+            },
+            template=DARK_TEMPLATE,  # if dark else LIGHT_TEMPLATE,
+        )
+        return fig
+
+    # only instantiate the figure once
+    figure = sl.use_memo(create_fig, dependencies=[])
+
+    def add_effects(fig_element: sl.Element):
+
+        def set_xflip():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            if plotstate.flipx.value:
+                fig_widget.update_xaxes(autorange="reversed")
+            else:
+                fig_widget.update_xaxes(autorange=True)
+
+        def set_yflip():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            if plotstate.flipy.value:
+                fig_widget.update_yaxes(autorange="reversed")
+            else:
+                fig_widget.update_yaxes(autorange=False)
+                fig_widget.update_yaxes(autorange=True)
+
+        def update_data():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+
+            # error checker for color update
+            if not check_cat_color(dfa[plotstate.color.value]):
+                return
+            if not check_cat_color(dfb[plotstate.color.value]):
+                return
+
+            # update data information
+            z, cmin, cmax = perform_binning()
+            if z is None:
+                print("z none")
+                # TODO: in binning func return snackbar error based on check failure
+                return
+
+            colorlabel = set_colorlabel()
+
+            # update data
+            fig_widget.update_traces(
+                z=z.T.data,
+                x=z.coords[plotstate.x.value],
+                y=z.coords[plotstate.y.value],
+                hovertemplate=(f"{plotstate.x.value}" + ": %{x}<br>" +
+                               f"{plotstate.y.value}:" + " %{y}<br>" +
+                               f"{colorlabel}: " + "%{z}<extra></extra>"),
+            )
+            # update coloraxis & label information
+            fig_widget.update_coloraxes(
+                cmax=cmax,
+                cmin=cmin,
+                colorbar=dict(title=colorlabel),
+                colorscale=plotstate.colorscale.value,
+            )
+            fig_widget.update_layout(
+                xaxis_title=plotstate.x.value,
+                yaxis_title=plotstate.y.value,
+            )
+
+        def update_color():
+            # NOTE: only for updating colorscale, since any other change
+            # requires an entire plot change
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+
+            # update coloraxis information
+            fig_widget.update_coloraxes(
+                colorscale=plotstate.colorscale.value, )
+
+        # def update_theme():
+        #    fig_widget: FigureWidget = sl.get_widget(fig_element)
+        #    fig_widget.update_layout(
+        #        template=DARK_TEMPLATE if dark else LIGHT_TEMPLATE)
+
+        sl.use_effect(
+            update_data,
+            dependencies=[
+                filterA,
+                filterB,
+                plotstate.x.value,
+                plotstate.y.value,
+                plotstate.color.value,
+                plotstate.bintype.value,
+                plotstate.binscale.value,
+                plotstate.nbins.value,
+            ],
+        )
+        sl.use_effect(
+            update_color,
+            dependencies=[
+                plotstate.colorscale.value,
+            ],
+        )
+        # sl.use_effect(update_theme, dependencies=[dark])
+        sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
+        sl.use_effect(set_yflip, dependencies=[plotstate.flipy.value])
+
+    fig_el = sl.FigurePlotly(figure)
+    add_effects(fig_el)
+
+    return
+
+
 # PLOT SETTINGS
 
 
@@ -1293,6 +1881,10 @@ def show_settings(type, state):
         return aggregate_menu(state)
     elif type == "skyplot":
         return sky_menu(state)
+    elif type == "delta1d":
+        return delta1d_menu(state)
+    elif type == "delta2d":
+        return delta2d_menu(state)
 
 
 @sl.component()
@@ -1432,6 +2024,56 @@ def histogram_menu(plotstate):
 
 
 @sl.component()
+def delta1d_menu(plotstate):
+    columns = State.columns.value
+
+    with Card(margin=0):
+        with sl.Columns([1, 1]):
+            sl.Select(
+                label="Subset",
+                values=[
+                    subset for subset in State.subsets.value
+                    if subset != plotstate.subset_b.value
+                ],
+                value=plotstate.subset,
+            )
+            sl.Select(
+                label="Subset",
+                values=[
+                    subset for subset in State.subsets.value
+                    if subset != plotstate.subset.value
+                ],
+                value=plotstate.subset_b,
+            )
+    with sl.Columns([1, 1]):
+        with Card(margin=0):
+            with sl.Column():
+                sl.Select(
+                    "Column",
+                    values=columns,
+                    value=plotstate.x,
+                )
+        with Card(margin=0):
+            sl.SliderInt(
+                label="Number of Bins",
+                value=plotstate.nbins,
+                step=10,
+                min=10,
+                max=1e3,
+            )
+            sl.Select(
+                label="Bintype",
+                values=plotstate.Lookup["bintypes"],
+                value=plotstate.bintype,
+            )
+    with Card(margin=0):
+        with sl.Columns([1, 1, 1], style={"align-items": "center"}):
+            sl.Switch(label="Log x", value=plotstate.logx)
+            sl.Switch(label="Flip x", value=plotstate.flipx)
+            sl.Switch(label="Log y", value=plotstate.logy)
+
+
+@sl.component()
 def aggregate_menu(plotstate):
     columns = State.columns.value
     with sl.Columns([1, 1]):
@@ -1441,6 +2083,93 @@ def aggregate_menu(plotstate):
                 values=State.subsets.value,
                 value=plotstate.subset,
             )
+            with Columns([3, 3, 1], gutters_dense=True):
+                with sl.Column():
+                    sl.Select(
+                        "Column x",
+                        values=[
+                            col for col in columns if col != plotstate.y.value
+                        ],
+                        value=plotstate.x,
+                    )
+                with sl.Column():
+                    sl.Select(
+                        "Column y",
+                        values=[
+                            col for col in columns if col != plotstate.x.value
+                        ],
+                        value=plotstate.y,
+                    )
+                sl.Button(
+                    icon=True,
+                    icon_name="mdi-swap-horizontal",
+                    on_click=plotstate.swap_axes,
+                )
+            sl.Select(
+                label="Colorscale",
+                values=plotstate.Lookup["colorscales"],
+                value=plotstate.colorscale,
+            )
+            with Columns([1, 1]):
+                with sl.Column():
+                    sl.Switch(label="Flip y", value=plotstate.flipy)
+                with sl.Column():
+                    sl.Switch(label="Flip x", value=plotstate.flipx)
+        with Card(margin=0):
+            sl.SliderInt(
+                label="Number of Bins",
+                value=plotstate.nbins,
+                step=2,
+                min=2,
+                max=500,
+            )
+            sl.Select(
+                label="Binning type",
+                values=plotstate.Lookup["bintypes"],
+                value=plotstate.bintype,
+            )
+            if str(plotstate.bintype.value) != "count":
+                sl.Select(
+                    label="Column to Bin",
+                    values=columns,
+                    value=plotstate.color,
+                )
+            sl.Select(
+                label="Binning scale",
+                values=plotstate.Lookup["binscales"],
+                value=plotstate.binscale,
+            )
+
+
+@sl.component()
+def delta2d_menu(plotstate):
+    columns = State.columns.value
+    with Card(margin=0):
+        with sl.Columns([3, 3, 1]):
+            sl.Select(
+                label="Subset 1",
+                values=[
+                    subset for subset in State.subsets.value
+                    if subset != plotstate.subset_b.value
+                ],
+                value=plotstate.subset,
+            )
+            sl.Select(
+                label="Subset 2",
+                values=[
+                    subset for subset in State.subsets.value
+                    if subset != plotstate.subset.value
+                ],
+                value=plotstate.subset_b,
+            )
+            sl.Button(
+                icon=True,
+                icon_name="mdi-swap-horizontal",
+                on_click=plotstate.swap_subsets,
+            )
+
+    with sl.Columns([1, 1]):
+        with Card(margin=0):
             with Columns([3, 3, 1], gutters_dense=True):
                 with sl.Column():
                     sl.Select(

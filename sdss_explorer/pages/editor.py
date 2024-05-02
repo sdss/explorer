@@ -11,34 +11,6 @@ from .subsets import use_subset
 
 
 @sl.component
-def SumCard(name):
-    df = State.df.value
-    filter, set_filter = use_subset(id(df), name, "summary")
-    # filter logic
-    if filter:
-        filtered = True
-        dff = df[filter]
-    else:
-        filtered = False
-        dff = df
-
-    progress = len(dff) / len(df) * 100
-
-    with sl.Row(gap="0px") as main:
-        if filtered:
-            summary = f"{len(dff):,} / {len(df):,}"
-        else:
-            summary = f"{len(dff):,}"
-        rv.Icon(
-            children=["mdi-filter"],
-            style_="opacity: 0.1" if not filtered else "",
-        )
-        rv.Html(tag="h3", children=[summary], style_="display: inline")
-        sl.ProgressLinear(value=progress, color="blue")
-    return main
-
-
-@sl.component
 def ExprEditor(name):
     df = State.df.value
     filter, set_filter = use_subset(id(df), name, "filter-expression")
