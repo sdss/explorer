@@ -24,17 +24,16 @@ def SumCard(name):
 
     progress = len(dff) / len(df) * 100
 
-    with sl.Column(gap="0px") as main:
-        with rv.CardText():
-            if filtered:
-                summary = f"{len(dff):,} / {len(df):,}"
-            else:
-                summary = f"{len(dff):,}"
-            rv.Icon(
-                children=["mdi-filter"],
-                style_="opacity: 0.1" if not filtered else "",
-            )
-            rv.Html(tag="h3", children=[summary], style_="display: inline")
+    with sl.Row(gap="0px") as main:
+        if filtered:
+            summary = f"{len(dff):,} / {len(df):,}"
+        else:
+            summary = f"{len(dff):,}"
+        rv.Icon(
+            children=["mdi-filter"],
+            style_="opacity: 0.1" if not filtered else "",
+        )
+        rv.Html(tag="h3", children=[summary], style_="display: inline")
         sl.ProgressLinear(value=progress, color="blue")
     return main
 
@@ -156,7 +155,7 @@ def ExprEditor(name):
 
     result: sl.Result[bool] = sl.use_thread(work, dependencies=[expression])
 
-    with sl.Column() as main:
+    with sl.Column(gap="0px") as main:
         sl.InputText(label="Enter an expression",
                      value=expression,
                      on_value=set_expression)

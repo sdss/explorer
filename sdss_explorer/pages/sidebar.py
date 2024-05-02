@@ -10,8 +10,10 @@ import reacton.ipyvuetify as rv
 
 from .state import State, load_datapath, VCData, Alert
 from .dialog import Dialog
-from .editor import ExprEditor, SumCard
+from .editor import ExprEditor
 from .subsets import use_subset, remove_subset
+
+operator_map = {"AND": operator.and_, "OR": operator.or_, "XOR": operator.xor}
 
 
 @vx.register_function()
@@ -37,23 +39,21 @@ def SubsetMenu():
         set_name("")
         return
 
-    with rv.ExpansionPanel() as main:
-        rv.ExpansionPanelHeader(children=["Subsets"])
-        with rv.ExpansionPanelContent():
-            with sl.Column(gap="0px"):
-                sl.Button(label="Add new subset",
-                          on_click=lambda: add.set(True),
-                          block=True)
-                for subset in State.subsets.value:
-                    SubsetCard(subset, State.create_ss_remover(subset))
-            with Dialog(add,
-                        title="Enter a name for the new subset",
-                        on_ok=add_subset):
-                sl.InputText(
-                    label="Subset name",
-                    value=name,
-                    on_value=set_name,
-                )
+    with sl.Column(gap="0px") as main:
+        with rv.ExpansionPanels(popout=True):
+            for subset in State.subsets.value:
+                SubsetCard(subset, State.create_ss_remover(subset))
+        sl.Button(label="Add new subset",
+                  on_click=lambda: add.set(True),
+                  block=True)
+        with Dialog(add,
+                    title="Enter a name for the new subset",
+                    on_ok=add_subset):
+            sl.InputText(
+                label="Subset name",
+                value=name,
+                on_value=set_name,
+            )
 
     return main
 
@@ -61,26 +61,54 @@ def SubsetMenu():
 @sl.component()
 def SubsetCard(name, deleter):
     """Card containing functions for a single subset."""
+    df = State.df.value
+    filter, set_filter = use_subset(id(df), name, "summary")
     invert, set_invert = sl.use_state(False)
     delete = sl.use_reactive(False)
+    open, set_open = sl.use_state(False)
 
-    with rv.Card(style_="width: 100%; height: 100%") as main:
-        rv.CardTitle(children=[name])
-        with rv.CardSubtitle():
-            SumCard(name)
-        with rv.CardText():
+    # filter logic
+    if filter:
+        filtered = True
+        dff = df[filter]
+    else:
+        filtered = False
+        dff = df
+    progress = len(dff) / len(df) * 100
+    summary = f"{len(dff):,}"
+
+    # main ui
+    with rv.ExpansionPanel() as main:
+        with rv.ExpansionPanelHeader():
+            with sl.Row(gap="0px"):
+                rv.Col(cols="4", children=[name])
+                rv.Col(
+                    cols="8",
+                    class_="text--secondary",
+                    children=[
+                        rv.Icon(
+                            children=["mdi-filter"],
+                            style_="opacity: 0.1" if not filtered else "",
+                        ),
+                        summary,
+                    ],
+                )
+
+        with rv.ExpansionPanelContent():
+            sl.ProgressLinear(value=progress, color="blue")
             ExprEditor(name)
             CartonMapperSelect(name)
-        with rv.CardActions(class_="justify-right"):
-            sl.Button(
-                label="",
-                icon_name="mdi-delete-outline",
-                icon=True,
-                text=True,
-                disabled=True if len(State.subsets.value) == 1 else False,
-                color="red",
-                on_click=lambda: delete.set(True),
-            )
+            with rv.Col(style_="width: 100%; height: 100%",
+                        class_="text--right"):
+                sl.Button(
+                    label="",
+                    icon_name="mdi-delete-outline",
+                    icon=True,
+                    text=True,
+                    disabled=True if len(State.subsets.value) == 1 else False,
+                    color="red",
+                    on_click=lambda: delete.set(True),
+                )
         ConfirmationDialog(
             delete,
             title="Are you sure you want to delete this subset?",
@@ -88,6 +116,7 @@ def SubsetCard(name, deleter):
             cancel="no",
             on_ok=deleter,
         )
+
     return main
 
 
@@ -179,7 +208,7 @@ def CartonMapperSelect(name):
     mapper, set_mapper = sl.use_state([])
     carton, set_carton = sl.use_state([])
     dataset, set_dataset = sl.use_state([])
-    combotype, set_combotype = sl.use_state("OR")
+    combotype, set_combotype = sl.use_state("AND")
     mapping = sl.use_memo(
         lambda: vx.open(f"{load_datapath()}/mappings.parquet"),
         dependencies=[])
@@ -201,24 +230,13 @@ def CartonMapperSelect(name):
             c = mapping["alt_name"].isin(carton).values
             m = mapping["mapper"].isin(mapper).values
 
-            if combotype.lower() == "or":
-                operation = operator.or_
-            elif combotype.lower() == "xor":
-                operation = np.logical_xor
-            elif combotype.lower() == "and":
-                operation = operator.and_
-            else:
-                raise ValueError(
-                    "illegal combination type set for combining mapper/carton filter"
-                )
-
             # mask
             if len(mapper) == 0:
                 mask = c
             elif len(carton) == 0:
                 mask = m
             else:
-                mask = operation(m, c)
+                mask = operator_map[combotype](m, c)
 
             bits = np.arange(len(mapping))[mask]
             print("Timer for bit selection via mask:",
@@ -237,8 +255,9 @@ def CartonMapperSelect(name):
                 # ANDs all the bitshifted values for the given unique flag
                 offsets = 1 << offset[setbits][np.where(
                     num[setbits] == unique)]
-                actives = reduce(operator.or_,
-                                 offsets)  # INFO: must always be OR
+                actives = reduce(
+                    operator.or_,
+                    offsets)  # INFO: this is an OR operation PER bit
                 if actives == 0:
                     continue  # skip
                 filters[unique] = (
@@ -247,8 +266,7 @@ def CartonMapperSelect(name):
 
             print("Timer for active mask creation:", round(timer() - start, 5))
 
-            # generate a filter based on the vaex function defined above
-
+            # generate a filter based on the vaex-defined flag combiner
             start = timer()
             cmp_filter = df.func.check_flags(df["sdss5_target_flags"], filters)
             print("Timer for expression generation:",
@@ -256,7 +274,8 @@ def CartonMapperSelect(name):
 
         if len(dataset) > 0:
             if cmp_filter is not None:
-                cmp_filter = operation(cmp_filter, df["dataset"].isin(dataset))
+                cmp_filter = operator_map[combotype](
+                    cmp_filter, df["dataset"].isin(dataset))
             else:
                 cmp_filter = df["dataset"].isin(dataset)
         set_filter(cmp_filter)
@@ -267,11 +286,12 @@ def CartonMapperSelect(name):
                   dependencies=[mapper, carton, dataset, combotype])
 
     with sl.Column(gap="2px") as main:
-        with sl.Columns([1, 1], gutters=False):
+        with sl.Columns([1, 1]):
             sl.SelectMultiple(
                 label="Mapper",
                 values=mapper,
                 on_value=set_mapper,
+                dense=True,
                 all_values=State.mapping.value["mapper"].unique(),
                 classes=['variant="solo"'],
             )
@@ -279,6 +299,7 @@ def CartonMapperSelect(name):
                 label="Dataset",
                 values=dataset,
                 on_value=set_dataset,
+                dense=True,
                 all_values=["apogeenet", "thecannon", "aspcap"],
                 classes=['variant="solo"'],
             )
@@ -286,16 +307,19 @@ def CartonMapperSelect(name):
             label="Carton",
             values=carton,
             on_value=set_carton,
+            dense=True,
             all_values=State.mapping.value["alt_name"].unique(),
             classes=['variant="solo"'],
         )
-        sl.Select(
-            label="Reduction method",
-            value=combotype,
-            on_value=set_combotype,
-            values=["OR", "AND", "XOR"],
-            classes=['variant="solo"'],
-        )
+        # with sl.ToggleButtonsSingle(
+        #        value=combotype,
+        #        on_value=set_combotype,
+        #        dense=True,
+        #        style=dict(width="100%"),
+        # ):  # type: ignore
+        #    sl.Button(icon_name="mdi-gate-and", icon=True, value="AND")
+        #    sl.Button(icon_name="mdi-gate-or", icon=True, value="OR")
+        #    sl.Button(icon_name="mdi-gate-xor", icon=True, value="XOR")
     return main
 
 
@@ -413,6 +437,7 @@ def VirtualColumnsPanel():
         with rv.ExpansionPanelContent():
             VirtualColumnList()
             btn = sl.Button(label="Add virtual column",
+                            block=True,
                             on_click=lambda: set_open(True))
             sl.Button
 
@@ -471,14 +496,10 @@ def sidebar():
     df = State.df.value
     with sl.Sidebar() as main:
         if df is not None:
+            SubsetMenu()
+            rv.Divider()
             with rv.ExpansionPanels(accordion=True, multiple=True):
-                SubsetMenu()
-                # ExprEditor()
-                # QuickFilterMenu()
-                # CartonMapperPanel()
                 VirtualColumnsPanel()
-                # PivotTablePanel()
-                # DownloadMenu()
         else:
             sl.Info("No data loaded.")
     return main

@@ -78,7 +78,7 @@ subset_context = solara.create_context(SubsetStore())
 
 def use_subset(
     data_key,
-    subset_key: Union[solara.Reactive[str], str] = "global",
+    subset_key: Union[solara.Reactive[str], str] = "A",
     name: str = "no-name",
     reducer: Callable[[T, T], T] = operator.and_,
     eq=solara.util.numpy_equals,
