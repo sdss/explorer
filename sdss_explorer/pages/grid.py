@@ -103,6 +103,8 @@ def ObjectGrid():
             "w": 8,
             "h": height,
             "i": i,
+            "maxH": height,
+            "minH": height,
             "moved": False,
         })
         GridState.index += 1
@@ -122,7 +124,7 @@ def ObjectGrid():
                         sl.Button(label="histogram",
                                   on_click=lambda: add_view("histogram")),
                         sl.Button(label="heatmap",
-                                  on_click=lambda: add_view("heatmap")),
+                                  on_click=lambda: add_view("aggregated")),
                         sl.Button(label="stats",
                                   on_click=lambda: add_view("stats")),
                         sl.Button(label="scatter",

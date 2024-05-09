@@ -1,22 +1,24 @@
+import dataclasses
 import math
+import os
 from dataclasses import replace
-from typing import Callable, List, Optional, cast
+from typing import Any, Callable, List, Optional, cast
 
+import ipyvuetify as v
+import ipywidgets
+import pandas as pd
+import reacton.ipyvuetify as rv
 import solara
+import solara as sl
 import solara.hooks.dataframe
 import solara.lab
+import traitlets
+from solara.components.datatable import CellAction, ColumnAction
+from solara.lab import Menu, Task, use_task
 from solara.lab.hooks.dataframe import use_df_column_names
-from solara.components.datatable import CellAction, ColumnAction, DataTableWidget
 
-import solara as sl
-from solara.lab import Menu
-import reacton.ipyvuetify as rv
-from solara.lab import use_task, Task
-
-import pandas as pd
-
+from .state import State
 from .subsets import use_subset
-from .state import State, VCData
 
 
 @sl.component
@@ -95,9 +97,79 @@ def show_table(del_func):
 
 
 def format_default(df, column, row_index, value):
+    """Format strings properly"""
     if isinstance(value, float) and math.isnan(value):
         return "NaN"
     return str(value)
+
+
+def _ensure_dict(d):
+    if dataclasses.is_dataclass(d):
+        return dataclasses.asdict(d)
+    return d
+
+
+def _drop_keys_from_list_of_mappings(drop):
+    """Generates function to drop key from mapppings"""
+
+    def closure(list_of_dicts, widget):
+        return [{
+            k: v
+            for k, v in _ensure_dict(d).items() if k not in drop
+        } for d in list_of_dicts]
+
+    return closure
+
+
+class DataTableWidget(v.VuetifyTemplate):
+    template_file = os.path.join(os.path.dirname(__file__),
+                                 "../vue/datatable.vue")
+
+    total_length = traitlets.CInt().tag(sync=True)
+    checked = traitlets.List(cast(List[Any], [])).tag(
+        sync=True)  # indices of which rows are selected
+    column_actions = traitlets.List(
+        trait=traitlets.Instance(ColumnAction), default_value=[]).tag(
+            sync=True, to_json=_drop_keys_from_list_of_mappings(["on_click"]))
+    _column_actions_callbacks = traitlets.List(trait=traitlets.Callable(),
+                                               default_value=[])
+    cell_actions = traitlets.List(trait=traitlets.Instance(CellAction),
+                                  default_value=[]).tag(
+                                      sync=True,
+                                      to_json=_drop_keys_from_list_of_mappings(
+                                          ["on_click"]))
+    _cell_actions_callbacks = traitlets.List(trait=traitlets.Callable(),
+                                             default_value=[])
+    items = traitlets.Any().tag(sync=True)  # the data, a list of dict
+    headers = traitlets.Any().tag(sync=True)
+    headers_selections = traitlets.Any().tag(sync=True)
+    options = traitlets.Any().tag(sync=True)
+    items_per_page = traitlets.CInt(11).tag(sync=True)
+    selections = traitlets.Any([]).tag(sync=True)
+    selection_colors = traitlets.Any([]).tag(sync=True)
+    selection_enabled = traitlets.Bool(True).tag(sync=True)
+    highlighted = traitlets.Int(None, allow_none=True).tag(sync=True)
+    scrollable = traitlets.Bool(False).tag(sync=True)
+
+    # for use with scrollable, when used in the default UI
+    height = traitlets.Unicode(None, allow_none=True).tag(sync=True)
+
+    hidden_components = traitlets.List(cast(List[Any], [])).tag(sync=False)
+    column_header_hover = traitlets.Unicode(allow_none=True).tag(sync=True)
+    column_header_widget = traitlets.Any(allow_none=True).tag(
+        sync=True, **ipywidgets.widget_serialization)
+
+    def vue_on_column_action(self, data):
+        header_value, action_index = data
+        on_click = self._column_actions_callbacks[action_index]
+        if on_click:
+            on_click(header_value)
+
+    def vue_on_cell_action(self, data):
+        row, header_value, action_index = data
+        on_click = self._cell_actions_callbacks[action_index]
+        if on_click:
+            on_click(header_value, row)
 
 
 @sl.component
@@ -233,12 +305,17 @@ def DescribeDF(del_func):
                 # settings menu
                 with Menu(activator=btn, close_on_content_click=False):
                     with sl.Card(margin=0):
-                        with sl.Columns([1]):
+                        with sl.Columns([2, 1]):
                             sl.SelectMultiple(
                                 label="Columns",
                                 values=columns,
                                 all_values=State.columns.value,
                                 on_value=set_columns,
+                            )
+                            sl.Select(
+                                label="Subset",
+                                values=State.subsets.value,
+                                value=subset,
                             )
                         sl.Button(
                             icon_name="mdi-delete",
