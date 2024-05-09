@@ -15,7 +15,7 @@ __all__ = [
 class SubsetStore:
 
     def __init__(self) -> None:
-        self.listeners: List[Callable] = []
+        self.listeners: Dict[Any, List[Callable]] = {}
         # data_key (ID) : subset (str: name) : filter_key (unique str) : filter
         # 3 layer dictionary
         self.filters: Dict[Any, Dict[str, Any]] = {}
@@ -41,18 +41,18 @@ class SubsetStore:
             updater()
 
         def connect():
-            self.listeners.append(on_change)
+            self.listeners.setdefault(subset_key, []).append(on_change)
             # we need to force an extra render after the first render
             # to make sure we have the correct filter, since others components
             # may set a filter after we have rendered, *or* mounted
             on_change()
 
             def cleanup():
-                self.listeners.remove(on_change)
+                self.listeners.setdefault(subset_key, []).remove(on_change)
                 # also remove our filter, and notify the rest
                 data_subset_filters.pop(key,
                                         None)  # remove, ignoring key error
-                for listener in self.listeners:
+                for listener in self.listeners.setdefault(subset_key, []):
                     listener()
 
             return cleanup
@@ -61,9 +61,9 @@ class SubsetStore:
 
         def setter(filter):
             data_subset_filters[key] = filter
-            print(len(self.listeners))
-            print(self.listeners)
-            for listener in self.listeners:
+            print(len(self.listeners.setdefault(subset_key, [])))
+            print(self.listeners.setdefault(subset_key, []))
+            for listener in self.listeners.setdefault(subset_key, []):
                 listener()
 
         otherfilters = [
