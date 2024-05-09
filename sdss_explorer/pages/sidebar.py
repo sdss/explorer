@@ -28,9 +28,12 @@ def SubsetMenu():
     name, set_name = sl.use_state("")
 
     def add_subset():
-        State.subsets.value.append(name)
-        add.set(False)
-        close()
+        if name not in State.subsets.value:
+            State.subsets.value.append(name)
+            add.set(False)
+            close()
+        else:
+            Alert.update("Subset with name already exists!", color="error")
         return
 
     def close():
@@ -40,15 +43,25 @@ def SubsetMenu():
         return
 
     with sl.Column(gap="0px") as main:
+        with rv.Card(class_="justify-center",
+                     style_="width: 100%; height: 100%"):
+            rv.CardTitle(
+                class_="justify-center",
+                children=["Subsets"],
+            )
+            with rv.CardText():
+                sl.Button(label="Add new subset",
+                          on_click=lambda: add.set(True),
+                          block=True)
         with rv.ExpansionPanels(popout=True):
             for subset in State.subsets.value:
                 SubsetCard(subset, State.create_ss_remover(subset))
-        sl.Button(label="Add new subset",
-                  on_click=lambda: add.set(True),
-                  block=True)
-        with Dialog(add,
-                    title="Enter a name for the new subset",
-                    on_ok=add_subset):
+        with Dialog(
+                add,
+                title="Enter a name for the new subset",
+                close_on_ok=False,
+                on_ok=add_subset,
+        ):
             sl.InputText(
                 label="Subset name",
                 value=name,
@@ -97,9 +110,18 @@ def SubsetCard(name, deleter):
         with rv.ExpansionPanelContent():
             sl.ProgressLinear(value=progress, color="blue")
             ExprEditor(name)
-            CartonMapperSelect(name)
-            with rv.Col(style_="width: 100%; height: 100%",
-                        class_="text--right"):
+            with rv.ExpansionPanels():
+                with rv.ExpansionPanel():
+                    rv.ExpansionPanelHeader(children=["Carton/Mapper/Dataset"])
+                    with rv.ExpansionPanelContent():
+                        CartonMapperSelect(name)
+
+            # delete and other settings
+            with rv.Row(style_="width: 100%; height: 100%"):
+                # quick filter menu
+                rv.Spacer()
+
+                # delete button
                 sl.Button(
                     label="",
                     icon_name="mdi-delete-outline",
@@ -109,6 +131,7 @@ def SubsetCard(name, deleter):
                     color="red",
                     on_click=lambda: delete.set(True),
                 )
+
         ConfirmationDialog(
             delete,
             title="Are you sure you want to delete this subset?",

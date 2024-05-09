@@ -1,14 +1,15 @@
+"""Main page component. Contains cache settings, AlertSystem instance, and general layout."""
+
 import solara as sl
-from solara import lab  # noqa, save for when 1.28 bug is fixed.
 import reacton.ipyvuetify as rv
 import vaex as vx
 
-from .auth import LoginButton
 from .state import State, AlertSystem
-from .dataframe import NoDF
 from .sidebar import sidebar
 from .grid import ObjectGrid
 
+# NOTE: cache with these settings are in memory
+# we can change this in future to a disk cache, which will be shared among worker processes, see https://vaex.io/docs/guides/caching.html
 vx.cache.on()
 
 
@@ -23,25 +24,6 @@ def Page():
         # main title object
         sl.AppBarTitle(children=[rv.Icon(children=["mdi-orbit"]), " SDSS"])
 
-        # dataset selection
-        # NOTE: deactivated
-        # TODO: change to use routing to change between IPL/DR, similarly to how it's done in Zora's interface
-        sl.Button(label="IPL-3", icon_name="mdi-database", text=True)
-        # if State.dataset.value is not None:
-        #    with lab.Menu(activator=btn, close_on_content_click=True):
-        #        with sl.Column(gap="0px"):
-        #            [
-        #                sl.Button(
-        #                    label=dataset,
-        #                    on_click=create_callable(dataset),
-        #                ) for dataset in State.datasets
-        #                if dataset != State.dataset.value
-        #            ]
-
-        # appbar buttons
-        # lab.ThemeToggle()
-        sl.Button(icon_name="mdi-wheelchair-accessibility", text=True)
-        LoginButton()
     # SIDEBAR
     sidebar()
     # MAIN GRID

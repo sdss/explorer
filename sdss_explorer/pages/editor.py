@@ -113,16 +113,13 @@ def ExprEditor(name):
             print("EXPR: setting = ", timer() - start)
             return True
 
-        # except AssertionError as e:
-        #    # INFO: it's probably better NOT to unset filters if assertions fail.
-        #    # set_filter(None)
-        #    set_error(e)  # saves error msg to state
-        #    return False
-        # except SyntaxError as e:
-        #    set_error("modifier at end of sequence with no expression")
-        #    return False
-        except ValueError:
-            set_error("idkwhathappens")
+        except AssertionError as e:
+            # INFO: it's probably better NOT to unset filters if assertions fail.
+            # set_filter(None)
+            set_error(e)  # saves error msg to state
+            return False
+        except SyntaxError as e:
+            set_error("modifier at end of sequence with no expression")
             return False
 
     result: sl.Result[bool] = sl.use_thread(work, dependencies=[expression])

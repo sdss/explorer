@@ -1,3 +1,5 @@
+"""Subsets dataclass, containing all hooks/callback functions for subset functionality."""
+
 import operator
 from functools import reduce
 from typing import Any, Union, Callable, Dict, List, TypeVar
@@ -117,5 +119,5 @@ def use_subset(
 def remove_subset(subset_key: str):
     # TODO: how to trigger state updates correctly? How to force it
     # so that when the subset is removed, it resets subset setting per
-    # plot to global?
+    # plot to the only one in it?
     pass
