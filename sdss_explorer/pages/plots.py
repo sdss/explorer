@@ -1656,7 +1656,7 @@ def sky_menu(plotstate):
         with Card(margin=0):
             sl.Select(
                 label="Subset",
-                values=State.subsets.value,
+                values=[subset for (subset, _) in State.subsets.value],
                 value=plotstate.subset,
             )
             with sl.Column():
@@ -1697,7 +1697,7 @@ def scatter_menu(plotstate):
     with sl.Card():
         sl.Select(
             label="Subset",
-            values=State.subsets.value,
+            values=[subset for (subset, _) in State.subsets.value],
             value=plotstate.subset,
         )
         with sl.Columns([1, 1]):
@@ -1754,7 +1754,7 @@ def histogram_menu(plotstate):
 
     sl.Select(
         label="Subset",
-        values=State.subsets.value,
+        values=[subset for (subset, _) in State.subsets.value],
         value=plotstate.subset,
     )
     with sl.Columns([1, 1]):
@@ -1792,7 +1792,7 @@ def aggregate_menu(plotstate):
         with Card(margin=0):
             sl.Select(
                 label="Subset",
-                values=State.subsets.value,
+                values=[subset for (subset, _) in State.subsets.value],
                 value=plotstate.subset,
             )
             with Columns([3, 3, 1], gutters_dense=True):
@@ -1861,7 +1861,7 @@ def delta2d_menu(plotstate):
             sl.Select(
                 label="Subset 1",
                 values=[
-                    subset for subset in State.subsets.value
+                    subset for subset, _ in State.subsets.value
                     if subset != plotstate.subset_b.value
                 ],
                 value=plotstate.subset,
@@ -1869,7 +1869,7 @@ def delta2d_menu(plotstate):
             sl.Select(
                 label="Subset 2",
                 values=[
-                    subset for subset in State.subsets.value
+                    subset for subset, _ in State.subsets.value
                     if subset != plotstate.subset.value
                 ],
                 value=plotstate.subset_b,

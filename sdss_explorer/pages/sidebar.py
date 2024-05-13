@@ -1,19 +1,23 @@
+from typing import cast, Union
 from functools import reduce
 from timeit import default_timer as timer
 import operator
+import re
 
 import solara as sl
 from solara.lab import ConfirmationDialog, Menu
 import vaex as vx
 import numpy as np
 import reacton.ipyvuetify as rv
+from solara.hooks.misc import use_force_update
 
 from .state import State, load_datapath, VCData, Alert
 from .dialog import Dialog
-from .editor import ExprEditor
 from .subsets import use_subset, remove_subset
 
 operator_map = {"AND": operator.and_, "OR": operator.or_, "XOR": operator.xor}
+
+updater_context = sl.create_context(print)
 
 
 @vx.register_function()
@@ -26,10 +30,12 @@ def SubsetMenu():
     """Control and display subset cards"""
     add = sl.use_reactive(False)
     name, set_name = sl.use_state("")
+    updater = use_force_update()
+    updater_context.provide(updater)
 
     def add_subset():
         if name not in State.subsets.value:
-            State.subsets.value.append(name)
+            State.subsets.value.append((name, {}))
             add.set(False)
             close()
         else:
@@ -55,7 +61,8 @@ def SubsetMenu():
                           block=True)
         with rv.ExpansionPanels(popout=True):
             for subset in State.subsets.value:
-                SubsetCard(subset, State.create_ss_remover(subset))
+                SubsetCard(subset[0], State.create_ss_remover(subset[0]),
+                           **subset[1])
         with Dialog(
                 add,
                 title="Enter a name for the new subset",
@@ -72,25 +79,22 @@ def SubsetMenu():
 
 
 @sl.component()
-def SubsetCard(name, deleter):
-    """Card containing functions for a single subset."""
+def SubsetCard(name: str, deleter, **kwargs):
+    """Holds filter update info, card structure, and calls to options"""
     df = State.df.value
-    filter, set_filter = use_subset(id(df), name, "summary")
-    invert, set_invert = sl.use_state(False)
-    delete = sl.use_reactive(False)
-    open, set_open = sl.use_state(False)
+    filter, _set_filter = use_subset(id(df), name, "subset-summary")
 
-    # filter logic
+    # progress bar logic
     if filter:
+        # filter from plots or self
         filtered = True
         dff = df[filter]
     else:
+        # not filtered at all
         filtered = False
         dff = df
     progress = len(dff) / len(df) * 100
     summary = f"{len(dff):,}"
-
-    # main ui
     with rv.ExpansionPanel() as main:
         with rv.ExpansionPanelHeader():
             with sl.Row(gap="0px"):
@@ -108,30 +112,377 @@ def SubsetCard(name, deleter):
                 )
 
         with rv.ExpansionPanelContent():
+            # filter bar
             sl.ProgressLinear(value=progress, color="blue")
-            ExprEditor(name)
-            with rv.ExpansionPanels():
-                with rv.ExpansionPanel():
-                    rv.ExpansionPanelHeader(children=["Carton/Mapper/Dataset"])
-                    with rv.ExpansionPanelContent():
-                        CartonMapperSelect(name)
+            SubsetOptions(name, deleter, **kwargs)
+    return main
 
-            # delete and other settings
-            with rv.Row(style_="width: 100%; height: 100%"):
-                # quick filter menu
-                rv.Spacer()
 
-                # delete button
-                sl.Button(
-                    label="",
-                    icon_name="mdi-delete-outline",
-                    icon=True,
-                    text=True,
-                    disabled=True if len(State.subsets.value) == 1 else False,
-                    color="red",
-                    on_click=lambda: delete.set(True),
+@sl.component()
+def SubsetOptions(name: str, deleter, **kwargs):
+    """
+    Contains all subset configuration, including expression,
+    cartonmapper, clone and delete.
+
+    Grouped to single namespace to minimize subset listeners.
+
+    TODO DOCS
+
+    state variables
+    :filter: cross-filters from plot views corresponding to subset
+    :invert: whether filter is inverted
+    :delete: deletion confirmation v-slot reactive
+    :expression: expression for expression editor
+    :error: expression editor error message
+    :carton: list of selected cartons
+    :mapper: list of selected mappers
+    :dataset: list of selected datasets
+
+    threads/functions
+    ::
+    """
+    df = State.df.value
+    mapping = State.mapping.value
+    filter, set_filter = use_subset(id(df), name, "subsetcard")
+    updater = sl.use_context(updater_context)
+
+    # card settings
+    invert, set_invert = sl.use_state(False)
+    delete = sl.use_reactive(False)
+    open, set_open = sl.use_state(False)
+
+    # sub-filters
+    expfilter, set_expfilter = sl.use_state(cast(vx.Expression, None))
+    cmfilter, set_cmfilter = sl.use_state(cast(vx.Expression, None))
+
+    # state for expreditor
+    expression, set_expression = sl.use_state(
+        kwargs.setdefault("expression", ""))
+    error, set_error = sl.use_state(cast(str, None))
+
+    # state for cartonmapper
+    mapper, set_mapper = sl.use_state(kwargs.setdefault("mapper", []))
+    carton, set_carton = sl.use_state(kwargs.setdefault("carton", []))
+    dataset, set_dataset = sl.use_state(kwargs.setdefault("dataset", []))
+    combotype = (
+        "AND"  # NOTE: remains for functionality as potential state var (in future)
+    )
+
+    # main filter update thread
+    def update_filter():
+        """Combines filters and updates main out-going filter, and creates self-reduction"""
+        combined_filter = [expfilter, cmfilter]
+        combined_filter = [
+            elem for elem in combined_filter if elem is not None
+        ]
+
+        if len(combined_filter) > 0:
+            combined_filter = reduce(operator.and_, combined_filter[1:],
+                                     combined_filter[0])
+            set_filter(combined_filter)
+        else:
+            set_filter(None)
+
+    sl.use_thread(update_filter, dependencies=[expfilter, cmfilter])
+
+    def clone_subset():
+        """Self cloner function"""
+        State.subsets.value.append((
+            "Copy of " + name,
+            {
+                "mapper": mapper,
+                "carton": carton,
+                "dataset": dataset,
+                "expression": expression,
+            },
+        ))
+        updater()
+        return
+
+    # Expression Editor thread
+    def update_expr():
+        """
+        Validates if the expression is valid, and returns
+        a precise error message for any issues in the expression.
+        """
+        print("EXPR: start")
+        columns = State.columns.value
+        try:
+            print(expression)
+            start = timer()
+            if expression is None or expression == "":
+                set_expfilter(None)
+                return None
+            # first, remove all spaces
+            expr = expression.replace(" ", "")
+            num_regex = r"^-?[0-9]+(?:\.[0-9]+)?(?:e-?\d+)?$"
+
+            # get expression in parts, saving split via () regex
+            subexpressions = re.split(r"(&|\||\)|\()", expr)
+            n = 1
+            for i, expr in enumerate(subexpressions):
+                # saved regex info -> skip w/o enumerating
+                if expr in ["", "&", "(", ")", "|"]:
+                    continue
+
+                parts = re.split(r"(>=|<=|<|>|==|!=)", expr)
+                if len(parts) == 1:
+                    assert False, f"expression {n} is invalid: no comparator"
+                elif len(parts) == 5:
+                    # first, check that parts 2 & 4 are lt or lte comparators
+                    assert (
+                        re.fullmatch(r"<=|<", parts[1]) is not None
+                        and re.fullmatch(r"<=|<", parts[3]) is not None
+                    ), f"expression {n} is invalid: not a proper 3-part inequality (a < col <= b)"
+
+                    # check middle
+                    assert (
+                        parts[2] in columns
+                    ), f"expression {n} is invalid: must be comparing a data column (a < col <= b)"
+
+                    # check a and b & if a < b
+                    assert (
+                        re.match(num_regex, parts[0]) is not None
+                    ), f"expression {n} is invalid: must be numeric for numerical data column"
+                    assert (
+                        float(parts[0]) < float(parts[-1])
+                    ), f"expression {n} is invalid: invalid inequality (a > b for a < col < b)"
+
+                    # change the expression to valid format
+                    subexpressions[i] = (
+                        f"(({parts[0]}{parts[1]}{parts[2]})&({parts[2]}{parts[3]}{parts[4]}))"
+                    )
+
+                elif len(parts) == 3:
+                    check = (parts[0] in columns, parts[2] in columns)
+                    if np.any(check):
+                        if check[0]:
+                            col = parts[0]
+                            num = parts[2]
+                        elif check[1]:
+                            col = parts[2]
+                            num = parts[0]
+                        dtype = str(df[col].dtype)
+                        if "float" in dtype or "int" in dtype:
+                            assert (
+                                re.match(num_regex, num) is not None
+                            ), f"expression {n} is invalid: must be numeric for numerical data column"
+                    else:
+                        assert (
+                            False
+                        ), f"expression {n} is invalid: one part must be column"
+                    assert (
+                        re.match(r">=|<=|<|>|==|!=", parts[1]) is not None
+                    ), f"expression {n} is invalid: middle is not comparator"
+
+                    # change the expression in subexpression
+                    subexpressions[i] = "(" + expr + ")"
+                else:
+                    assert False, f"expression {n} is invalid: too many comparators"
+
+                # enumerate the expr counter
+                n = n + 1
+
+            # create expression as str
+            expr = "(" + "".join(subexpressions) + ")"
+            print("EXPR: validation = ", timer() - start)
+
+            # set filter & exit
+            start = timer()
+            set_expfilter(df[expr])
+            print("EXPR: set! time= ", timer() - start)
+            return True
+
+        except AssertionError as e:
+            # INFO: it's probably better NOT to unset filters if assertions fail.
+            # set_filter(None)
+            set_error(e)  # saves error msg to state
+            return False
+        except SyntaxError as e:
+            set_error("modifier at end of sequence with no expression")
+            return False
+
+    result: sl.Result[bool] = sl.use_thread(update_expr,
+                                            dependencies=[expression])
+
+    # Carton Mapper thread
+    def update_cm():
+        # convert chosens to bool mask
+        print("MapperCarton ::: starting filter update")
+        print(mapper, carton)
+
+        cmp_filter = None
+        if len(mapper) == 0 and len(carton) == 0 and len(dataset) == 0:
+            print("No selections: empty exit case")
+            set_cmfilter(None)
+            return
+
+        # mapper + cartons
+        elif len(mapper) != 0 or len(carton) != 0:
+            start = timer()
+            c = mapping["alt_name"].isin(carton).values
+            m = mapping["mapper"].isin(mapper).values
+
+            # mask
+            if len(mapper) == 0:
+                mask = c
+            elif len(carton) == 0:
+                mask = m
+            else:
+                mask = operator_map[combotype](m, c)
+
+            bits = np.arange(len(mapping))[mask]
+            print("Timer for bit selection via mask:",
+                  round(timer() - start, 5))
+
+            start = timer()
+            # get flag_number & offset
+            # NOTE: hardcoded nbits as 8, and nflags as 57
+            # TODO: in future, change to read from mappings parquet
+            num, offset = np.divmod(bits, 8)
+            setbits = 57 > num  # ensure bits in flags
+
+            # construct hashmap for each unique flag
+            filters = np.zeros(57).astype("uint8")
+            for unique in np.unique(num[setbits]):
+                # ANDs all the bitshifted values for the given unique flag
+                offsets = 1 << offset[setbits][np.where(
+                    num[setbits] == unique)]
+                actives = reduce(
+                    operator.or_,
+                    offsets)  # INFO: this is an OR operation PER bit
+                if actives == 0:
+                    continue  # skip
+                filters[unique] = (
+                    actives  # the required active bit(s) ACTIVES for bitmask position "UNIQUE"
                 )
 
+            print("Timer for active mask creation:", round(timer() - start, 5))
+
+            # generate a filter based on the vaex-defined flag combiner
+            start = timer()
+            cmp_filter = df.func.check_flags(df["sdss5_target_flags"], filters)
+            print("Timer for expression generation:",
+                  round(timer() - start, 5))
+
+        if len(dataset) > 0:
+            if cmp_filter is not None:
+                cmp_filter = operator_map[combotype](
+                    cmp_filter, df["dataset"].isin(dataset))
+            else:
+                cmp_filter = df["dataset"].isin(dataset)
+        set_cmfilter(cmp_filter)
+
+        return
+
+    sl.use_thread(update_cm, dependencies=[mapper, carton, dataset, combotype])
+
+    # User facing
+    with sl.Column() as main:
+        # expression editor
+        with sl.Column(gap="0px"):
+            sl.InputText(
+                label="Enter an expression",
+                value=expression,
+                on_value=set_expression,
+            )
+            if result.state == sl.ResultState.FINISHED:
+                if result.value:
+                    sl.Success(
+                        label="Valid expression entered.",
+                        icon=True,
+                        dense=True,
+                        outlined=False,
+                    )
+                elif result.value is None:
+                    sl.Info(
+                        label="No expression entered. Filter unset.",
+                        icon=True,
+                        dense=True,
+                        outlined=False,
+                    )
+                else:
+                    sl.Error(
+                        label=f"Invalid expression entered: {error}",
+                        icon=True,
+                        dense=True,
+                        outlined=False,
+                    )
+
+            elif result.state == sl.ResultState.ERROR:
+                sl.Error(f"Error occurred: {result.error}")
+            else:
+                sl.Info("Evaluating expression...")
+                rv.ProgressLinear(indeterminate=True)
+
+        # complex option panels
+        with rv.ExpansionPanels():
+            # PANEL1: carton mapper
+            with rv.ExpansionPanel():
+                rv.ExpansionPanelHeader(children=["Carton/Mapper/Dataset"])
+                with rv.ExpansionPanelContent():
+                    with sl.Column(gap="2px"):
+                        with sl.Columns([1, 1]):
+                            sl.SelectMultiple(
+                                label="Mapper",
+                                values=mapper,
+                                on_value=set_mapper,
+                                dense=True,
+                                all_values=State.mapping.value["mapper"].
+                                unique(),
+                                classes=['variant="solo"'],
+                            )
+                            sl.SelectMultiple(
+                                label="Dataset",
+                                values=dataset,
+                                on_value=set_dataset,
+                                dense=True,
+                                # TODO: fetch via valis or via df itself
+                                all_values=[
+                                    "apogeenet", "thecannon", "aspcap"
+                                ],
+                                classes=['variant="solo"'],
+                            )
+                        sl.SelectMultiple(
+                            label="Carton",
+                            values=carton,
+                            on_value=set_carton,
+                            dense=True,
+                            all_values=State.mapping.value["alt_name"].unique(
+                            ),
+                            classes=['variant="solo"'],
+                        )
+
+        with rv.Row(style_="width: 100%; height: 100%"):
+            # TODO: change this component to a better button embedded in the below structure
+            DownloadMenu()
+
+        # delete & clone buttons
+        with rv.Row(style_="width: 100%; height: 100%"):
+            # quick filter menu
+            rv.Spacer()
+
+            # clone button
+            sl.Button(
+                label="",
+                icon_name="mdi-content-duplicate",
+                icon=True,
+                text=True,
+                on_click=lambda: clone_subset(),
+            )
+
+            # delete button
+            sl.Button(
+                label="",
+                icon_name="mdi-delete-outline",
+                icon=True,
+                text=True,
+                disabled=True if len(State.subsets.value) == 1 else False,
+                color="red",
+                on_click=lambda: delete.set(True),
+            )
+
+        # confirmation dialog for deletion
         ConfirmationDialog(
             delete,
             title="Are you sure you want to delete this subset?",
@@ -139,7 +490,6 @@ def SubsetCard(name, deleter):
             cancel="no",
             on_ok=deleter,
         )
-
     return main
 
 
@@ -156,13 +506,11 @@ def DownloadMenu():
         dfp = dff.to_pandas()
         return dfp.to_csv(index=False)
 
-    if df is not None:
-        with sl.Row(style={"align-items": "center"}):
-            sl.FileDownload(
-                get_data,
-                filename="apogeenet_filtered.csv",
-                label="Download table",
-            )
+    return sl.FileDownload(
+        get_data,
+        filename="ipl3_filtered.csv",
+        label="Download",
+    )
 
 
 @sl.component()
@@ -220,129 +568,6 @@ def QuickFilterMenu(name):
             sl.Checkbox(label="SNR > 50",
                         value=flag_snr50,
                         on_value=set_flag_snr50)
-    return main
-
-
-@sl.component()
-def CartonMapperSelect(name):
-    """Filter by carton and mapper. May be merged into another panel in future."""
-    df = State.df.value
-    filter, set_filter = use_subset(id(df), name, "cartonmapper")
-    mapper, set_mapper = sl.use_state([])
-    carton, set_carton = sl.use_state([])
-    dataset, set_dataset = sl.use_state([])
-    combotype, set_combotype = sl.use_state("AND")
-    mapping = sl.use_memo(
-        lambda: vx.open(f"{load_datapath()}/mappings.parquet"),
-        dependencies=[])
-
-    def update_filter():
-        # convert chosens to bool mask
-        print("MapperCarton ::: starting filter update")
-        print(mapper, carton)
-
-        cmp_filter = None
-        if len(mapper) == 0 and len(carton) == 0 and len(dataset) == 0:
-            print("No selections: empty exit case")
-            set_filter(None)
-            return
-
-        # mapper + cartons
-        elif len(mapper) != 0 or len(carton) != 0:
-            start = timer()
-            c = mapping["alt_name"].isin(carton).values
-            m = mapping["mapper"].isin(mapper).values
-
-            # mask
-            if len(mapper) == 0:
-                mask = c
-            elif len(carton) == 0:
-                mask = m
-            else:
-                mask = operator_map[combotype](m, c)
-
-            bits = np.arange(len(mapping))[mask]
-            print("Timer for bit selection via mask:",
-                  round(timer() - start, 5))
-
-            start = timer()
-            # get flag_number & offset
-            # NOTE: hardcoded nbits as 8, and nflags as 57
-            # TODO: in future, change to read from mappings parquet
-            num, offset = np.divmod(bits, 8)
-            setbits = 57 > num  # ensure bits in flags
-
-            # construct hashmap for each unique flag
-            filters = np.zeros(57).astype("uint8")
-            for unique in np.unique(num[setbits]):
-                # ANDs all the bitshifted values for the given unique flag
-                offsets = 1 << offset[setbits][np.where(
-                    num[setbits] == unique)]
-                actives = reduce(
-                    operator.or_,
-                    offsets)  # INFO: this is an OR operation PER bit
-                if actives == 0:
-                    continue  # skip
-                filters[unique] = (
-                    actives  # the required active bit(s) ACTIVES for bitmask position "UNIQUE"
-                )
-
-            print("Timer for active mask creation:", round(timer() - start, 5))
-
-            # generate a filter based on the vaex-defined flag combiner
-            start = timer()
-            cmp_filter = df.func.check_flags(df["sdss5_target_flags"], filters)
-            print("Timer for expression generation:",
-                  round(timer() - start, 5))
-
-        if len(dataset) > 0:
-            if cmp_filter is not None:
-                cmp_filter = operator_map[combotype](
-                    cmp_filter, df["dataset"].isin(dataset))
-            else:
-                cmp_filter = df["dataset"].isin(dataset)
-        set_filter(cmp_filter)
-
-        return
-
-    sl.use_thread(update_filter,
-                  dependencies=[mapper, carton, dataset, combotype])
-
-    with sl.Column(gap="2px") as main:
-        with sl.Columns([1, 1]):
-            sl.SelectMultiple(
-                label="Mapper",
-                values=mapper,
-                on_value=set_mapper,
-                dense=True,
-                all_values=State.mapping.value["mapper"].unique(),
-                classes=['variant="solo"'],
-            )
-            sl.SelectMultiple(
-                label="Dataset",
-                values=dataset,
-                on_value=set_dataset,
-                dense=True,
-                all_values=["apogeenet", "thecannon", "aspcap"],
-                classes=['variant="solo"'],
-            )
-        sl.SelectMultiple(
-            label="Carton",
-            values=carton,
-            on_value=set_carton,
-            dense=True,
-            all_values=State.mapping.value["alt_name"].unique(),
-            classes=['variant="solo"'],
-        )
-        # with sl.ToggleButtonsSingle(
-        #        value=combotype,
-        #        on_value=set_combotype,
-        #        dense=True,
-        #        style=dict(width="100%"),
-        # ):  # type: ignore
-        #    sl.Button(icon_name="mdi-gate-and", icon=True, value="AND")
-        #    sl.Button(icon_name="mdi-gate-or", icon=True, value="OR")
-        #    sl.Button(icon_name="mdi-gate-xor", icon=True, value="XOR")
     return main
 
 

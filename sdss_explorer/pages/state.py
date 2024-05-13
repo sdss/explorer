@@ -25,7 +25,9 @@ class State:
     """Holds app-wide state variables"""
 
     mapping = sl.reactive(vx.open(f"{load_datapath()}/mappings.parquet"))
-    subsets = sl.reactive(["A"])
+    subsets = sl.reactive([("A", {
+        "expression": "teff < 9e3"
+    })])  # init subset A with some general default ideas
     token = sl.reactive(None)
 
     @staticmethod
@@ -71,7 +73,7 @@ class State:
             q: index of subset in list; variate
             """
             for n, obj in enumerate(State.subsets.value):
-                if obj == name:
+                if obj[0] == name:
                     q = n
                     break
 
