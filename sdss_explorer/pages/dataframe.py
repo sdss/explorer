@@ -242,7 +242,7 @@ def DescribeDF(del_func):
     """Statistics description view for the dataset."""
     df = State.df.value
     subset = sl.use_reactive(State.subsets.value[0])  # inits with first subset
-    filter, set_filter = use_subset(subset, name="statsview")
+    filter, set_filter = use_subset(id(df), subset, name="statsview")
     columns, set_columns = sl.use_state(["teff", "logg", "fe_h"])
 
     if filter:
