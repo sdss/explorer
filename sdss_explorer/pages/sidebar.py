@@ -1,23 +1,23 @@
-from typing import cast, Union
+from typing import cast, Callable
 from functools import reduce
 from timeit import default_timer as timer
 import operator
 import re
 
 import solara as sl
-from solara.lab import ConfirmationDialog, Menu
+from solara.lab import ConfirmationDialog
 import vaex as vx
 import numpy as np
 import reacton.ipyvuetify as rv
 from solara.hooks.misc import use_force_update
 
-from .state import State, load_datapath, VCData, Alert
+from .state import State, VCData, Alert
 from .dialog import Dialog
 from .subsets import use_subset, remove_subset
 
 operator_map = {"AND": operator.and_, "OR": operator.or_, "XOR": operator.xor}
 
-updater_context = sl.create_context(print)
+updater_context = sl.create_context(print)  # dummy context for forcing updates
 
 
 @vx.register_function()
@@ -31,11 +31,12 @@ def SubsetMenu():
     add = sl.use_reactive(False)
     name, set_name = sl.use_state("")
     updater = use_force_update()
-    updater_context.provide(updater)
+    updater_context.provide(updater)  # provide updater to context
 
     def add_subset():
-        if name not in State.subsets.value:
-            State.subsets.value.append((name, {}))
+        if name not in State.subset_names.value:
+            State.subset_names.value.append(name)
+            State.subset_inits.value.append({})
             add.set(False)
             close()
         else:
@@ -60,9 +61,12 @@ def SubsetMenu():
                           on_click=lambda: add.set(True),
                           block=True)
         with rv.ExpansionPanels(popout=True):
-            for subset in State.subsets.value:
-                SubsetCard(subset[0], State.create_ss_remover(subset[0]),
-                           **subset[1])
+            for i, subset_name in enumerate(State.subset_names.value):
+                SubsetCard(
+                    subset_name,
+                    State.create_ss_remover(subset_name),
+                    **State.subset_inits.value[i],
+                )
         with Dialog(
                 add,
                 title="Enter a name for the new subset",
@@ -79,7 +83,7 @@ def SubsetMenu():
 
 
 @sl.component()
-def SubsetCard(name: str, deleter, **kwargs):
+def SubsetCard(name: str, deleter: Callable, **kwargs):
     """Holds filter update info, card structure, and calls to options"""
     df = State.df.value
     filter, _set_filter = use_subset(id(df), name, "subset-summary")
@@ -119,7 +123,7 @@ def SubsetCard(name: str, deleter, **kwargs):
 
 
 @sl.component()
-def SubsetOptions(name: str, deleter, **kwargs):
+def SubsetOptions(name: str, deleter: Callable, **kwargs):
     """
     Contains all subset configuration, including expression,
     cartonmapper, clone and delete.
@@ -144,7 +148,7 @@ def SubsetOptions(name: str, deleter, **kwargs):
     df = State.df.value
     mapping = State.mapping.value
     filter, set_filter = use_subset(id(df), name, "subsetcard")
-    updater = sl.use_context(updater_context)
+    updater = sl.use_context(updater_context)  # fetch update forcer
 
     # card settings
     invert, set_invert = sl.use_state(False)
@@ -187,15 +191,13 @@ def SubsetOptions(name: str, deleter, **kwargs):
 
     def clone_subset():
         """Self cloner function"""
-        State.subsets.value.append((
-            "Copy of " + name,
-            {
-                "mapper": mapper,
-                "carton": carton,
-                "dataset": dataset,
-                "expression": expression,
-            },
-        ))
+        State.subset_names.value.append("Copy of " + name)
+        State.subset_inits.value.append({
+            "mapper": mapper,
+            "carton": carton,
+            "dataset": dataset,
+            "expression": expression,
+        })
         updater()
         return
 
@@ -477,7 +479,7 @@ def SubsetOptions(name: str, deleter, **kwargs):
                 icon_name="mdi-delete-outline",
                 icon=True,
                 text=True,
-                disabled=True if len(State.subsets.value) == 1 else False,
+                disabled=True if len(State.subset_names.value) == 1 else False,
                 color="red",
                 on_click=lambda: delete.set(True),
             )
@@ -658,7 +660,7 @@ def VirtualColumnsPanel():
                                       dependencies=[expression, name])
 
     def update_columns():
-        """Manually updates columns on VCData update"""
+        """Thread to update master column list on VCData update"""
         df = State.df.value
         print("current VCD:", VCData.columns.value)
         columns = df.get_column_names(virtual=False)

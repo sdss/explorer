@@ -97,8 +97,9 @@ class PlotState:
 
         # delta view settings
         if "delta" in type:
-            self.subset_b = sl.use_reactive(State.subsets.value[-1] if len(
-                State.subsets.value) > 1 else "")
+            self.subset_b = sl.use_reactive(
+                State.subset_names.value[-1] if len(State.subset_names.value) >
+                1 else "")
 
         # all lookup data for types
         # TODO: move this lookup data elsewhere to reduce the size of the plotstate objects
@@ -145,6 +146,32 @@ class PlotState:
         q = self.subset_b.value
         self.subset.value = q
         self.subset_b.value = p
+
+    def reset_values(self):
+        """Conditional reset based on if given column/subset is still in list"""
+        # subset resets
+        if self.subset.value not in State.subset_names.value:
+            Alert.update(
+                f"Subset in view was removed, reset to {State.subset_names.value[0]}",
+                color="info",
+            )
+            self.subset.value = State.subset_names.value[0]
+        try:
+            if self.subset_b.value not in State.subset_names.value:
+                self.subset_b.value = State.subset_names.value[-1]
+        except:
+            pass
+
+        # columnar resets
+        if self.x.value not in State.columns.value:
+            Alert.update("VC removed! Column reset to 'teff'", color="info")
+            self.x.value = "teff"
+        if self.y.value not in State.columns.value:
+            Alert.update("VC removed! Column reset to 'logg'", color="info")
+            self.y.value = "logg"
+        if self.color.value not in State.columns.value:
+            Alert.update("VC removed! Column reset to 'fe_h'", color="info")
+            self.color.value = "fe_h"
 
 
 def range_loop(start, offset):
@@ -1652,11 +1679,15 @@ def show_settings(type, state):
 @sl.component()
 def sky_menu(plotstate):
     columns = State.columns.value
+    sl.use_thread(
+        plotstate.reset_values,
+        dependencies=[State.subset_names.value, State.columns.value],
+    )
     with sl.Columns([1, 1]):
         with Card(margin=0):
             sl.Select(
                 label="Subset",
-                values=[subset for (subset, _) in State.subsets.value],
+                values=State.subset_names.value,
                 value=plotstate.subset,
             )
             with sl.Column():
@@ -1694,10 +1725,14 @@ def sky_menu(plotstate):
 @sl.component()
 def scatter_menu(plotstate):
     columns = State.columns.value
+    sl.use_thread(
+        plotstate.reset_values,
+        dependencies=[State.subset_names.value, State.columns.value],
+    )
     with sl.Card():
         sl.Select(
             label="Subset",
-            values=[subset for (subset, _) in State.subsets.value],
+            values=State.subset_names.value,
             value=plotstate.subset,
         )
         with sl.Columns([1, 1]):
@@ -1751,10 +1786,14 @@ def scatter_menu(plotstate):
 @sl.component()
 def histogram_menu(plotstate):
     columns = State.columns.value
+    sl.use_thread(
+        plotstate.reset_values,
+        dependencies=[State.subset_names.value, State.columns.value],
+    )
 
     sl.Select(
         label="Subset",
-        values=[subset for (subset, _) in State.subsets.value],
+        values=State.subset_names.value,
         value=plotstate.subset,
     )
     with sl.Columns([1, 1]):
@@ -1788,11 +1827,15 @@ def histogram_menu(plotstate):
 @sl.component()
 def aggregate_menu(plotstate):
     columns = State.columns.value
+    sl.use_thread(
+        plotstate.reset_values,
+        dependencies=[State.subset_names.value, State.columns.value],
+    )
     with sl.Columns([1, 1]):
         with Card(margin=0):
             sl.Select(
                 label="Subset",
-                values=[subset for (subset, _) in State.subsets.value],
+                values=State.subset_names.value,
                 value=plotstate.subset,
             )
             with Columns([3, 3, 1], gutters_dense=True):
@@ -1856,12 +1899,16 @@ def aggregate_menu(plotstate):
 @sl.component()
 def delta2d_menu(plotstate):
     columns = State.columns.value
+    sl.use_thread(
+        plotstate.reset_values,
+        dependencies=[State.subset_names.value, State.columns.value],
+    )
     with Card(margin=0):
         with sl.Columns([3, 3, 1]):
             sl.Select(
                 label="Subset 1",
                 values=[
-                    subset for subset, _ in State.subsets.value
+                    subset for subset in State.subset_names.value
                     if subset != plotstate.subset_b.value
                 ],
                 value=plotstate.subset,
@@ -1869,7 +1916,7 @@ def delta2d_menu(plotstate):
             sl.Select(
                 label="Subset 2",
                 values=[
-                    subset for subset, _ in State.subsets.value
+                    subset for subset in State.subset_names.value
                     if subset != plotstate.subset.value
                 ],
                 value=plotstate.subset_b,

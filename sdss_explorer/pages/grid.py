@@ -135,7 +135,7 @@ def ObjectGrid():
                             label="delta2d",
                             on_click=lambda: add_view("delta2d"),
                             disabled=True
-                            if len(State.subsets.value) <= 1 else False,
+                            if len(State.subset_names.value) <= 1 else False,
                         ),
                     ]
             rv.Spacer()

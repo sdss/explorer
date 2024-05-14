@@ -241,7 +241,8 @@ def ModdedDataTable(
 def DescribeDF(del_func):
     """Statistics description view for the dataset."""
     df = State.df.value
-    subset = sl.use_reactive(State.subsets.value[0])  # inits with first subset
+    subset = sl.use_reactive(
+        State.subset_names.value[0])  # inits with first subset
     filter, set_filter = use_subset(id(df), subset, name="statsview")
     columns, set_columns = sl.use_state(["teff", "logg", "fe_h"])
 
@@ -314,7 +315,7 @@ def DescribeDF(del_func):
                             )
                             sl.Select(
                                 label="Subset",
-                                values=State.subsets.value,
+                                values=State.subset_names.value,
                                 value=subset,
                             )
                         sl.Button(
