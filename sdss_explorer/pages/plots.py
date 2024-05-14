@@ -25,36 +25,30 @@ from .util import check_catagorical
 from .subsets import use_subset
 
 # TEMPLATES AND STATE
-DARK_TEMPLATE = dict(layout=go.Layout(
-    font=dict(color="white", size=16),
-    showlegend=False,
-    paper_bgcolor="#424242",
-    autosize=True,
-    plot_bgcolor="#212121",
-    xaxis_gridcolor="#616161",
-    yaxis_gridcolor="#616161",
-    margin={
-        "t": 30,
-        "b": 80,
-        "l": 80,
-        "r": 80
-    },
-))
-LIGHT_TEMPLATE = dict(layout=go.Layout(
-    font=dict(color="black", size=16),
-    showlegend=False,
-    paper_bgcolor="#EEEEEE",
-    autosize=True,
-    plot_bgcolor="#FAFAFA",
-    xaxis_gridcolor="#BDBDBD",
-    yaxis_gridcolor="#BDBDBD",
-    margin={
-        "t": 30,
-        "b": 80,
-        "l": 80,
-        "r": 80
-    },
-))
+DARK_TEMPLATE = dict(
+    layout=go.Layout(
+        font=dict(color="white", size=16),
+        showlegend=False,
+        paper_bgcolor="#424242",
+        autosize=True,
+        plot_bgcolor="#212121",
+        xaxis_gridcolor="#616161",
+        yaxis_gridcolor="#616161",
+        margin={"t": 30, "b": 80, "l": 80, "r": 80},
+    )
+)
+LIGHT_TEMPLATE = dict(
+    layout=go.Layout(
+        font=dict(color="black", size=16),
+        showlegend=False,
+        paper_bgcolor="#EEEEEE",
+        autosize=True,
+        plot_bgcolor="#FAFAFA",
+        xaxis_gridcolor="#BDBDBD",
+        yaxis_gridcolor="#BDBDBD",
+        margin={"t": 30, "b": 80, "l": 80, "r": 80},
+    )
+)
 
 
 class PlotState:
@@ -98,16 +92,15 @@ class PlotState:
         # delta view settings
         if "delta" in type:
             self.subset_b = sl.use_reactive(
-                State.subset_names.value[-1] if len(State.subset_names.value) >
-                1 else "")
+                State.subset_names.value[-1]
+                if len(State.subset_names.value) > 1
+                else ""
+            )
 
         # all lookup data for types
         # TODO: move this lookup data elsewhere to reduce the size of the plotstate objects
         self.Lookup = dict(
-            norms=[
-                None, "percent", "probability", "density",
-                "probability density"
-            ],
+            norms=[None, "percent", "probability", "density", "probability density"],
             bintypes=["count", "mean", "median", "sum", "min", "max", "mode"],
             colorscales=[
                 "inferno",
@@ -184,8 +177,8 @@ def check_cat_color(color: vx.Expression) -> bool:
         assert not check_catagorical(color)
     except AssertionError:
         Alert.update(
-            "Discrete/catagorical color not supported. Please revert.",
-            color="warning")
+            "Discrete/catagorical color not supported. Please revert.", color="warning"
+        )
         return False
     return True
 
@@ -206,9 +199,9 @@ def show_plot(type, del_func):
                     skyplot(plotstate)
                 elif type == "delta2d":
                     delta2d(plotstate)
-                btn = sl.Button(icon_name="mdi-settings",
-                                outlined=False,
-                                classes=["grey darken-3"])
+                btn = sl.Button(
+                    icon_name="mdi-settings", outlined=False, classes=["grey darken-3"]
+                )
                 with Menu(activator=btn, close_on_content_click=False):
                     with sl.Card(margin=0):
                         show_settings(type, plotstate)
@@ -238,7 +231,8 @@ def scatter(plotstate):
                 min = 10**min
                 max = 10**max
             xfilter = df[
-                f"(({plotstate.x.value} > {np.min((min,max))}) & ({plotstate.x.value} < {np.max((min,max))}))"]
+                f"(({plotstate.x.value} > {np.min((min,max))}) & ({plotstate.x.value} < {np.max((min,max))}))"
+            ]
         except KeyError:
             pass
         try:
@@ -248,7 +242,8 @@ def scatter(plotstate):
                 min = 10**min
                 max = 10**max
             yfilter = df[
-                f"(({plotstate.y.value} > {np.min((min,max))}) & ({plotstate.y.value} < {np.max((min,max))}))"]
+                f"(({plotstate.y.value} > {np.min((min,max))}) & ({plotstate.y.value} < {np.max((min,max))}))"
+            ]
 
         except KeyError:
             pass
@@ -286,11 +281,14 @@ def scatter(plotstate):
                 y=y,
                 mode="markers",
                 customdata=ids,
-                hovertemplate=f"<b>{plotstate.x.value}</b>:" +
-                " %{x:.6f}<br>" + f"<b>{plotstate.y.value}</b>:" +
-                " %{y:.6f}<br>" + f"<b>{plotstate.color.value}</b>:" +
-                " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
-                " %{customdata:.d}",
+                hovertemplate=f"<b>{plotstate.x.value}</b>:"
+                + " %{x:.6f}<br>"
+                + f"<b>{plotstate.y.value}</b>:"
+                + " %{y:.6f}<br>"
+                + f"<b>{plotstate.color.value}</b>:"
+                + " %{marker.color:.6f}<br>"
+                + "<b>ID</b>:"
+                + " %{customdata:.d}",
                 name="",
                 marker=dict(
                     color=c,
@@ -315,7 +313,6 @@ def scatter(plotstate):
 
     # Effect based callbacks (flip, log, & data array updates)
     def add_effects(fig_element: sl.Element):
-
         def add_context_menu():
             # TODO: except contextmenu in DOM somehow so i can open my own vue menu
 
@@ -342,8 +339,7 @@ def scatter(plotstate):
                 if plotstate.flipx.value:
                     fig_widget.update_xaxes(autorange="reversed")
                 else:
-                    fig_widget.update_xaxes(
-                        range=fig_widget.layout.xaxis.range[::-1])
+                    fig_widget.update_xaxes(range=fig_widget.layout.xaxis.range[::-1])
 
         def set_yflip():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
@@ -351,8 +347,7 @@ def scatter(plotstate):
                 if plotstate.flipy.value:
                     fig_widget.update_yaxes(autorange="reversed")
                 else:
-                    fig_widget.update_yaxes(
-                        range=fig_widget.layout.yaxis.range[::-1])
+                    fig_widget.update_yaxes(range=fig_widget.layout.yaxis.range[::-1])
 
         def set_log():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
@@ -371,13 +366,16 @@ def scatter(plotstate):
                 x=dff[plotstate.x.value].values,
                 y=dff[plotstate.y.value].values,
                 customdata=dff["sdss_id"].values,
-                hovertemplate=(f"<b>{plotstate.x.value}</b>:" +
-                               " %{x:.6f}<br>" +
-                               f"<b>{plotstate.y.value}</b>:" +
-                               " %{y:.6f}<br>" +
-                               f"<b>{plotstate.color.value}</b>:" +
-                               " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
-                               " %{customdata:.d}"),
+                hovertemplate=(
+                    f"<b>{plotstate.x.value}</b>:"
+                    + " %{x:.6f}<br>"
+                    + f"<b>{plotstate.y.value}</b>:"
+                    + " %{y:.6f}<br>"
+                    + f"<b>{plotstate.color.value}</b>:"
+                    + " %{marker.color:.6f}<br>"
+                    + "<b>ID</b>:"
+                    + " %{customdata:.d}"
+                ),
             )
             fig_widget.update_layout(
                 xaxis_title=plotstate.x.value,
@@ -389,13 +387,16 @@ def scatter(plotstate):
             fig_widget.update_traces(
                 x=dff[plotstate.x.value].values,
                 y=dff[plotstate.y.value].values,
-                hovertemplate=(f"<b>{plotstate.x.value}</b>:" +
-                               " %{x:.6f}<br>" +
-                               f"<b>{plotstate.y.value}</b>:" +
-                               " %{y:.6f}<br>" +
-                               f"<b>{plotstate.color.value}</b>:" +
-                               " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
-                               " %{customdata:.d}"),
+                hovertemplate=(
+                    f"<b>{plotstate.x.value}</b>:"
+                    + " %{x:.6f}<br>"
+                    + f"<b>{plotstate.y.value}</b>:"
+                    + " %{y:.6f}<br>"
+                    + f"<b>{plotstate.color.value}</b>:"
+                    + " %{marker.color:.6f}<br>"
+                    + "<b>ID</b>:"
+                    + " %{customdata:.d}"
+                ),
             )
             fig_widget.update_layout(
                 xaxis_title=plotstate.x.value,
@@ -434,13 +435,16 @@ def scatter(plotstate):
                     colorbar=dict(title=plotstate.color.value),
                     colorscale=plotstate.colorscale.value,
                 ),
-                hovertemplate=(f"<b>{plotstate.x.value}</b>:" +
-                               " %{x:.6f}<br>" +
-                               f"<b>{plotstate.y.value}</b>:" +
-                               " %{y:.6f}<br>" +
-                               f"<b>{plotstate.color.value}</b>:" +
-                               " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
-                               " %{customdata:.d}"),
+                hovertemplate=(
+                    f"<b>{plotstate.x.value}</b>:"
+                    + " %{x:.6f}<br>"
+                    + f"<b>{plotstate.y.value}</b>:"
+                    + " %{y:.6f}<br>"
+                    + f"<b>{plotstate.color.value}</b>:"
+                    + " %{marker.color:.6f}<br>"
+                    + "<b>ID</b>:"
+                    + " %{customdata:.d}"
+                ),
             )
 
         # def update_theme():
@@ -466,13 +470,13 @@ def scatter(plotstate):
                 plotstate.colorlog.value,
             ],
         )
-        sl.use_effect(update_xy,
-                      dependencies=[plotstate.x.value, plotstate.y.value])
+        sl.use_effect(update_xy, dependencies=[plotstate.x.value, plotstate.y.value])
         sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
         sl.use_effect(set_yflip, dependencies=[plotstate.flipy.value])
         # sl.use_effect(update_theme, dependencies=[dark])
         sl.use_effect(
-            set_log, dependencies=[plotstate.logx.value, plotstate.logy.value])
+            set_log, dependencies=[plotstate.logx.value, plotstate.logy.value]
+        )
 
     # Plotly-side callbacks (relayout, select, and deselect)
     def on_relayout(data):
@@ -492,8 +496,9 @@ def scatter(plotstate):
         if len(data["points"]["xs"]) > 0:
             xs = data["points"]["xs"]
             ys = data["points"]["ys"]
-            set_filter((df[plotstate.x.value].isin(xs) &
-                        (df[plotstate.y.value].isin(ys))))
+            set_filter(
+                (df[plotstate.x.value].isin(xs) & (df[plotstate.y.value].isin(ys)))
+            )
 
     def on_deselect(_data):
         set_filter(None)
@@ -535,8 +540,7 @@ def histogram(plotstate):
             try:
                 assert len(dff) > 0
             except AssertionError:
-                Alert.update("Applied filters reduced length to zero!",
-                             color="warning")
+                Alert.update("Applied filters reduced length to zero!", color="warning")
                 return None, None
 
             # get limits
@@ -656,15 +660,13 @@ def histogram(plotstate):
 
     # Effect based callbacks (flip, log, & data array updates)
     def add_effects(fig_element: sl.Element):
-
         def set_xflip():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
             if fig_widget.layout.xaxis.range is not None:
                 if plotstate.flipx.value:
                     fig_widget.update_xaxes(autorange="reversed")
                 else:
-                    fig_widget.update_xaxes(
-                        range=fig_widget.layout.xaxis.range[::-1])
+                    fig_widget.update_xaxes(range=fig_widget.layout.xaxis.range[::-1])
 
         def set_yflip():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
@@ -672,8 +674,7 @@ def histogram(plotstate):
                 if plotstate.flipy.value:
                     fig_widget.update_yaxes(autorange="reversed")
                 else:
-                    fig_widget.update_yaxes(
-                        range=fig_widget.layout.yaxis.range[::-1])
+                    fig_widget.update_yaxes(range=fig_widget.layout.yaxis.range[::-1])
 
         def set_log():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
@@ -694,8 +695,10 @@ def histogram(plotstate):
                 x=x,
                 y=y,
                 nbinsx=plotstate.nbins.value,
-                hovertemplate=f"<b>{xcol}</b>:" + " %{x}<br>" +
-                f"<b>{plotstate.bintype.value}({xcol})</b>:" + " %{y}<br>",
+                hovertemplate=f"<b>{xcol}</b>:"
+                + " %{x}<br>"
+                + f"<b>{plotstate.bintype.value}({xcol})</b>:"
+                + " %{y}<br>",
             )
             fig_widget.update_layout(
                 xaxis_title=xcol,
@@ -720,7 +723,8 @@ def histogram(plotstate):
         sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
         sl.use_effect(set_yflip, dependencies=[plotstate.flipy.value])
         sl.use_effect(
-            set_log, dependencies=[plotstate.logx.value, plotstate.logy.value])
+            set_log, dependencies=[plotstate.logx.value, plotstate.logy.value]
+        )
 
     def on_select(data):
         if len(data["points"]["xs"]) > 0:
@@ -729,8 +733,10 @@ def histogram(plotstate):
             uniques = np.unique(data["points"]["xs"])
             binsize = uniques[1] - uniques[0]
             for cent in uniques:
-                filters.append(df[f"({xcol} <= {cent + binsize})"]
-                               & df[f"({xcol} >= {cent - binsize})"])
+                filters.append(
+                    df[f"({xcol} <= {cent + binsize})"]
+                    & df[f"({xcol} >= {cent - binsize})"]
+                )
             filters = reduce(operator.or_, filters[1:], filters[0])
             set_filter(filters)
 
@@ -750,8 +756,7 @@ def histogram(plotstate):
 @sl.component
 def aggregated(plotstate):
     df = State.df.value
-    filter, set_filter = use_subset(id(df), plotstate.subset,
-                                    "filter-aggregated")
+    filter, set_filter = use_subset(id(df), plotstate.subset, "filter-aggregated")
     # dark = use_dark_effective()
 
     dff = df
@@ -766,8 +771,8 @@ def aggregated(plotstate):
         # error checking
         try:
             assert (
-                len(dff)
-                > 40), "0"  # NOTE: trial and error found this value. arbitrary
+                len(dff) > 40
+            ), "0"  # NOTE: trial and error found this value. arbitrary
             assert plotstate.x.value != plotstate.y.value, "1"
 
             assert not check_catagorical(dff[plotstate.x.value]), "2"
@@ -895,14 +900,12 @@ def aggregated(plotstate):
             y = xarray.DataArray(
                 y,
                 coords={
-                    plotstate.x.value:
-                    dff.bin_centers(
+                    plotstate.x.value: dff.bin_centers(
                         expression=expr[0],
                         limits=limits[0],
                         shape=plotstate.nbins.value,
                     ),
-                    plotstate.y.value:
-                    dff.bin_centers(
+                    plotstate.y.value: dff.bin_centers(
                         expression=expr[1],
                         limits=limits[1],
                         shape=plotstate.nbins.value,
@@ -951,7 +954,6 @@ def aggregated(plotstate):
     figure = sl.use_memo(create_fig, dependencies=[])
 
     def add_effects(fig_element: sl.Element):
-
         def set_xflip():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
             if plotstate.flipx.value:
@@ -988,9 +990,14 @@ def aggregated(plotstate):
                 z=z.T.data,
                 x=z.coords[plotstate.x.value],
                 y=z.coords[plotstate.y.value],
-                hovertemplate=(f"{plotstate.x.value}" + ": %{x}<br>" +
-                               f"{plotstate.y.value}:" + " %{y}<br>" +
-                               f"{colorlabel}: " + "%{z}<extra></extra>"),
+                hovertemplate=(
+                    f"{plotstate.x.value}"
+                    + ": %{x}<br>"
+                    + f"{plotstate.y.value}:"
+                    + " %{y}<br>"
+                    + f"{colorlabel}: "
+                    + "%{z}<extra></extra>"
+                ),
             )
             # update coloraxis & label information
             fig_widget.update_coloraxes(
@@ -1011,7 +1018,8 @@ def aggregated(plotstate):
 
             # update coloraxis information
             fig_widget.update_coloraxes(
-                colorscale=plotstate.colorscale.value, )
+                colorscale=plotstate.colorscale.value,
+            )
 
         # def update_theme():
         #    fig_widget: FigureWidget = sl.get_widget(fig_element)
@@ -1086,20 +1094,17 @@ def skyplot(plotstate):
         lonfilter = None
         if scale > 1:
             if lonhigh < lonlow:
-                lonfilter = df[f"({lon} > {lonlow})"] | df[
-                    f"({lon} < {lonhigh})"]
+                lonfilter = df[f"({lon} > {lonlow})"] | df[f"({lon} < {lonhigh})"]
             else:
-                lonfilter = df[f"({lon} > {lonlow})"] & df[
-                    f"({lon} < {lonhigh})"]
+                lonfilter = df[f"({lon} > {lonlow})"] & df[f"({lon} < {lonhigh})"]
         if lonfilter is not None:
-            set_local_filter((df[f"({lat} > {latlow})"]
-                              & df[f"({lat}< {lathigh})"]) & lonfilter)
+            set_local_filter(
+                (df[f"({lat} > {latlow})"] & df[f"({lat}< {lathigh})"]) & lonfilter
+            )
         else:
-            set_local_filter(df[f"({lat} > {latlow})"]
-                             & df[f"({lat}< {lathigh})"])
+            set_local_filter(df[f"({lat} > {latlow})"] & df[f"({lat}< {lathigh})"])
 
-    sl.use_thread(update_filter,
-                  dependencies=[plotstate.geo_coords.value, relayout])
+    sl.use_thread(update_filter, dependencies=[plotstate.geo_coords.value, relayout])
 
     # Apply global and local filters
     if filter is not None:
@@ -1131,11 +1136,14 @@ def skyplot(plotstate):
                 lon=lon,
                 mode="markers",
                 customdata=ids,
-                hovertemplate="<b>RA</b>:" + " %{lon:.6f}<br>" +
-                "<b>DEC</b>:" + " %{lat:.6f}<br>" +
-                f"<b>{plotstate.color.value}</b>:" +
-                " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
-                " %{customdata:.d}",
+                hovertemplate="<b>RA</b>:"
+                + " %{lon:.6f}<br>"
+                + "<b>DEC</b>:"
+                + " %{lat:.6f}<br>"
+                + f"<b>{plotstate.color.value}</b>:"
+                + " %{marker.color:.6f}<br>"
+                + "<b>ID</b>:"
+                + " %{customdata:.d}",
                 name="",
                 marker=dict(
                     color=c,
@@ -1171,15 +1179,18 @@ def skyplot(plotstate):
         xpos = 0
         ypos = 0
         figure.add_trace(
-            go.Scattergeo({
-                "lon": x + [xpos] * (len(y)),
-                "lat": [ypos] * (len(x)) + y,
-                "showlegend": False,
-                "text": x + y,
-                "mode": "text",
-                "hoverinfo": "skip",
-                "name": "text",
-            }))
+            go.Scattergeo(
+                {
+                    "lon": x + [xpos] * (len(y)),
+                    "lat": [ypos] * (len(x)) + y,
+                    "showlegend": False,
+                    "text": x + y,
+                    "mode": "text",
+                    "hoverinfo": "skip",
+                    "name": "text",
+                }
+            )
+        )
         figure.update_layout(margin={"t": 30, "b": 10, "l": 0, "r": 0})
         return figure
 
@@ -1188,7 +1199,6 @@ def skyplot(plotstate):
 
     # Effect based callbacks (flip, log, & data array updates)
     def add_effects(fig_element: sl.Element):
-
         def set_flip():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
             if plotstate.flipx.value:
@@ -1247,13 +1257,16 @@ def skyplot(plotstate):
                     colorbar=dict(title=plotstate.color.value),
                     colorscale=plotstate.colorscale.value,
                 ),
-                hovertemplate=
-                (f"<b>{'RA' if plotstate.geo_coords.value == 'celestial' else 'l'}</b>:"
-                 + " %{lon:.6f}<br>" +
-                 f"<b>{'DEC' if plotstate.geo_coords.value == 'celestial' else 'b'}</b>:"
-                 + " %{lat:.6f}<br>" + f"<b>{plotstate.color.value}</b>:" +
-                 " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
-                 " %{customdata:.d}"),
+                hovertemplate=(
+                    f"<b>{'RA' if plotstate.geo_coords.value == 'celestial' else 'l'}</b>:"
+                    + " %{lon:.6f}<br>"
+                    + f"<b>{'DEC' if plotstate.geo_coords.value == 'celestial' else 'b'}</b>:"
+                    + " %{lat:.6f}<br>"
+                    + f"<b>{plotstate.color.value}</b>:"
+                    + " %{marker.color:.6f}<br>"
+                    + "<b>ID</b>:"
+                    + " %{customdata:.d}"
+                ),
                 selector=dict(type="scattergeo", name=""),
             )
 
@@ -1268,10 +1281,9 @@ def skyplot(plotstate):
         #    )
 
         sl.use_effect(
-            update_data,
-            dependencies=[filter, local_filter, plotstate.geo_coords.value])
-        sl.use_effect(update_projection,
-                      dependencies=[plotstate.projection.value])
+            update_data, dependencies=[filter, local_filter, plotstate.geo_coords.value]
+        )
+        sl.use_effect(update_projection, dependencies=[plotstate.projection.value])
         sl.use_effect(
             update_color,
             dependencies=[
@@ -1283,8 +1295,8 @@ def skyplot(plotstate):
             ],
         )
         sl.use_effect(
-            set_flip,
-            dependencies=[plotstate.flipx.value, plotstate.flipy.value])
+            set_flip, dependencies=[plotstate.flipx.value, plotstate.flipy.value]
+        )
         # sl.use_effect(update_theme, dependencies=[dark])
 
     # Plotly-side callbacks (relayout, select, deselect)
@@ -1502,14 +1514,12 @@ def delta2d(plotstate):
                 y = xarray.DataArray(
                     y,
                     coords={
-                        plotstate.x.value:
-                        dff.bin_centers(
+                        plotstate.x.value: dff.bin_centers(
                             expression=expr[0],
                             limits=limits[0],
                             shape=plotstate.nbins.value,
                         ),
-                        plotstate.y.value:
-                        dff.bin_centers(
+                        plotstate.y.value: dff.bin_centers(
                             expression=expr[1],
                             limits=limits[1],
                             shape=plotstate.nbins.value,
@@ -1561,7 +1571,6 @@ def delta2d(plotstate):
     figure = sl.use_memo(create_fig, dependencies=[])
 
     def add_effects(fig_element: sl.Element):
-
         def set_xflip():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
             if plotstate.flipx.value:
@@ -1600,9 +1609,14 @@ def delta2d(plotstate):
                 z=z.T.data,
                 x=z.coords[plotstate.x.value],
                 y=z.coords[plotstate.y.value],
-                hovertemplate=(f"{plotstate.x.value}" + ": %{x}<br>" +
-                               f"{plotstate.y.value}:" + " %{y}<br>" +
-                               f"{colorlabel}: " + "%{z}<extra></extra>"),
+                hovertemplate=(
+                    f"{plotstate.x.value}"
+                    + ": %{x}<br>"
+                    + f"{plotstate.y.value}:"
+                    + " %{y}<br>"
+                    + f"{colorlabel}: "
+                    + "%{z}<extra></extra>"
+                ),
             )
             # update coloraxis & label information
             fig_widget.update_coloraxes(
@@ -1623,7 +1637,8 @@ def delta2d(plotstate):
 
             # update coloraxis information
             fig_widget.update_coloraxes(
-                colorscale=plotstate.colorscale.value, )
+                colorscale=plotstate.colorscale.value,
+            )
 
         # def update_theme():
         #    fig_widget: FigureWidget = sl.get_widget(fig_element)
@@ -1691,8 +1706,9 @@ def sky_menu(plotstate):
                 value=plotstate.subset,
             )
             with sl.Column():
-                sl.ToggleButtonsSingle(value=plotstate.geo_coords,
-                                       values=["celestial", "galactic"])
+                sl.ToggleButtonsSingle(
+                    value=plotstate.geo_coords, values=["celestial", "galactic"]
+                )
                 sl.Select(
                     label="Projection",
                     value=plotstate.projection,
@@ -1740,16 +1756,12 @@ def scatter_menu(plotstate):
                 with Columns([8, 8, 2], gutters_dense=True):
                     sl.Select(
                         "Column x",
-                        values=[
-                            col for col in columns if col != plotstate.y.value
-                        ],
+                        values=[col for col in columns if col != plotstate.y.value],
                         value=plotstate.x,
                     )
                     sl.Select(
                         "Column y",
-                        values=[
-                            col for col in columns if col != plotstate.x.value
-                        ],
+                        values=[col for col in columns if col != plotstate.x.value],
                         value=plotstate.y,
                     )
                     sl.Button(
@@ -1842,17 +1854,13 @@ def aggregate_menu(plotstate):
                 with sl.Column():
                     sl.Select(
                         "Column x",
-                        values=[
-                            col for col in columns if col != plotstate.y.value
-                        ],
+                        values=[col for col in columns if col != plotstate.y.value],
                         value=plotstate.x,
                     )
                 with sl.Column():
                     sl.Select(
                         "Column y",
-                        values=[
-                            col for col in columns if col != plotstate.x.value
-                        ],
+                        values=[col for col in columns if col != plotstate.x.value],
                         value=plotstate.y,
                     )
                 sl.Button(
@@ -1876,7 +1884,7 @@ def aggregate_menu(plotstate):
                 value=plotstate.nbins,
                 step=2,
                 min=2,
-                max=500,
+                max=250,
             )
             sl.Select(
                 label="Binning type",
@@ -1908,7 +1916,8 @@ def delta2d_menu(plotstate):
             sl.Select(
                 label="Subset 1",
                 values=[
-                    subset for subset in State.subset_names.value
+                    subset
+                    for subset in State.subset_names.value
                     if subset != plotstate.subset_b.value
                 ],
                 value=plotstate.subset,
@@ -1916,7 +1925,8 @@ def delta2d_menu(plotstate):
             sl.Select(
                 label="Subset 2",
                 values=[
-                    subset for subset in State.subset_names.value
+                    subset
+                    for subset in State.subset_names.value
                     if subset != plotstate.subset.value
                 ],
                 value=plotstate.subset_b,
@@ -1933,17 +1943,13 @@ def delta2d_menu(plotstate):
                 with sl.Column():
                     sl.Select(
                         "Column x",
-                        values=[
-                            col for col in columns if col != plotstate.y.value
-                        ],
+                        values=[col for col in columns if col != plotstate.y.value],
                         value=plotstate.x,
                     )
                 with sl.Column():
                     sl.Select(
                         "Column y",
-                        values=[
-                            col for col in columns if col != plotstate.x.value
-                        ],
+                        values=[col for col in columns if col != plotstate.x.value],
                         value=plotstate.y,
                     )
                 sl.Button(

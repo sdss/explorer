@@ -455,14 +455,13 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
                             classes=['variant="solo"'],
                         )
 
-        with rv.Row(style_="width: 100%; height: 100%"):
-            # TODO: change this component to a better button embedded in the below structure
-            DownloadMenu()
-
         # delete & clone buttons
         with rv.Row(style_="width: 100%; height: 100%"):
             # quick filter menu
             rv.Spacer()
+
+            # download button
+            DownloadMenu()
 
             # clone button
             sl.Button(
@@ -497,22 +496,33 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
 
 @sl.component()
 def DownloadMenu():
-    df = State.df.value
-    filter, set_filter = sl.use_cross_filter(id(df), "download")
-    if filter:
-        dff = df[filter]
-    else:
-        dff = df
+    # df = State.df.value
+    # filter, set_filter = sl.use_cross_filter(id(df), "download")
+    # if filter:
+    #    dff = df[filter]
+    # else:
+    #    dff = df
 
     def get_data():
-        dfp = dff.to_pandas()
-        return dfp.to_csv(index=False)
+        # TODO: change all of these methods to better valis-integrated methods that dont involve
+        # dropping the entire DB file into memory...
+        # dfp = dff.to_pandas_df()
+        Alert.update(
+            "Download currently unsupported due to memory issues server-side.",
+            color="info",
+        )
+        return  # dfp.to_csv(index=False)
 
-    return sl.FileDownload(
-        get_data,
-        filename="ipl3_filtered.csv",
-        label="Download",
+    main = sl.Button(
+        label="",
+        icon_name="mdi-download",
+        icon=True,
+        text=True,
+        on_click=get_data,
+        # NOTE: temporary disable because the interface is poor
     )
+
+    return main
 
 
 @sl.component()
