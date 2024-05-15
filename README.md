@@ -1,6 +1,6 @@
 # Explorer
 
-The SDSS Explorer, vaex dashboard, or visboard (or whatever we should call it we have not decided a name) is a custom data visualization application developed for SDSS-V's DR19, built using `solara`, `plotly` and `vaex`.
+The SDSS Parameter Explorer is a custom data visualization application developed for SDSS-V's DR19, built using `solara`, `plotly` and `vaex`. It is designed to specifically interface with custom SDSS summary parquet files, providing filtered access, statistics, and visualization to the Astra parameters of `sdss5db`.
 
 ## Installation
 
