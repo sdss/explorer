@@ -19,10 +19,13 @@ def Page():
 
     # PAGE TITLE
     # TODO: make this adaptive in some cool way
-    sl.Title("(NOTPUBLIC) SDSS Visboard")
+    sl.Title("SDSS Visboard")
     with sl.AppBar():
+        # TODO - post collab meeting
+        # TODO - add query parameter option for the data release
+        # TODO - update the title with release from query parameter
         # main title object
-        sl.AppBarTitle(children=[rv.Icon(children=["mdi-orbit"]), " SDSS"])
+        sl.AppBarTitle(children=["IPL-3 Parameter Explorer"])
 
     # SIDEBAR
     sidebar()
@@ -34,9 +37,11 @@ def Page():
 
 @sl.component
 def Layout(children):
-    # route, routes = sl.use_route()
+    # force remove the navigation tabs from solara app layout
+    route, routes = sl.use_route()
 
-    return sl.AppLayout(sidebar_open=False, children=children, color="purple")
+    # use vuetify material design color grey-darken-3 ; can pick new color later
+    return sl.AppLayout(sidebar_open=True, children=children, color="#424242")
 
 
 if __name__ == "__main__":
