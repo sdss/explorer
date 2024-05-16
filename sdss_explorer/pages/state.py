@@ -25,11 +25,7 @@ class State:
     """Holds app-wide state variables"""
 
     mapping = sl.reactive(vx.open(f"{load_datapath()}/mappings.parquet"))
-    subset_inits = sl.reactive([{
-        "expression": "teff < 15e3",
-        "mapper": ["mwm"]
-    }])  # List[dict[str,Any]
-    subset_names = sl.reactive(["A"], )  # List[str]
+    subsets = sl.reactive(["A"], )  # List[str]
     # initializing app with a simple default to demonstrate functionality
     token = sl.reactive(None)
 
@@ -63,30 +59,6 @@ class State:
         df = df.materialize()
 
         return df
-
-    @staticmethod
-    def create_ss_remover(name):
-        """Generates a remover for subset of name given.
-
-        name: str :: subset name
-        """
-
-        def remover():
-            """
-            q: index of subset in list; variate
-            """
-            for n, obj in enumerate(State.subset_names.value):
-                if obj == name:
-                    q = n
-                    break
-
-            # cut subsets (names and inits)
-            State.subset_names.value = (State.subset_names.value[:q] +
-                                        State.subset_names.value[q + 1:])
-            State.subset_inits.value = (State.subset_inits.value[:q] +
-                                        State.subset_inits.value[q + 1:])
-
-        return remover
 
     df = sl.reactive(load_dataset("ipl3_partial"))
 

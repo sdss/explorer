@@ -26,7 +26,7 @@ class SubsetStore:
         data_subset_filters = self.filters.setdefault(subset_key, {})
         data_subset_filters[key] = filter
 
-    def use(self, subset_key, key, eq=None):
+    def use(self, subset_key, key, write_only: bool, eq=None):
         # we use this state to trigger update, we could do without
 
         data_subset_filters = self.filters.setdefault(subset_key, {})
@@ -68,10 +68,14 @@ class SubsetStore:
             for listener in self.listeners.setdefault(subset_key, []):
                 listener()
 
-        otherfilters = [
-            filter for key_other, filter in data_subset_filters.items()
-            if key != key_other and filter is not None
-        ]
+        # only return the other filters if required.
+        if not write_only:
+            otherfilters = [
+                filter for key_other, filter in data_subset_filters.items()
+                if key != key_other and filter is not None
+            ]
+        else:
+            otherfilters = None
         return filter, otherfilters, setter
 
 
@@ -82,6 +86,7 @@ def use_subset(
     data_key,
     subset_key: Union[solara.Reactive[str], str] = "A",
     name: str = "no-name",
+    write_only: bool = False,
     reducer: Callable[[T, T], T] = operator.and_,
     eq=solara.util.numpy_equals,
 ):
@@ -108,11 +113,14 @@ def use_subset(
     key = use_unique_key(prefix=f"ss-{name}-")
     subset_store = solara.use_context(subset_context)
     _own_filter, otherfilters, set_filter = subset_store.use(
-        subset_reactive.value, key, eq=eq)
-    if otherfilters:
-        cross_filter = reduce(reducer, otherfilters[1:], otherfilters[0])
+        subset_reactive.value, key, write_only=write_only, eq=eq)
+    if write_only:
+        cross_filter = None  # never update
     else:
-        cross_filter = None
+        if otherfilters:
+            cross_filter = reduce(reducer, otherfilters[1:], otherfilters[0])
+        else:
+            cross_filter = None
     return cross_filter, set_filter
 
 

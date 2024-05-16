@@ -13,7 +13,8 @@ from solara.hooks.misc import use_force_update
 
 from .state import State, VCData, Alert
 from .dialog import Dialog
-from .subsets import use_subset, remove_subset
+from .subsets import use_subset
+from .subset_options import ExprEditor, CartonMapperPanel
 
 operator_map = {"AND": operator.and_, "OR": operator.or_, "XOR": operator.xor}
 
@@ -22,71 +23,35 @@ updater_context = sl.create_context(print)  # dummy context for forcing updates
 
 @vx.register_function()
 def check_flags(flags, vals):
+    """Converts flags & values to boolean vaex expression for use as a filter."""
     return np.any(np.logical_and(flags, vals), axis=1)
 
 
 @sl.component()
-def SubsetMenu():
-    """Control and display subset cards"""
-    add = sl.use_reactive(False)
-    name, set_name = sl.use_state("")
-    updater = use_force_update()
-    updater_context.provide(updater)  # provide updater to context
-
-    def add_subset():
-        if name not in State.subset_names.value:
-            State.subset_names.value.append(name)
-            State.subset_inits.value.append({})
-            add.set(False)
-            close()
-        else:
-            Alert.update("Subset with name already exists!", color="error")
-        return
-
-    def close():
-        """Dialog close handler, resetting state vars"""
-        add.set(False)
-        set_name("")
-        return
-
-    with sl.Column(gap="0px") as main:
-        with rv.Card(class_="justify-center",
-                     style_="width: 100%; height: 100%"):
-            rv.CardTitle(
-                class_="justify-center",
-                children=["Subsets"],
-            )
-            with rv.CardText():
-                sl.Button(label="Add new subset",
-                          on_click=lambda: add.set(True),
-                          block=True)
-        with rv.ExpansionPanels(popout=True):
-            for i, subset_name in enumerate(State.subset_names.value):
-                SubsetCard(
-                    subset_name,
-                    State.create_ss_remover(subset_name),
-                    **State.subset_inits.value[i],
-                )
-        with Dialog(
-                add,
-                title="Enter a name for the new subset",
-                close_on_ok=False,
-                on_ok=add_subset,
-        ):
-            sl.InputText(
-                label="Subset name",
-                value=name,
-                on_value=set_name,
-            )
-
-    return main
-
-
-@sl.component()
-def SubsetCard(name: str, deleter: Callable, **kwargs):
+def SubsetCard(name: str, **kwargs):
     """Holds filter update info, card structure, and calls to options"""
     df = State.df.value
     filter, _set_filter = use_subset(id(df), name, "subset-summary")
+    updater = sl.use_context(updater_context)
+
+    def remove(subset_name):
+        """
+        q: index of subset in list; variate
+        """
+        for n, obj in enumerate(State.subsets.value):
+            if obj == subset_name:
+                q = n
+                break
+
+        # cut subsets names list
+        State.subsets.value = State.subsets.value[:q] + State.subsets.value[q +
+                                                                            1:]
+        SubsetState.subset_cards.value = (
+            SubsetState.subset_cards.value[:q] +
+            SubsetState.subset_cards.value[q + 1:])
+
+        # force update
+        updater()
 
     # progress bar logic
     if filter:
@@ -118,26 +83,98 @@ def SubsetCard(name: str, deleter: Callable, **kwargs):
         with rv.ExpansionPanelContent():
             # filter bar
             sl.ProgressLinear(value=progress, color="blue")
-            SubsetOptions(name, deleter, **kwargs)
+            SubsetOptions(name, lambda: remove(name), **kwargs)
+    return main
+
+
+class SubsetState:
+    subset_cards = sl.reactive([
+        SubsetCard(
+            "A",
+            **{
+                "expression": "teff < 15e3",
+                "mapper": ["mwm"]
+            },
+        )
+    ])
+
+
+@sl.component()
+def SubsetMenu():
+    """Control and display subset cards"""
+    print(SubsetState.subset_cards.value)
+    add = sl.use_reactive(False)
+    name, set_name = sl.use_state("")
+    # NOTE: initialization here must be synchronized with State.subsets
+    updater = use_force_update()
+    updater_context.provide(updater)  # provide updater to context
+
+    def add_subset():
+        if name not in State.subsets.value and len(name) > 0:
+            SubsetState.subset_cards.value.append(SubsetCard(name))
+            State.subsets.value.append(name)
+            add.set(False)
+            close()
+        elif name == "":
+            Alert.update("Please enter a name for the subset.",
+                         color="warning")
+        else:
+            Alert.update("Subset with name already exists!", color="error")
+        return
+
+    def close():
+        """Dialog close handler, resetting state vars"""
+        add.set(False)
+        set_name("")
+        return
+
+    with sl.Column(gap="0px") as main:
+        with rv.Card(class_="justify-center",
+                     style_="width: 100%; height: 100%"):
+            rv.CardTitle(
+                class_="justify-center",
+                children=["Subsets"],
+            )
+            with rv.CardText():
+                with sl.Tooltip("Create filtered subsets of the dataset"):
+                    sl.Button(
+                        label="Add new subset",
+                        on_click=lambda: add.set(True),
+                        block=True,
+                    )
+        with rv.ExpansionPanels(popout=True):
+            for card in SubsetState.subset_cards.value:
+                sl.display(card)
+        with Dialog(
+                add,
+                title="Enter a name for the new subset",
+                close_on_ok=False,
+                on_ok=add_subset,
+        ):
+            sl.InputText(
+                label="Subset name",
+                value=name,
+                on_value=set_name,
+            )
+
     return main
 
 
 @sl.component()
 def SubsetOptions(name: str, deleter: Callable, **kwargs):
     """
-    Contains all subset configuration, including expression,
-    cartonmapper, clone and delete.
+    Contains all subset configuration threads and state variables,
+    including expression, cartonmapper, clone and delete.
 
-    Grouped to single namespace to minimize subset listeners.
-
-    TODO DOCS
+    Grouped to single namespace to add clone functionality.
 
     state variables
-    :filter: cross-filters from plot views corresponding to subset
     :invert: whether filter is inverted
     :delete: deletion confirmation v-slot reactive
+
     :expression: expression for expression editor
     :error: expression editor error message
+
     :carton: list of selected cartons
     :mapper: list of selected mappers
     :dataset: list of selected datasets
@@ -147,7 +184,6 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
     """
     df = State.df.value
     mapping = State.mapping.value
-    filter, set_filter = use_subset(id(df), name, "subsetcard")
     updater = sl.use_context(updater_context)  # fetch update forcer
 
     # card settings
@@ -156,8 +192,14 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
     open, set_open = sl.use_state(False)
 
     # sub-filters
-    expfilter, set_expfilter = sl.use_state(cast(vx.Expression, None))
-    cmfilter, set_cmfilter = sl.use_state(cast(vx.Expression, None))
+    _expfilter, set_expfilter = use_subset(id(df),
+                                           name,
+                                           "expr",
+                                           write_only=True)
+    _cmfilter, set_cmfilter = use_subset(id(df),
+                                         name,
+                                         "cartonmapper",
+                                         write_only=True)
 
     # state for expreditor
     expression, set_expression = sl.use_state(
@@ -172,32 +214,19 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
         "AND"  # NOTE: remains for functionality as potential state var (in future)
     )
 
-    # main filter update thread
-    def update_filter():
-        """Combines filters and updates main out-going filter, and creates self-reduction"""
-        combined_filter = [expfilter, cmfilter]
-        combined_filter = [
-            elem for elem in combined_filter if elem is not None
-        ]
-
-        if len(combined_filter) > 0:
-            combined_filter = reduce(operator.and_, combined_filter[1:],
-                                     combined_filter[0])
-            set_filter(combined_filter)
-        else:
-            set_filter(None)
-
-    sl.use_thread(update_filter, dependencies=[expfilter, cmfilter])
-
     def clone_subset():
         """Self cloner function"""
-        State.subset_names.value.append("Copy of " + name)
-        State.subset_inits.value.append({
-            "mapper": mapper,
-            "carton": carton,
-            "dataset": dataset,
-            "expression": expression,
-        })
+        SubsetState.subset_cards.value.append(
+            SubsetCard(
+                "Copy of " + name,
+                **{
+                    "mapper": mapper,
+                    "carton": carton,
+                    "dataset": dataset,
+                    "expression": expression,
+                },
+            ))
+        State.subsets.value.append("Copy of " + name)
         updater()
         return
 
@@ -381,80 +410,12 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
 
     # User facing
     with sl.Column() as main:
-        # expression editor
-        with sl.Column(gap="0px"):
-            sl.InputText(
-                label="Enter an expression",
-                value=expression,
-                on_value=set_expression,
-            )
-            if result.state == sl.ResultState.FINISHED:
-                if result.value:
-                    sl.Success(
-                        label="Valid expression entered.",
-                        icon=True,
-                        dense=True,
-                        outlined=False,
-                    )
-                elif result.value is None:
-                    sl.Info(
-                        label="No expression entered. Filter unset.",
-                        icon=True,
-                        dense=True,
-                        outlined=False,
-                    )
-                else:
-                    sl.Error(
-                        label=f"Invalid expression entered: {error}",
-                        icon=True,
-                        dense=True,
-                        outlined=False,
-                    )
-
-            elif result.state == sl.ResultState.ERROR:
-                sl.Error(f"Error occurred: {result.error}")
-            else:
-                sl.Info("Evaluating expression...")
-                rv.ProgressLinear(indeterminate=True)
-
+        ExprEditor(expression, set_expression, error, result)
         # complex option panels
         with rv.ExpansionPanels():
             # PANEL1: carton mapper
-            with rv.ExpansionPanel():
-                rv.ExpansionPanelHeader(children=["Carton/Mapper/Dataset"])
-                with rv.ExpansionPanelContent():
-                    with sl.Column(gap="2px"):
-                        with sl.Columns([1, 1]):
-                            sl.SelectMultiple(
-                                label="Mapper",
-                                values=mapper,
-                                on_value=set_mapper,
-                                dense=True,
-                                all_values=State.mapping.value["mapper"].
-                                unique(),
-                                classes=['variant="solo"'],
-                            )
-                            sl.SelectMultiple(
-                                label="Dataset",
-                                values=dataset,
-                                on_value=set_dataset,
-                                dense=True,
-                                # TODO: fetch via valis or via df itself
-                                all_values=[
-                                    "apogeenet", "thecannon", "aspcap"
-                                ],
-                                classes=['variant="solo"'],
-                            )
-                        sl.SelectMultiple(
-                            label="Carton",
-                            values=carton,
-                            on_value=set_carton,
-                            dense=True,
-                            all_values=State.mapping.value["alt_name"].unique(
-                            ),
-                            classes=['variant="solo"'],
-                        )
-
+            CartonMapperPanel(mapper, set_mapper, carton, set_carton, dataset,
+                              set_dataset)
         # delete & clone buttons
         with rv.Row(style_="width: 100%; height: 100%"):
             # quick filter menu
@@ -464,24 +425,26 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
             DownloadMenu()
 
             # clone button
-            sl.Button(
-                label="",
-                icon_name="mdi-content-duplicate",
-                icon=True,
-                text=True,
-                on_click=lambda: clone_subset(),
-            )
+            with sl.Tooltip("Clone this subset"):
+                sl.Button(
+                    label="",
+                    icon_name="mdi-content-duplicate",
+                    icon=True,
+                    text=True,
+                    on_click=lambda: clone_subset(),
+                )
 
             # delete button
-            sl.Button(
-                label="",
-                icon_name="mdi-delete-outline",
-                icon=True,
-                text=True,
-                disabled=True if len(State.subset_names.value) == 1 else False,
-                color="red",
-                on_click=lambda: delete.set(True),
-            )
+            with sl.Tooltip("Delete this subset"):
+                sl.Button(
+                    label="",
+                    icon_name="mdi-delete-outline",
+                    icon=True,
+                    text=True,
+                    disabled=True if len(State.subsets.value) == 1 else False,
+                    color="red",
+                    on_click=lambda: delete.set(True),
+                )
 
         # confirmation dialog for deletion
         ConfirmationDialog(
@@ -508,19 +471,20 @@ def DownloadMenu():
         # dropping the entire DB file into memory...
         # dfp = dff.to_pandas_df()
         Alert.update(
-            "Download currently unsupported due to memory issues server-side.",
+            "Download currently unsupported due to memory issues server-side. Coming soon!",
             color="info",
         )
         return  # dfp.to_csv(index=False)
 
-    main = sl.Button(
-        label="",
-        icon_name="mdi-download",
-        icon=True,
-        text=True,
-        on_click=get_data,
-        # NOTE: temporary disable because the interface is poor
-    )
+    with sl.Tooltip("Download subset as csv") as main:
+        sl.Button(
+            label="",
+            icon_name="mdi-download",
+            icon=True,
+            text=True,
+            on_click=get_data,
+            # NOTE: temporary disable because the interface is poor
+        )
 
     return main
 
@@ -696,10 +660,12 @@ def VirtualColumnsPanel():
         rv.ExpansionPanelHeader(children=["Virtual calculations"])
         with rv.ExpansionPanelContent():
             VirtualColumnList()
-            btn = sl.Button(label="Add virtual column",
-                            block=True,
-                            on_click=lambda: set_open(True))
-            sl.Button
+            with sl.Tooltip("Create custom columns based on the dataset"):
+                sl.Button(
+                    label="Add virtual column",
+                    block=True,
+                    on_click=lambda: set_open(True),
+                )
 
         with Dialog(
                 open,

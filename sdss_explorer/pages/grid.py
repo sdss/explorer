@@ -77,6 +77,8 @@ def ViewCard(type, i):
 
 @sl.component
 def ObjectGrid():
+    print(GridState.objects.value)
+    print(GridState.grid_layout.value)
 
     def reset_layout():
         GridState.index = 0
@@ -135,7 +137,7 @@ def ObjectGrid():
                             label="delta2d",
                             on_click=lambda: add_view("delta2d"),
                             disabled=True
-                            if len(State.subset_names.value) <= 1 else False,
+                            if len(State.subsets.value) <= 1 else False,
                         ),
                     ]
             rv.Spacer()
