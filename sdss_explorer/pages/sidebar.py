@@ -100,9 +100,14 @@ class SubsetState:
 
 
 @sl.component()
+def Glossary():
+    """Lists all useable columns and their information"""
+    pass
+
+
+@sl.component()
 def SubsetMenu():
     """Control and display subset cards"""
-    print(SubsetState.subset_cards.value)
     add = sl.use_reactive(False)
     name, set_name = sl.use_state("")
     # NOTE: initialization here must be synchronized with State.subsets
@@ -239,7 +244,6 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
         print("EXPR: start")
         columns = State.columns.value
         try:
-            print(expression)
             start = timer()
             if expression is None or expression == "":
                 set_expfilter(None)
@@ -550,7 +554,6 @@ def QuickFilterMenu(name):
 @sl.component()
 def PivotTablePanel():
     df = State.df.value
-    print(type(df))
     with rv.ExpansionPanel() as main:
         with rv.ExpansionPanelHeader():
             rv.Icon(children=["mdi-table-plus"])
@@ -568,7 +571,6 @@ def PivotTablePanel():
 def VirtualColumnList():
     """Renders list of created virtual columns with delete buttons"""
     # NOTE: this should be efficient, but it could also just not be
-    print(VCData.columns.value)
     with sl.Column(gap="0px"):
         for name, expression in VCData.columns.value:
             with rv.Card():
@@ -636,12 +638,10 @@ def VirtualColumnsPanel():
     def update_columns():
         """Thread to update master column list on VCData update"""
         df = State.df.value
-        print("current VCD:", VCData.columns.value)
         columns = df.get_column_names(virtual=False)
         virtuals = list()
         for name, _expr in VCData.columns.value:
             virtuals.append(name)
-        print("current virtuals:", virtuals)
         State.columns.value = virtuals + columns
 
     sl.use_thread(

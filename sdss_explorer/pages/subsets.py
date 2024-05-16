@@ -59,11 +59,18 @@ class SubsetStore:
 
             return cleanup
 
-        solara.use_effect(connect, [subset_key, key])
+        if not write_only:
+            # NOTE: conditional hook
+            solara.use_effect(connect, [subset_key, key])
 
         def setter(filter):
             data_subset_filters[key] = filter
-            print(len(self.listeners.setdefault(subset_key, [])))
+            print(
+                "N listeners for",
+                subset_key,
+                "is",
+                len(self.listeners.setdefault(subset_key, [])),
+            )
             print(self.listeners.setdefault(subset_key, []))
             for listener in self.listeners.setdefault(subset_key, []):
                 listener()

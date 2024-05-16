@@ -321,7 +321,8 @@ def scatter(plotstate):
             def on_click(trace, points, selector):
                 # right click
                 if selector.button == 2:
-                    print(trace.customdata[points.point_inds[0]])
+                    pass
+                    # print(trace.customdata[points.point_inds[0]])
                 elif selector.button == 0 and selector.shift:
                     # NOTE: binding is <Shift+LMB>
                     zora_url = "http://localhost:8080"  # TODO: get zora url from ENVVAR
@@ -723,7 +724,6 @@ def histogram(plotstate):
 
     def on_select(data):
         if len(data["points"]["xs"]) > 0:
-            print(data["points"]["xs"])
             filters = list()
             uniques = np.unique(data["points"]["xs"])
             binsize = uniques[1] - uniques[0]
@@ -976,7 +976,6 @@ def aggregated(plotstate):
             # update data information
             z, cmin, cmax = perform_binning()
             if z is None:
-                print("z none")
                 # TODO: in binning func return snackbar error based on check failure
                 return
 
@@ -1312,8 +1311,8 @@ def skyplot(plotstate):
 
     fig_el = sl.FigurePlotly(
         figure,
-        on_selection=on_select,
-        on_deselect=on_deselect,
+        # on_selection=on_select,
+        # on_deselect=on_deselect,
         on_relayout=on_relayout,
         dependencies=[],
     )
@@ -1588,7 +1587,6 @@ def delta2d(plotstate):
             # update data information
             z, cmin, cmax = perform_binning()
             if z is None:
-                print("z none")
                 # TODO: in binning func return snackbar error based on check failure
                 return
 

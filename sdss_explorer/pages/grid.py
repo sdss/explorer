@@ -45,6 +45,9 @@ class GridState:
     index = 0
 
 
+index_context = sl.create_context(0)
+
+
 @sl.component
 def ViewCard(type, i):
 
@@ -68,6 +71,8 @@ def ViewCard(type, i):
         GridState.objects.value[i] = rv.Card()
 
     if type != "stats":
+        index_context.provide(
+            i)  # for use in accessing height data for dynamic resize
         show_plot(type, lambda: remove(i))
     else:
         DescribeDF(lambda: remove(i))

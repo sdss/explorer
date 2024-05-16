@@ -281,8 +281,6 @@ def DescribeDF(del_func):
                         name="Remove column",
                         on_click=remove_column),
     ]
-    print(result.finished)
-    print(result.value)
 
     with rv.Card(class_="grey darken-3",
                  style_="width: 100%; height: 100%") as main:
