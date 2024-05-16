@@ -16,15 +16,15 @@ def load_datapath():
     if datapath:
         return datapath
     else:
-        raise ValueError(
-            "Path not defined. Please run: export EXPLORER_DATAPATH=path_to_files"
-        )
+        return None
 
 
 class State:
     """Holds app-wide state variables"""
 
-    mapping = sl.reactive(vx.open(f"{load_datapath()}/mappings.parquet"))
+    mapping = sl.reactive(
+        vx.open(f"{load_datapath()}/mappings.parquet") if load_datapath(
+        ) is not None else None)
     subsets = sl.reactive(["A"], )  # List[str]
     # initializing app with a simple default to demonstrate functionality
     token = sl.reactive(None)
@@ -38,6 +38,8 @@ class State:
     def load_dataset(dataset):
         # get dataset name
         datapath = load_datapath()
+        if datapath is None:
+            return None  # for when envvar is not set
         # TODO: verify auth status when attempting to load a working group dataset
 
         df = vx.open(f"{datapath}/{dataset}.parquet")
@@ -62,7 +64,8 @@ class State:
 
     df = sl.reactive(load_dataset("ipl3_partial"))
 
-    columns = sl.reactive(df.value.get_column_names())
+    columns = sl.reactive(
+        df.value.get_column_names() if load_datapath() is not None else None)
 
     class Lookup:
         views = ["histogram", "histogram2d", "scatter", "skyplot"]

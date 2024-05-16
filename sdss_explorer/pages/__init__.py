@@ -5,6 +5,7 @@ import reacton.ipyvuetify as rv
 import vaex as vx
 
 from .state import State, AlertSystem
+from .dataframe import NoDF
 from .sidebar import sidebar
 from .grid import ObjectGrid
 
@@ -19,7 +20,7 @@ def Page():
 
     # PAGE TITLE
     # TODO: make this adaptive in some cool way
-    sl.Title("SDSS Visboard")
+    sl.Title("SDSS Parameter Explorer")
     with sl.AppBar():
         # TODO - post collab meeting
         # TODO - add query parameter option for the data release
@@ -27,10 +28,13 @@ def Page():
         # main title object
         sl.AppBarTitle(children=["IPL-3 Parameter Explorer"])
 
-    # SIDEBAR
-    sidebar()
-    # MAIN GRID
-    ObjectGrid()
+    if df is not None:
+        # SIDEBAR
+        sidebar()
+        # MAIN GRID
+        ObjectGrid()
+    else:
+        NoDF()
     # snackbar
     AlertSystem()
 

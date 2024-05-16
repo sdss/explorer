@@ -294,7 +294,7 @@ def DescribeDF(del_func):
                         column_actions=column_actions,
                     )
                 else:
-                    NoDF()
+                    sl.Info("Loading...")
                 btn = sl.Button(
                     icon_name="mdi-settings",
                     outlined=False,
@@ -328,6 +328,7 @@ def DescribeDF(del_func):
 def NoDF() -> None:
     with sl.Columns([1]):
         sl.Info(
-            label="No dataset loaded.",
+            label=
+            "No dataset loaded. Please inform server admins to set EXPLORER_DATAPATH envvar.",
             icon=True,
         )
