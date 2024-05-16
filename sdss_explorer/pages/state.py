@@ -16,9 +16,10 @@ def load_datapath():
     if datapath:
         return datapath
     else:
-        raise ValueError(
+        Alert.update(
             "Path not defined. Please run: export EXPLORER_DATAPATH=path_to_files"
         )
+        return None
 
 
 class State:
@@ -38,6 +39,8 @@ class State:
     def load_dataset(dataset):
         # get dataset name
         datapath = load_datapath()
+        if datapath is None:
+            return None  # for when envvar is not set
         # TODO: verify auth status when attempting to load a working group dataset
 
         df = vx.open(f"{datapath}/{dataset}.parquet")
