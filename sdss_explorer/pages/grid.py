@@ -8,9 +8,9 @@ import reacton as r
 import ipyvuetify as v
 import ipywidgets as widgets
 
-from .plots import show_plot
-from .dataframe import show_table, DescribeDF
-from .state import State
+from .plots import show_plot, index_context
+from .dataframe import DescribeDF
+from .state import State, GridState
 
 
 class GridLayout(v.VuetifyTemplate):
@@ -33,19 +33,6 @@ class GridLayout(v.VuetifyTemplate):
 
 
 GridDraggableToolbar = r.core.ComponentWidget(GridLayout)
-
-
-class GridState:
-    """
-    Class holding current state of grid.
-    """
-
-    objects = sl.reactive([])
-    grid_layout = sl.reactive([])
-    index = 0
-
-
-index_context = sl.create_context(0)
 
 
 @sl.component
@@ -94,29 +81,54 @@ def ObjectGrid():
         GridState.grid_layout.value = data
 
     def add_view(type):
+        # TODO: better height logic
         if len(GridState.grid_layout.value) == 0:
-            prev = {"x": 0, "y": -12, "h": 12, "moved": False}
+            prev = {"x": 0, "y": -12, "h": 12, "w": 12, "moved": False}
         else:
             prev = GridState.grid_layout.value[-1]
-        # set height based on type
         if type == "stats":
-            height = 8
+            height = 7
         else:
-            height = 12
+            height = 10
+
+        # horizontal or vertical offset depending on width
+        if 12 - prev["w"] - prev["x"] >= 6:
+            # beside
+            x = prev["x"] + 6
+            y = prev["y"]
+        else:
+            # the row below
+            x = 0
+            y = prev["y"] + prev["h"] + 43
         i = GridState.index
         GridState.grid_layout.value.append({
-            "x": prev["x"],
-            "y": prev["y"] + prev["h"] + 4,
-            "w": 8,
+            "x": x,
+            "y": y,
+            "w": 6,
             "h": height,
             "i": i,
-            "maxH": height,
-            "minH": height,
             "moved": False,
         })
         GridState.index += 1
 
         GridState.objects.value = GridState.objects.value + [ViewCard(type, i)]
+
+    # WARNING: this is a janky workaround to a solara bug where
+    # this will likely have to be changed in future.
+    # BUG: it appears to incorrectly NOT reset the grid_layout reactive between different user instances/dev reset
+    # don't know what's happening, but it appears to run some threads
+    # below fix via thread solves it
+    def monitor_grid():
+        if len(GridState.objects.value) != len(GridState.grid_layout.value):
+            while len(GridState.grid_layout.value) > len(
+                    GridState.objects.value):
+                GridState.grid_layout.value.pop(-1)
+            GridState.index = len(GridState.objects.value)
+
+    sl.use_thread(
+        monitor_grid,
+        dependencies=[GridState.grid_layout.value, GridState.objects.value],
+    )
 
     with sl.Column(style={"width": "100%"}) as main:
         with sl.Row():

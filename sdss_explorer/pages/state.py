@@ -105,6 +105,16 @@ class Alert:
         Alert.open.set(True)
 
 
+class GridState:
+    """
+    Class holding current state of grid layout.
+    """
+
+    objects = sl.reactive([])
+    grid_layout = sl.reactive([])
+    index = 0
+
+
 def AlertSystem():
     """Global alert system"""
     with rv.Snackbar(

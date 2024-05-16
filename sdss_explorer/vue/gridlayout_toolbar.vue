@@ -3,8 +3,7 @@
     <div v-if="gridlayout_loaded" style="padding: 0px; width: 100%;">
        <grid-layout
             :layout.sync="grid_layout"
-            :col-num="12"
-            :row-height="30"
+            :row-height="36"
             :is-draggable="draggable"
             :is-resizable="resizable"
             :responsive="true"
@@ -19,10 +18,9 @@
                    :y="item.y"
                    :w="item.w"
                    :h="item.h"
-                   :minH="item.maxH"
-                   :maxH="item.minH"
                    :i="item.i"
                    :key="item.i"
+                   :minH="7"
                    @resized="resizedEvent"
                    drag-ignore-from=".no-drag"
                    drag-allow-from=".v-toolbar"

@@ -20,9 +20,13 @@ from solara.lab import Menu, use_task, task
 # NOTE: solara is locked to 1.27.0 due to FastAPI theming issues
 # from solara.lab import use_dark_effective
 
-from .state import State, Alert
+from .state import State, Alert, GridState
 from .util import check_catagorical
 from .subsets import use_subset
+
+# index context for grid
+# NOTE: must be initialized here to avoid circular imports
+index_context = sl.create_context(0)
 
 # TEMPLATES AND STATE
 DARK_TEMPLATE = dict(layout=go.Layout(
@@ -516,6 +520,18 @@ def histogram(plotstate):
     xcol = plotstate.x.value
     nbins = plotstate.nbins.value
     filter, set_filter = use_subset(id(df), plotstate.subset, "histogram")
+    i = sl.use_context(index_context)
+    layout, set_layout = sl.use_state(GridState.grid_layout.value[0])
+
+    def update_grid():
+        # fetch from gridstate
+        for spec in GridState.grid_layout.value:
+            if spec["i"] == i:
+                set_layout(spec)
+                break
+
+    sl.use_thread(update_grid, dependencies=[GridState.grid_layout.value])
+
     # dark = use_dark_effective()
 
     dff = df
@@ -702,6 +718,11 @@ def histogram(plotstate):
                 yaxis_title=f"{plotstate.bintype.value}({xcol})",
             )
 
+        def update_layout():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            fig_widget.update_layout(height=layout["h"] * 45 - 90)
+            fig_widget.update_layout(width=layout["w"] * 120)
+
         # def update_theme():
         #    fig_widget: FigureWidget = sl.get_widget(fig_element)
         #    fig_widget.update_layout(
@@ -716,6 +737,7 @@ def histogram(plotstate):
                 plotstate.bintype.value,
             ],
         )
+        sl.use_effect(update_layout, dependencies=[layout])
         # sl.use_effect(update_theme, dependencies=[dark])
         sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
         sl.use_effect(set_yflip, dependencies=[plotstate.flipy.value])
