@@ -9,7 +9,7 @@ import ipyvuetify as v
 import ipywidgets as widgets
 
 from .plots import show_plot, index_context
-from .dataframe import DescribeDF
+from .dataframe import StatisticsTable
 from .state import State, GridState
 
 
@@ -62,7 +62,7 @@ def ViewCard(type, i):
             i)  # for use in accessing height data for dynamic resize
         show_plot(type, lambda: remove(i))
     else:
-        DescribeDF(lambda: remove(i))
+        StatisticsTable(lambda: remove(i))
 
     return
 
@@ -119,6 +119,10 @@ def ObjectGrid():
     # don't know what's happening, but it appears to run some threads
     # below fix via thread solves it
     def monitor_grid():
+        """Check to ensure length of layout spec is not larger than the number of objects.
+
+        Solves a solara bug where global reactives do not appear to reset."""
+
         if len(GridState.objects.value) != len(GridState.grid_layout.value):
             while len(GridState.grid_layout.value) > len(
                     GridState.objects.value):
@@ -143,7 +147,7 @@ def ObjectGrid():
                         sl.Button(label="histogram",
                                   on_click=lambda: add_view("histogram")),
                         sl.Button(label="heatmap",
-                                  on_click=lambda: add_view("aggregated")),
+                                  on_click=lambda: add_view("heatmap")),
                         sl.Button(label="stats",
                                   on_click=lambda: add_view("stats")),
                         sl.Button(label="scatter",

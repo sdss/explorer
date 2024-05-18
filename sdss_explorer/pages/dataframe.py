@@ -29,7 +29,8 @@ def Loading() -> None:
 
 
 @sl.component
-def show_table(del_func):
+def TableView(del_func: Callable):
+    """Shows the table view, loading lazily via solara components."""
     df = State.df.value
     filter, set_filter = sl.use_cross_filter(id(df), name="filter-tableview")
     column, set_column = sl.use_state(cast(Optional[str], None))
@@ -238,7 +239,7 @@ def ModdedDataTable(
 
 
 @sl.component
-def DescribeDF(del_func):
+def StatisticsTable(del_func: Callable):
     """Statistics description view for the dataset."""
     df = State.df.value
     subset = sl.use_reactive(State.subsets.value[-1])  # inits with last subset

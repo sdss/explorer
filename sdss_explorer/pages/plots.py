@@ -1,6 +1,6 @@
+"""All interactive plot elements, complete with widget effects and action callback threads."""
+
 import operator
-import time as t
-import asyncio
 from functools import reduce
 from typing import cast
 import webbrowser as wb
@@ -13,16 +13,12 @@ import solara as sl
 import vaex as vx
 import xarray
 from plotly.graph_objs._figurewidget import FigureWidget
-from solara.components.card import Card
-from solara.components.columns import Columns
-from solara.lab import Menu, use_task, task
-
-# NOTE: solara is locked to 1.27.0 due to FastAPI theming issues
-# from solara.lab import use_dark_effective
+from solara.lab import Menu
 
 from .state import State, Alert, GridState
 from .util import check_catagorical
 from .subsets import use_subset
+from .plot_settings import show_settings
 
 # index context for grid
 # NOTE: must be initialized here to avoid circular imports
@@ -85,9 +81,9 @@ class PlotState:
             self.colorlog = sl.use_reactive(cast(str, None))
 
         # statistics settings
-        if type == "aggregated" or type == "histogram" or "delta" in type:
+        if type == "heatmap" or type == "histogram" or "delta" in type:
             self.nbins = sl.use_reactive(200)
-            if type == "aggregated" or type == "delta2d":
+            if type == "heatmap" or type == "delta2d":
                 self.bintype = sl.use_reactive("mean")
                 self.binscale = sl.use_reactive(None)
             else:
@@ -200,15 +196,15 @@ def show_plot(type, del_func):
         with rv.CardText():
             with sl.Column(classes=["grey darken-3"]):
                 if type == "histogram":
-                    histogram(plotstate)
-                elif type == "aggregated":
-                    aggregated(plotstate)
+                    HistogramPlot(plotstate)
+                elif type == "heatmap":
+                    HeatmapPlot(plotstate)
                 elif type == "scatter":
-                    scatter(plotstate)
+                    ScatterPlot(plotstate)
                 elif type == "skyplot":
-                    skyplot(plotstate)
+                    SkymapPlot(plotstate)
                 elif type == "delta2d":
-                    delta2d(plotstate)
+                    DeltaHeatmapPlot(plotstate)
                 btn = sl.Button(icon_name="mdi-settings",
                                 outlined=False,
                                 classes=["grey darken-3"])
@@ -224,12 +220,24 @@ def show_plot(type, del_func):
 
 
 @sl.component
-def scatter(plotstate):
+def ScatterPlot(plotstate):
+    """Scattergl rendered scatter plot for single subset"""
     df: vx.DataFrame = State.df.value
     # dark = use_dark_effective()
     filter, set_filter = use_subset(id(df), plotstate.subset, "scatter")
     relayout, set_relayout = sl.use_state({})
     local_filter, set_local_filter = sl.use_state(None)
+    i = sl.use_context(index_context)
+    layout, set_layout = sl.use_state(GridState.grid_layout.value[0])
+
+    def update_grid():
+        # fetch from gridstate
+        for spec in GridState.grid_layout.value:
+            if spec["i"] == i:
+                set_layout(spec)
+                break
+
+    sl.use_thread(update_grid, dependencies=[GridState.grid_layout.value])
 
     def update_filter():
         xfilter = None
@@ -447,6 +455,13 @@ def scatter(plotstate):
                                " %{customdata:.d}"),
             )
 
+        def update_layout():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            fig_widget.update_layout(height=layout["h"] * 45 - 90)
+            fig_widget.update_layout(width=layout["w"] * 120)
+
+        sl.use_effect(update_layout, dependencies=[layout])
+
         # def update_theme():
         #    fig_widget: FigureWidget = sl.get_widget(fig_element)
         #    fig_widget.update_layout(
@@ -514,8 +529,8 @@ def scatter(plotstate):
 
 
 @sl.component
-def histogram(plotstate):
-    """histogram"""
+def HistogramPlot(plotstate):
+    """Histogram plot for single subset"""
     df: vx.DataFrame = State.df.value
     xcol = plotstate.x.value
     nbins = plotstate.nbins.value
@@ -723,6 +738,8 @@ def histogram(plotstate):
             fig_widget.update_layout(height=layout["h"] * 45 - 90)
             fig_widget.update_layout(width=layout["w"] * 120)
 
+        sl.use_effect(update_layout, dependencies=[layout])
+
         # def update_theme():
         #    fig_widget: FigureWidget = sl.get_widget(fig_element)
         #    fig_widget.update_layout(
@@ -737,7 +754,6 @@ def histogram(plotstate):
                 plotstate.bintype.value,
             ],
         )
-        sl.use_effect(update_layout, dependencies=[layout])
         # sl.use_effect(update_theme, dependencies=[dark])
         sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
         sl.use_effect(set_yflip, dependencies=[plotstate.flipy.value])
@@ -769,11 +785,23 @@ def histogram(plotstate):
 
 
 @sl.component
-def aggregated(plotstate):
+def HeatmapPlot(plotstate):
+    """2D Histogram plot (Heatmap) for single subset"""
     df = State.df.value
     filter, set_filter = use_subset(id(df), plotstate.subset,
                                     "filter-aggregated")
     # dark = use_dark_effective()
+    i = sl.use_context(index_context)
+    layout, set_layout = sl.use_state(GridState.grid_layout.value[0])
+
+    def update_grid():
+        # fetch from gridstate
+        for spec in GridState.grid_layout.value:
+            if spec["i"] == i:
+                set_layout(spec)
+                break
+
+    sl.use_thread(update_grid, dependencies=[GridState.grid_layout.value])
 
     dff = df
     if filter:
@@ -1033,6 +1061,13 @@ def aggregated(plotstate):
             fig_widget.update_coloraxes(
                 colorscale=plotstate.colorscale.value, )
 
+        def update_layout():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            fig_widget.update_layout(height=layout["h"] * 45 - 90)
+            fig_widget.update_layout(width=layout["w"] * 120)
+
+        sl.use_effect(update_layout, dependencies=[layout])
+
         # def update_theme():
         #    fig_widget: FigureWidget = sl.get_widget(fig_element)
         #    fig_widget.update_layout(
@@ -1067,12 +1102,24 @@ def aggregated(plotstate):
 
 
 @sl.component
-def skyplot(plotstate):
+def SkymapPlot(plotstate):
+    """Sky projection plot of stars for a single subset."""
     df = State.df.value
     filter, set_filter = use_subset(id(df), plotstate.subset, "filter-skyplot")
     # dark = use_dark_effective()
     relayout, set_relayout = sl.use_state({})
     local_filter, set_local_filter = sl.use_state(None)
+    i = sl.use_context(index_context)
+    layout, set_layout = sl.use_state(GridState.grid_layout.value[0])
+
+    def update_grid():
+        # fetch from gridstate
+        for spec in GridState.grid_layout.value:
+            if spec["i"] == i:
+                set_layout(spec)
+                break
+
+    sl.use_thread(update_grid, dependencies=[GridState.grid_layout.value])
 
     def update_filter():
         if plotstate.geo_coords.value == "celestial":
@@ -1277,6 +1324,12 @@ def skyplot(plotstate):
                 selector=dict(type="scattergeo", name=""),
             )
 
+        def update_layout():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            fig_widget.update_layout(height=layout["h"] * 45 - 90)
+            fig_widget.update_layout(width=layout["w"] * 120)
+
+        sl.use_effect(update_layout, dependencies=[layout])
         # def update_theme():
         #    fig_widget: FigureWidget = sl.get_widget(fig_element)
         #    fig_widget.update_layout(
@@ -1343,12 +1396,23 @@ def skyplot(plotstate):
 
 
 @sl.component
-def delta2d(plotstate):
+def DeltaHeatmapPlot(plotstate):
     """Heatmap on regular grid for Subset A - Subset B"""
     df = State.df.value
     filterA, set_filterA = use_subset(id(df), plotstate.subset, "delta2d")
     filterB, set_filterB = use_subset(id(df), plotstate.subset_b, "delta2d")
     # dark = use_dark_effective()
+    i = sl.use_context(index_context)
+    layout, set_layout = sl.use_state(GridState.grid_layout.value[0])
+
+    def update_grid():
+        # fetch from gridstate
+        for spec in GridState.grid_layout.value:
+            if spec["i"] == i:
+                set_layout(spec)
+                break
+
+    sl.use_thread(update_grid, dependencies=[GridState.grid_layout.value])
 
     if filterA:
         dfa = df[filterA]
@@ -1668,6 +1732,13 @@ def delta2d(plotstate):
                 plotstate.colorscale.value,
             ],
         )
+
+        def update_layout():
+            fig_widget: FigureWidget = sl.get_widget(fig_element)
+            fig_widget.update_layout(height=layout["h"] * 45 - 90)
+            fig_widget.update_layout(width=layout["w"] * 120)
+
+        sl.use_effect(update_layout, dependencies=[layout])
         # sl.use_effect(update_theme, dependencies=[dark])
         sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
         sl.use_effect(set_yflip, dependencies=[plotstate.flipy.value])
@@ -1676,331 +1747,3 @@ def delta2d(plotstate):
     add_effects(fig_el)
 
     return
-
-
-# PLOT SETTINGS
-
-
-def show_settings(type, state):
-    # plot controls
-    if type == "scatter":
-        return scatter_menu(state)
-    elif type == "histogram":
-        return histogram_menu(state)
-    elif type == "aggregated":
-        return aggregate_menu(state)
-    elif type == "skyplot":
-        return sky_menu(state)
-    elif type == "delta2d":
-        return delta2d_menu(state)
-
-
-@sl.component()
-def sky_menu(plotstate):
-    columns = State.columns.value
-    sl.use_thread(
-        plotstate.reset_values,
-        dependencies=[State.subsets.value, State.columns.value],
-    )
-    with sl.Columns([1, 1]):
-        with Card(margin=0):
-            sl.Select(
-                label="Subset",
-                values=State.subsets.value,
-                value=plotstate.subset,
-            )
-            with sl.Column():
-                sl.ToggleButtonsSingle(value=plotstate.geo_coords,
-                                       values=["celestial", "galactic"])
-                sl.Select(
-                    label="Projection",
-                    value=plotstate.projection,
-                    values=plotstate.Lookup["projections"],
-                )
-            with sl.Row():
-                sl.Select(
-                    label="Color",
-                    values=columns,
-                    value=plotstate.color,
-                )
-                sl.Select(
-                    label="Colorscale",
-                    values=plotstate.Lookup["colorscales"],
-                    value=plotstate.colorscale,
-                )
-                sl.Select(
-                    label="Color log",
-                    values=plotstate.Lookup["binscales"],
-                    value=plotstate.colorlog,
-                )
-        with Card(margin=0):
-            with Columns([1, 1]):
-                with sl.Column():
-                    sl.Switch(label="Flip x", value=plotstate.flipx)
-                with sl.Column():
-                    sl.Switch(label="Flip y", value=plotstate.flipy)
-
-
-@sl.component()
-def scatter_menu(plotstate):
-    columns = State.columns.value
-    sl.use_thread(
-        plotstate.reset_values,
-        dependencies=[State.subsets.value, State.columns.value],
-    )
-    with sl.Card():
-        sl.Select(
-            label="Subset",
-            values=State.subsets.value,
-            value=plotstate.subset,
-        )
-        with sl.Columns([1, 1]):
-            with sl.Column():
-                with Columns([8, 8, 2], gutters_dense=True):
-                    sl.Select(
-                        "Column x",
-                        values=[
-                            col for col in columns if col != plotstate.y.value
-                        ],
-                        value=plotstate.x,
-                    )
-                    sl.Select(
-                        "Column y",
-                        values=[
-                            col for col in columns if col != plotstate.x.value
-                        ],
-                        value=plotstate.y,
-                    )
-                    sl.Button(
-                        icon=True,
-                        icon_name="mdi-swap-horizontal",
-                        on_click=plotstate.swap_axes,
-                    )
-                with sl.Column():
-                    sl.Select(
-                        label="Color",
-                        values=columns,
-                        value=plotstate.color,
-                    )
-                    with sl.Row(gap="2px"):
-                        sl.Select(
-                            label="Colorscale",
-                            values=plotstate.Lookup["colorscales"],
-                            value=plotstate.colorscale,
-                        )
-                        sl.Select(
-                            label="Color log",
-                            values=plotstate.Lookup["binscales"],
-                            value=plotstate.colorlog,
-                        )
-            with Columns([1, 1]):
-                with sl.Column():
-                    sl.Switch(label="Flip x", value=plotstate.flipx)
-                    sl.Switch(label="Log x", value=plotstate.logx)
-                with sl.Column():
-                    sl.Switch(label="Flip y", value=plotstate.flipy)
-                    sl.Switch(label="Log y", value=plotstate.logy)
-
-
-@sl.component()
-def histogram_menu(plotstate):
-    columns = State.columns.value
-    sl.use_thread(
-        plotstate.reset_values,
-        dependencies=[State.subsets.value, State.columns.value],
-    )
-
-    sl.Select(
-        label="Subset",
-        values=State.subsets.value,
-        value=plotstate.subset,
-    )
-    with sl.Columns([1, 1]):
-        with Card(margin=0):
-            with sl.Column():
-                sl.Select(
-                    "Column",
-                    values=columns,
-                    value=plotstate.x,
-                )
-        with Card(margin=0):
-            sl.SliderInt(
-                label="Number of Bins",
-                value=plotstate.nbins,
-                step=10,
-                min=10,
-                max=1e3,
-            )
-            sl.Select(
-                label="Bintype",
-                values=plotstate.Lookup["bintypes"],
-                value=plotstate.bintype,
-            )
-    with Card(margin=0):
-        with sl.Columns([1, 1, 1], style={"align-items": "center"}):
-            sl.Switch(label="Log x", value=plotstate.logx)
-            sl.Switch(label="Flip x", value=plotstate.flipx)
-            sl.Switch(label="Log y", value=plotstate.logy)
-
-
-@sl.component()
-def aggregate_menu(plotstate):
-    columns = State.columns.value
-    sl.use_thread(
-        plotstate.reset_values,
-        dependencies=[State.subsets.value, State.columns.value],
-    )
-    with sl.Columns([1, 1]):
-        with Card(margin=0):
-            sl.Select(
-                label="Subset",
-                values=State.subsets.value,
-                value=plotstate.subset,
-            )
-            with Columns([3, 3, 1], gutters_dense=True):
-                with sl.Column():
-                    sl.Select(
-                        "Column x",
-                        values=[
-                            col for col in columns if col != plotstate.y.value
-                        ],
-                        value=plotstate.x,
-                    )
-                with sl.Column():
-                    sl.Select(
-                        "Column y",
-                        values=[
-                            col for col in columns if col != plotstate.x.value
-                        ],
-                        value=plotstate.y,
-                    )
-                sl.Button(
-                    icon=True,
-                    icon_name="mdi-swap-horizontal",
-                    on_click=plotstate.swap_axes,
-                )
-            sl.Select(
-                label="Colorscale",
-                values=plotstate.Lookup["colorscales"],
-                value=plotstate.colorscale,
-            )
-            with Columns([1, 1]):
-                with sl.Column():
-                    sl.Switch(label="Flip y", value=plotstate.flipy)
-                with sl.Column():
-                    sl.Switch(label="Flip x", value=plotstate.flipx)
-        with Card(margin=0):
-            sl.SliderInt(
-                label="Number of Bins",
-                value=plotstate.nbins,
-                step=2,
-                min=2,
-                max=250,
-            )
-            sl.Select(
-                label="Binning type",
-                values=plotstate.Lookup["bintypes"],
-                value=plotstate.bintype,
-            )
-            if str(plotstate.bintype.value) != "count":
-                sl.Select(
-                    label="Column to Bin",
-                    values=columns,
-                    value=plotstate.color,
-                )
-            sl.Select(
-                label="Binning scale",
-                values=plotstate.Lookup["binscales"],
-                value=plotstate.binscale,
-            )
-
-
-@sl.component()
-def delta2d_menu(plotstate):
-    columns = State.columns.value
-    sl.use_thread(
-        plotstate.reset_values,
-        dependencies=[State.subsets.value, State.columns.value],
-    )
-    with Card(margin=0):
-        with sl.Columns([3, 3, 1]):
-            sl.Select(
-                label="Subset 1",
-                values=[
-                    subset for subset in State.subsets.value
-                    if subset != plotstate.subset_b.value
-                ],
-                value=plotstate.subset,
-            )
-            sl.Select(
-                label="Subset 2",
-                values=[
-                    subset for subset in State.subsets.value
-                    if subset != plotstate.subset.value
-                ],
-                value=plotstate.subset_b,
-            )
-            sl.Button(
-                icon=True,
-                icon_name="mdi-swap-horizontal",
-                on_click=plotstate.swap_subsets,
-            )
-
-    with sl.Columns([1, 1]):
-        with Card(margin=0):
-            with Columns([3, 3, 1], gutters_dense=True):
-                with sl.Column():
-                    sl.Select(
-                        "Column x",
-                        values=[
-                            col for col in columns if col != plotstate.y.value
-                        ],
-                        value=plotstate.x,
-                    )
-                with sl.Column():
-                    sl.Select(
-                        "Column y",
-                        values=[
-                            col for col in columns if col != plotstate.x.value
-                        ],
-                        value=plotstate.y,
-                    )
-                sl.Button(
-                    icon=True,
-                    icon_name="mdi-swap-horizontal",
-                    on_click=plotstate.swap_axes,
-                )
-            sl.Select(
-                label="Colorscale",
-                values=plotstate.Lookup["colorscales"],
-                value=plotstate.colorscale,
-            )
-            with Columns([1, 1]):
-                with sl.Column():
-                    sl.Switch(label="Flip y", value=plotstate.flipy)
-                with sl.Column():
-                    sl.Switch(label="Flip x", value=plotstate.flipx)
-        with Card(margin=0):
-            sl.SliderInt(
-                label="Number of Bins",
-                value=plotstate.nbins,
-                step=2,
-                min=2,
-                max=500,
-            )
-            sl.Select(
-                label="Binning type",
-                values=plotstate.Lookup["bintypes"],
-                value=plotstate.bintype,
-            )
-            if str(plotstate.bintype.value) != "count":
-                sl.Select(
-                    label="Column to Bin",
-                    values=columns,
-                    value=plotstate.color,
-                )
-            sl.Select(
-                label="Binning scale",
-                values=plotstate.Lookup["binscales"],
-                value=plotstate.binscale,
-            )
