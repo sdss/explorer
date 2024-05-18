@@ -50,7 +50,7 @@ def ExprEditor(expression, set_expression, error, result):
 def CartonMapperPanel(mapper, set_mapper, carton, set_carton, dataset,
                       set_dataset):
     with rv.ExpansionPanel() as main:
-        rv.ExpansionPanelHeader(children=["Carton/Mapper/Dataset"])
+        rv.ExpansionPanelHeader(children=["Targeting filters"])
         with rv.ExpansionPanelContent():
             with sl.Column(gap="2px"):
                 with sl.Columns([1, 1]):

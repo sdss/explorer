@@ -107,6 +107,7 @@ def SubsetMenu():
     """Control and display subset cards"""
     add = sl.use_reactive(False)
     name, set_name = sl.use_state("")
+    model, set_model = sl.use_state([0])  # init with subset A open
     # NOTE: initialization here must be synchronized with State.subsets
     updater = use_force_update()
     updater_context.provide(updater)  # provide updater to context
@@ -144,7 +145,10 @@ def SubsetMenu():
                         on_click=lambda: add.set(True),
                         block=True,
                     )
-        with rv.ExpansionPanels(popout=True):
+        with rv.ExpansionPanels(popout=True,
+                                multiple=True,
+                                v_model=model,
+                                on_v_model=set_model):
             for card in SubsetState.subset_cards.value:
                 sl.display(card)
         with Dialog(
@@ -577,8 +581,8 @@ def VirtualColumnList():
 def VirtualColumnsPanel():
     df = State.df.value
     open, set_open = sl.use_state(False)
-    expression, set_expression = sl.use_state("")
-    name, set_name = sl.use_state("")
+    name, set_name = sl.use_state("snr_var_teff")
+    expression, set_expression = sl.use_state("snr / e_teff**2")
     error, set_error = sl.use_state("")
     active = sl.use_reactive(False)
 
@@ -705,6 +709,7 @@ def VirtualColumnsPanel():
 @sl.component()
 def sidebar():
     df = State.df.value
+
     with sl.Sidebar() as main:
         if df is not None:
             SubsetMenu()
