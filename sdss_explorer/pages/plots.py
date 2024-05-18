@@ -1,4 +1,4 @@
-"""All interactive plot elements, complete with widget effects and action callback threads."""
+"""All interactive plot elements, complete with widget effects and action callback threads. Also contains plot settings PlotState class."""
 
 import operator
 from functools import reduce
@@ -73,7 +73,7 @@ class PlotState:
         if type != "histogram":
             self.y = sl.use_reactive("logg")
             self.color = sl.use_reactive("fe_h")
-            self.colorscale = sl.use_reactive("viridis")
+            self.colorscale = sl.use_reactive("cividis")
         if type != "aggregated" and type != "skyplot":
             self.logx = sl.use_reactive(False)
             self.logy = sl.use_reactive(False)
@@ -108,18 +108,7 @@ class PlotState:
                 "probability density"
             ],
             bintypes=["count", "mean", "median", "sum", "min", "max", "mode"],
-            colorscales=[
-                "inferno",
-                "viridis",
-                "jet",
-                "solar",
-                "plotly3",
-                "sunset",
-                "sunsetdark",
-                "tropic",
-                "delta",
-                "twilight",
-            ],
+            colorscales=px.colors.named_colorscales(),
             binscales=[None, "log1p", "log10"],
             projections=[
                 "albers",
