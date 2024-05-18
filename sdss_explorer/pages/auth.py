@@ -46,8 +46,6 @@ def check_auth():
 def login(username: str, password: str):
     """Request token from username and password."""
     # NOTE: we don't make this asynchronous as we want to lock UI during login
-    print("Username:", username)
-    print("Password:", password)
 
     try:
         # check for a username and password

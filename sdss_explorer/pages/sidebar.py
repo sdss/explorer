@@ -1,3 +1,5 @@
+"""Sidebar initialization"""
+
 from typing import cast, Callable
 from functools import reduce
 from timeit import default_timer as timer
@@ -15,6 +17,7 @@ from .state import State, VCData, Alert
 from .dialog import Dialog
 from .subsets import use_subset
 from .subset_options import ExprEditor, CartonMapperPanel
+from .glossary import ColumnGlossary
 
 operator_map = {"AND": operator.and_, "OR": operator.or_, "XOR": operator.xor}
 
@@ -100,12 +103,6 @@ class SubsetState:
 
 
 @sl.component()
-def Glossary():
-    """Lists all useable columns and their information"""
-    pass
-
-
-@sl.component()
 def SubsetMenu():
     """Control and display subset cards"""
     add = sl.use_reactive(False)
@@ -173,19 +170,24 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
 
     Grouped to single namespace to add clone functionality.
 
+    Inputs:
+        :name: name of subset
+        :deleter: deletion functions
+        :kwargs: initialization parameters for state variables
+
     state variables
     :invert: whether filter is inverted
     :delete: deletion confirmation v-slot reactive
-
     :expression: expression for expression editor
     :error: expression editor error message
-
     :carton: list of selected cartons
     :mapper: list of selected mappers
     :dataset: list of selected datasets
 
     threads/functions
-    ::
+    :clone_subset: callback to clone a subset on button click
+    :update_expr: thread to update expression filter on expression change
+    :update_cm: thread to update cartonmapper filter on selection changes
     """
     df = State.df.value
     mapping = State.mapping.value
@@ -241,10 +243,8 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
         Validates if the expression is valid, and returns
         a precise error message for any issues in the expression.
         """
-        print("EXPR: start")
         columns = State.columns.value
         try:
-            start = timer()
             if expression is None or expression == "":
                 set_expfilter(None)
                 return None
@@ -320,12 +320,9 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
 
             # create expression as str
             expr = "(" + "".join(subexpressions) + ")"
-            print("EXPR: validation = ", timer() - start)
 
             # set filter & exit
-            start = timer()
             set_expfilter(df[expr])
-            print("EXPR: set! time= ", timer() - start)
             return True
 
         except AssertionError as e:
@@ -343,18 +340,14 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
     # Carton Mapper thread
     def update_cm():
         # convert chosens to bool mask
-        print("MapperCarton ::: starting filter update")
-        print(mapper, carton)
 
         cmp_filter = None
         if len(mapper) == 0 and len(carton) == 0 and len(dataset) == 0:
-            print("No selections: empty exit case")
             set_cmfilter(None)
             return
 
         # mapper + cartons
         elif len(mapper) != 0 or len(carton) != 0:
-            start = timer()
             c = mapping["alt_name"].isin(carton).values
             m = mapping["mapper"].isin(mapper).values
 
@@ -367,10 +360,7 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
                 mask = operator_map[combotype](m, c)
 
             bits = np.arange(len(mapping))[mask]
-            print("Timer for bit selection via mask:",
-                  round(timer() - start, 5))
 
-            start = timer()
             # get flag_number & offset
             # NOTE: hardcoded nbits as 8, and nflags as 57
             # TODO: in future, change to read from mappings parquet
@@ -392,13 +382,8 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
                     actives  # the required active bit(s) ACTIVES for bitmask position "UNIQUE"
                 )
 
-            print("Timer for active mask creation:", round(timer() - start, 5))
-
             # generate a filter based on the vaex-defined flag combiner
-            start = timer()
             cmp_filter = df.func.check_flags(df["sdss5_target_flags"], filters)
-            print("Timer for expression generation:",
-                  round(timer() - start, 5))
 
         if len(dataset) > 0:
             if cmp_filter is not None:
@@ -726,6 +711,7 @@ def sidebar():
             rv.Divider()
             with rv.ExpansionPanels(accordion=True, multiple=True):
                 VirtualColumnsPanel()
+                ColumnGlossary()
         else:
             sl.Info("No data loaded.")
     return main

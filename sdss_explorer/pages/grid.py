@@ -69,8 +69,6 @@ def ViewCard(type, i):
 
 @sl.component
 def ObjectGrid():
-    print(GridState.objects.value)
-    print(GridState.grid_layout.value)
 
     def reset_layout():
         GridState.index = 0
