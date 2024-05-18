@@ -191,6 +191,7 @@ def check_cat_color(color: vx.Expression) -> bool:
 
 # SHOW PLOT
 def show_plot(type, del_func):
+    # NOTE: force set to grey darken-3 colour for visibility of card against grey darken-4 background
     with rv.Card(class_="grey darken-3", style_="width: 100%; height: 100%"):
         plotstate = PlotState(type)
         with rv.CardText():

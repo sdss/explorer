@@ -1,13 +1,13 @@
 """Main page component. Contains cache settings, AlertSystem instance, and general layout."""
 
 import solara as sl
-import reacton.ipyvuetify as rv
 import vaex as vx
 
 from .state import State, AlertSystem
 from .dataframe import NoDF
 from .sidebar import sidebar
 from .grid import ObjectGrid
+from .glossary import HelpBlurb
 
 # NOTE: cache with these settings are in memory
 # we can change this in future to a disk cache, which will be shared among worker processes, see https://vaex.io/docs/guides/caching.html
@@ -27,6 +27,9 @@ def Page():
         # TODO - update the title with release from query parameter
         # main title object
         sl.AppBarTitle(children=["IPL-3 Parameter Explorer"])
+
+        # help icon
+        HelpBlurb()
 
     if df is not None:
         # SIDEBAR

@@ -1,7 +1,7 @@
 """New, more flexible function of dialog class, to be added into solara at some point"""
 
 import solara as sl
-from typing import Union, List, Callable
+from typing import Union, List, Callable, Optional
 from solara.alias import rv as v
 
 
@@ -12,7 +12,7 @@ def Dialog(
     on_close: Union[None, Callable[[], None]] = None,
     content: Union[str, sl.Element] = "",
     title: str = "Confirm action",
-    ok: Union[str, sl.Element] = "OK",
+    ok: Union[Optional[str], sl.Element] = "OK",
     on_ok: Callable[[], None] = lambda: None,
     ok_enable: Union[sl.Reactive[bool], bool] = True,
     close_on_ok: bool = True,
@@ -99,6 +99,9 @@ def Dialog(
                         disabled=not ok_reactive.value,
                         elevation=0,
                     )
+                elif ok is None:
+                    # no ok button
+                    pass
                 else:
                     user_on_click_ok = ok.kwargs.get("on_click")
                     ok.kwargs = {**ok.kwargs, "on_click": perform_ok}
