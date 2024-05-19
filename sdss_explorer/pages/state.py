@@ -7,6 +7,8 @@ import vaex as vx
 import pyarrow as pa  # noqa
 import numpy as np
 
+from solara.hooks.misc import use_unique_key
+
 
 def load_datapath():
     """fetches path to parquet files from envvar"""
@@ -25,7 +27,7 @@ class State:
     mapping = sl.reactive(
         vx.open(f"{load_datapath()}/mappings.parquet") if load_datapath(
         ) is not None else None)
-    subsets = sl.reactive(["A"], )  # List[str]
+    subsets = sl.reactive({use_unique_key("A"): "A"})  # Dict[str,str]
     # initializing app with a simple default to demonstrate functionality
     token = sl.reactive(None)
 

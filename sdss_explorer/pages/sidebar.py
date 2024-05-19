@@ -1,8 +1,7 @@
-"""Sidebar initialization"""
+"""Sidebar initializations"""
 
 from typing import cast, Callable
 from functools import reduce
-from timeit import default_timer as timer
 import operator
 import re
 
@@ -11,7 +10,7 @@ from solara.lab import ConfirmationDialog
 import vaex as vx
 import numpy as np
 import reacton.ipyvuetify as rv
-from solara.hooks.misc import use_force_update
+from solara.hooks.misc import use_force_update, use_unique_key
 
 from .state import State, VCData, Alert
 from .dialog import Dialog
@@ -115,8 +114,7 @@ def SubsetMenu():
     def add_subset():
         if name not in State.subsets.value and len(name) > 0:
             SubsetState.subset_cards.value.append(SubsetCard(name))
-            State.subsets.value.append(name)
-            add.set(False)
+            State.subsets.value.[''](name)
             close()
         elif name == "":
             Alert.update("Please enter a name for the subset.",
@@ -201,6 +199,10 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
     invert, set_invert = sl.use_state(False)
     delete = sl.use_reactive(False)
     open, set_open = sl.use_state(False)
+    open_rename, set_open_rename = sl.use_state(False)
+
+    rename, set_rename = sl.use_state(
+        name)  # initially the name, but any rename follows suit
 
     # sub-filters
     _expfilter, set_expfilter = use_subset(id(df),
@@ -411,11 +413,21 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
                               set_dataset)
         # delete & clone buttons
         with rv.Row(style_="width: 100%; height: 100%"):
-            # quick filter menu
-            rv.Spacer()
-
             # download button
             DownloadMenu()
+
+            # spacer
+            rv.Spacer()
+
+            # rename button
+            with sl.Tooltip("Rename this subset"):
+                sl.Button(
+                    label="",
+                    icon_name="mdi-rename-box",
+                    icon=True,
+                    text=True,
+                    on_click=lambda: set_open_rename(True),
+                )
 
             # clone button
             with sl.Tooltip("Clone this subset"):
@@ -424,7 +436,7 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
                     icon_name="mdi-content-duplicate",
                     icon=True,
                     text=True,
-                    on_click=lambda: clone_subset(),
+                    on_click=clone_subset,
                 )
 
             # delete button
@@ -447,6 +459,20 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
             cancel="no",
             on_ok=deleter,
         )
+
+        # rename dialog
+        with Dialog(
+                open,
+                title="Enter a new name for this subset",
+                close_on_ok=False,
+                on_cancel=lambda: set_rename(name),
+                on_ok=rename_subset,
+        ):
+            sl.InputText(
+                label="Subset name",
+                value=name,
+                on_value=set_rename,
+            )
     return main
 
 
