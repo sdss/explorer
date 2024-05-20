@@ -10,17 +10,20 @@ from solara.lab import ConfirmationDialog
 import vaex as vx
 import numpy as np
 import reacton.ipyvuetify as rv
-from solara.hooks.misc import use_force_update, use_unique_key
+from solara.hooks.misc import use_force_update
 
 from .state import State, VCData, Alert
 from .dialog import Dialog
 from .subsets import use_subset
 from .subset_options import ExprEditor, CartonMapperPanel
 from .glossary import ColumnGlossary
+from .util import generate_unique_key
 
 operator_map = {"AND": operator.and_, "OR": operator.or_, "XOR": operator.xor}
 
-updater_context = sl.create_context(print)  # dummy context for forcing updates
+updater_context = sl.create_context(print)  # context for forcing updates
+rename_context = sl.create_context(
+    ("hi", print))  # context for renamer function
 
 
 @vx.register_function()
@@ -30,30 +33,34 @@ def check_flags(flags, vals):
 
 
 @sl.component()
-def SubsetCard(name: str, **kwargs):
+def SubsetCard(key: str, **kwargs):
     """Holds filter update info, card structure, and calls to options"""
     df = State.df.value
-    filter, _set_filter = use_subset(id(df), name, "subset-summary")
+    filter, _set_filter = use_subset(id(df), key, "subset-summary")
     updater = sl.use_context(updater_context)
+    name, set_name = sl.use_state(State.subsets.value.setdefault(key, "A"))
+    sl.provide_context(rename_context, (name, set_name))
 
-    def remove(subset_name):
+    def remove(subset_key):
         """
         q: index of subset in list; variate
         """
-        for n, obj in enumerate(State.subsets.value):
-            if obj == subset_name:
+        for n, (k, v) in enumerate(State.subsets.value.items()):
+            if k == subset_key:
                 q = n
                 break
 
-        # cut subsets names list
-        State.subsets.value = State.subsets.value[:q] + State.subsets.value[q +
-                                                                            1:]
+        # pop from subset name mappings
+        State.subsets.value.pop(subset_key)
+
+        # slice the card list
         SubsetState.subset_cards.value = (
             SubsetState.subset_cards.value[:q] +
             SubsetState.subset_cards.value[q + 1:])
 
         # force update
         updater()
+        SubsetState.update_subset_names()  # forcefully update subsetname list
 
     # progress bar logic
     if filter:
@@ -85,14 +92,14 @@ def SubsetCard(name: str, **kwargs):
         with rv.ExpansionPanelContent():
             # filter bar
             sl.ProgressLinear(value=progress, color="blue")
-            SubsetOptions(name, lambda: remove(name), **kwargs)
+            SubsetOptions(key, lambda: remove(key), **kwargs)
     return main
 
 
 class SubsetState:
     subset_cards = sl.reactive([
         SubsetCard(
-            "A",
+            generate_unique_key("A"),
             **{
                 "expression": "teff < 15e3",
                 "mapper": ["mwm"]
@@ -100,28 +107,61 @@ class SubsetState:
         )
     ])
 
+    @staticmethod
+    def add_subset(name: str, **kwargs):
+        """Adds subset and subsetcard, generating new unique key for subset. Boolean return for success."""
+        if name not in State.subset_names.value and len(name) > 0:
+            # generate unique key
+            key = generate_unique_key(name)
+
+            # add to name, mapping + object list
+            # NOTE: must be done in this order
+            State.subsets.value[key] = name
+            SubsetState.subset_cards.value.append(SubsetCard(key, **kwargs))
+
+            return True
+        elif name == "":
+            Alert.update("Please enter a name for the subset.",
+                         color="warning")
+        else:
+            Alert.update("Subset with name already exists!", color="error")
+        return False
+
+    def update_subset_names():
+        State.subset_names.set(list(State.subsets.value.values()))
+        print(State.subset_names.value)
+        return
+
+    @staticmethod
+    def rename_subset(key: str, new_name: str):
+        print("RENAME: key=", key)
+        print("keys", State.subsets.value.keys())
+        if key not in State.subsets.value.keys():
+            Alert.update("BUG: subset rename failed! Key not in hashmap.",
+                         color="error")
+            return False
+        else:
+            State.subsets.value[key] = new_name
+            return True
+
 
 @sl.component()
 def SubsetMenu():
     """Control and display subset cards"""
     add = sl.use_reactive(False)
     name, set_name = sl.use_state("")
-    model, set_model = sl.use_state([0])  # init with subset A open
+    # model, set_model = sl.use_state([0])  # init with subset A open
     # NOTE: initialization here must be synchronized with State.subsets
     updater = use_force_update()
     updater_context.provide(updater)  # provide updater to context
 
-    def add_subset():
-        if name not in State.subsets.value and len(name) > 0:
-            SubsetState.subset_cards.value.append(SubsetCard(name))
-            State.subsets.value.[''](name)
+    def add_subset(name):
+        "Wraps subset add to support dialog interface"
+        if SubsetState.add_subset(name):
+            updater()  # force rerender
+            SubsetState.update_subset_names(
+            )  # forcefully update subsetname list
             close()
-        elif name == "":
-            Alert.update("Please enter a name for the subset.",
-                         color="warning")
-        else:
-            Alert.update("Subset with name already exists!", color="error")
-        return
 
     def close():
         """Dialog close handler, resetting state vars"""
@@ -143,17 +183,20 @@ def SubsetMenu():
                         on_click=lambda: add.set(True),
                         block=True,
                     )
-        with rv.ExpansionPanels(popout=True,
-                                multiple=True,
-                                v_model=model,
-                                on_v_model=set_model):
+        # NOTE: starting app with expanded panels requires
+        # enabling the multiple prop for this version of vuetify.
+        # This is really annoying for UX (too much info), so we cant do it
+        with rv.ExpansionPanels(popout=True):
+            # multiple=True,
+            # v_model=model,
+            # on_v_model=set_model):
             for card in SubsetState.subset_cards.value:
                 sl.display(card)
         with Dialog(
                 add,
                 title="Enter a name for the new subset",
                 close_on_ok=False,
-                on_ok=add_subset,
+                on_ok=lambda: add_subset(name),
         ):
             sl.InputText(
                 label="Subset name",
@@ -165,7 +208,7 @@ def SubsetMenu():
 
 
 @sl.component()
-def SubsetOptions(name: str, deleter: Callable, **kwargs):
+def SubsetOptions(key: str, deleter: Callable, **kwargs):
     """
     Contains all subset configuration threads and state variables,
     including expression, cartonmapper, clone and delete.
@@ -173,18 +216,19 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
     Grouped to single namespace to add clone functionality.
 
     Inputs:
-        :name: name of subset
+        :key: key for subset
         :deleter: deletion functions
         :kwargs: initialization parameters for state variables
 
     state variables
     :invert: whether filter is inverted
-    :delete: deletion confirmation v-slot reactive
     :expression: expression for expression editor
     :error: expression editor error message
     :carton: list of selected cartons
     :mapper: list of selected mappers
     :dataset: list of selected datasets
+    :delete: deletion c-dialog v-slot reactive
+    :rename: rename dialog v-slot reactive
 
     threads/functions
     :clone_subset: callback to clone a subset on button click
@@ -194,23 +238,21 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
     df = State.df.value
     mapping = State.mapping.value
     updater = sl.use_context(updater_context)  # fetch update forcer
+    name, set_name = sl.use_context(rename_context)  # fetch renme function
 
-    # card settings
-    invert, set_invert = sl.use_state(False)
+    # dialog states
     delete = sl.use_reactive(False)
-    open, set_open = sl.use_state(False)
-    open_rename, set_open_rename = sl.use_state(False)
+    rename = sl.use_reactive(False)
+    newname, set_newname = sl.use_state("")  # rename dialog state
 
-    rename, set_rename = sl.use_state(
-        name)  # initially the name, but any rename follows suit
-
-    # sub-filters
+    # filter settings/subfilters
+    invert = sl.use_reactive(False)
     _expfilter, set_expfilter = use_subset(id(df),
-                                           name,
+                                           key,
                                            "expr",
                                            write_only=True)
     _cmfilter, set_cmfilter = use_subset(id(df),
-                                         name,
+                                         key,
                                          "cartonmapper",
                                          write_only=True)
 
@@ -227,10 +269,11 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
         "AND"  # NOTE: remains for functionality as potential state var (in future)
     )
 
+    # clone and rename methods (deletion defined previously)
+
     def clone_subset():
         """Self cloner function"""
-        SubsetState.subset_cards.value.append(
-            SubsetCard(
+        if SubsetState.add_subset(
                 "Copy of " + name,
                 **{
                     "mapper": mapper,
@@ -238,9 +281,22 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
                     "dataset": dataset,
                     "expression": expression,
                 },
-            ))
-        State.subsets.value.append("Copy of " + name)
-        updater()
+        ):
+            updater()  # force update
+            SubsetState.update_subset_names(
+            )  # forcefully update subsetname list
+
+        return
+
+    def rename_subset():
+        """Wrapper for renaming subsets via dataclass method."""
+        if SubsetState.rename_subset(key, newname):
+            rename.set(False)
+            set_name(newname)
+            set_newname("")
+            updater()  # force update; could do without it
+            SubsetState.update_subset_names(
+            )  # forcefully update subsetname list
         return
 
     # Expression Editor thread
@@ -327,8 +383,11 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
             # create expression as str
             expr = "(" + "".join(subexpressions) + ")"
 
-            # set filter & exit
-            set_expfilter(df[expr])
+            # set filter corresponding to inverts & exit
+            if invert.value:
+                set_expfilter(~df[expr])
+            else:
+                set_expfilter(df[expr])
             return True
 
         except AssertionError as e:
@@ -340,8 +399,8 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
             set_error("modifier at end of sequence with no expression")
             return False
 
-    result: sl.Result[bool] = sl.use_thread(update_expr,
-                                            dependencies=[expression])
+    result: sl.Result[bool] = sl.use_thread(
+        update_expr, dependencies=[expression, invert.value])
 
     # Carton Mapper thread
     def update_cm():
@@ -397,11 +456,17 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
                     cmp_filter, df["dataset"].isin(dataset))
             else:
                 cmp_filter = df["dataset"].isin(dataset)
-        set_cmfilter(cmp_filter)
+
+        # invert if requested
+        if invert.value:
+            set_cmfilter(~cmp_filter)
+        else:
+            set_cmfilter(cmp_filter)
 
         return
 
-    sl.use_thread(update_cm, dependencies=[mapper, carton, dataset, combotype])
+    sl.use_thread(update_cm,
+                  dependencies=[mapper, carton, dataset, invert.value])
 
     # User facing
     with sl.Column() as main:
@@ -416,6 +481,18 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
             # download button
             DownloadMenu()
 
+            # invert button
+            with sl.Tooltip("Invert the filters of this subset"):
+                sl.Button(
+                    label="",
+                    icon_name="mdi-invert-colors-off"
+                    if invert.value else "mdi-invert-colors",
+                    color="red" if invert.value else None,
+                    icon=True,
+                    text=True,
+                    on_click=lambda: invert.set(not invert.value),
+                )
+
             # spacer
             rv.Spacer()
 
@@ -426,7 +503,7 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
                     icon_name="mdi-rename-box",
                     icon=True,
                     text=True,
-                    on_click=lambda: set_open_rename(True),
+                    on_click=lambda: rename.set(True),
                 )
 
             # clone button
@@ -462,16 +539,16 @@ def SubsetOptions(name: str, deleter: Callable, **kwargs):
 
         # rename dialog
         with Dialog(
-                open,
+                rename,
                 title="Enter a new name for this subset",
                 close_on_ok=False,
-                on_cancel=lambda: set_rename(name),
                 on_ok=rename_subset,
+                on_cancel=lambda: set_newname(""),
         ):
             sl.InputText(
                 label="Subset name",
-                value=name,
-                on_value=set_rename,
+                value=newname,
+                on_value=set_newname,
             )
     return main
 

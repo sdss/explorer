@@ -242,9 +242,18 @@ def ModdedDataTable(
 def StatisticsTable(del_func: Callable):
     """Statistics description view for the dataset."""
     df = State.df.value
-    subset = sl.use_reactive(State.subsets.value[-1])  # inits with last subset
+    subset = sl.use_reactive(list(
+        State.subsets.value.keys())[-1])  # inits with last subset
     filter, set_filter = use_subset(id(df), subset, name="statsview")
     columns, set_columns = sl.use_state(["teff", "logg", "fe_h"])
+    name, set_name = sl.use_state(State.subset_names.value[-1])
+
+    def update_subset(name: str):
+        for key, value in State.subsets.value.items():
+            if value == name:
+                subset.set(key)
+                set_name(value)
+                break
 
     if filter:
         dff = df[filter]
@@ -313,8 +322,9 @@ def StatisticsTable(del_func: Callable):
                             )
                             sl.Select(
                                 label="Subset",
-                                values=State.subsets.value,
-                                value=subset,
+                                values=State.subset_names.value,
+                                value=name,
+                                on_value=update_subset,
                             )
                         sl.Button(
                             icon_name="mdi-delete",

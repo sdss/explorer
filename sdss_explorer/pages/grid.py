@@ -69,6 +69,8 @@ def ViewCard(type, i):
 
 @sl.component
 def ObjectGrid():
+    print(GridState.grid_layout.value)
+    print(GridState.objects.value)
 
     def reset_layout():
         GridState.index = 0
@@ -97,7 +99,7 @@ def ObjectGrid():
         else:
             # the row below
             x = 0
-            y = prev["y"] + prev["h"] + 43
+            y = prev["y"] + prev["h"] + 4
         i = GridState.index
         GridState.grid_layout.value.append({
             "x": x,
@@ -129,7 +131,7 @@ def ObjectGrid():
 
     sl.use_thread(
         monitor_grid,
-        dependencies=[GridState.grid_layout.value, GridState.objects.value],
+        dependencies=[GridState.objects.value, GridState.grid_layout.value],
     )
 
     with sl.Column(style={"width": "100%"}) as main:
