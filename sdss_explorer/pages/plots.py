@@ -63,13 +63,14 @@ class PlotState:
     """
 
     def __init__(self, plottype):
-        # common settings
+        # subset and type states
         self.plottype = str(plottype)
         self.subset = sl.use_reactive(list(State.subsets.value.keys())[-1])
-        print("plotstate instantiate key:", self.subset.value)
-        self.x = sl.use_reactive("teff")
         self.subset_name = sl.use_reactive(
-            State.subsets.value[self.subset.value])
+            State.subsets.value.setdefault(self.subset.value, "name"))
+
+        # common plot settings
+        self.x = sl.use_reactive("teff")
         self.flipx = sl.use_reactive(False)
         self.flipy = sl.use_reactive(False)
 
@@ -104,7 +105,7 @@ class PlotState:
             self.subset_b = sl.use_reactive(
                 list(State.subsets.value.keys())[0])
             self.subset_name_b = sl.use_reactive(
-                State.subsets.value[self.subset_b.value])
+                State.subsets.value.setdefault(self.subset_b.value, "name2"))
 
         # all lookup data for plottypes
         # TODO: move this lookup data elsewhere to reduce the size of the plotstate objects

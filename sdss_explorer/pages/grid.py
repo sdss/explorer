@@ -134,6 +134,15 @@ def ObjectGrid():
         dependencies=[GridState.objects.value, GridState.grid_layout.value],
     )
 
+    # NOTE: workaround for reactive monitoring of n subsets
+    def update_n_subsets():
+        return len(State.subset_names.value)
+
+    n_subsets = sl.use_memo(
+        update_n_subsets,
+        dependencies=[len(State.subset_names.value), State.subset_names.value],
+    )
+
     with sl.Column(style={"width": "100%"}) as main:
         with sl.Row():
             btn = sl.Button(
@@ -157,8 +166,7 @@ def ObjectGrid():
                         sl.Button(
                             label="delta2d",
                             on_click=lambda: add_view("delta2d"),
-                            disabled=True
-                            if len(State.subsets.value) <= 1 else False,
+                            disabled=True if n_subsets <= 1 else False,
                         ),
                     ]
             rv.Spacer()

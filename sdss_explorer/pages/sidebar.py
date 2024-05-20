@@ -300,6 +300,16 @@ def SubsetOptions(key: str, deleter: Callable, **kwargs):
             )  # forcefully update subsetname list
         return
 
+    def update_n_subsets():
+        return len(State.subset_names.value)
+
+    # NOTE: callback to bypass reactive monitoring limitations
+    n_subsets = sl.use_memo(
+        update_n_subsets,
+        dependencies=[State.subset_names.value,
+                      len(State.subset_names.value)],
+    )
+
     # Expression Editor thread
     def update_expr():
         """
@@ -524,7 +534,7 @@ def SubsetOptions(key: str, deleter: Callable, **kwargs):
                     icon_name="mdi-delete-outline",
                     icon=True,
                     text=True,
-                    disabled=True if len(State.subsets.value) == 1 else False,
+                    disabled=True if n_subsets <= 1 else False,
                     color="red",
                     on_click=lambda: delete.set(True),
                 )
