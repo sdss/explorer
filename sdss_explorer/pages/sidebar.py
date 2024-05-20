@@ -38,7 +38,8 @@ def SubsetCard(key: str, **kwargs):
     df = State.df.value
     filter, _set_filter = use_subset(id(df), key, "subset-summary")
     updater = sl.use_context(updater_context)
-    name, set_name = sl.use_state(State.subsets.value.setdefault(key, "A"))
+    name, set_name = sl.use_state(State.subsets.value.setdefault(
+        key, "A"))  # instantiation parameter
     sl.provide_context(rename_context, (name, set_name))
 
     def remove(subset_key):
@@ -169,6 +170,22 @@ def SubsetMenu():
         set_name("")
         return
 
+    # BUG: subsets sometimes save in the reactive (we don't want this)
+    def monitor_cards():
+        if len(SubsetState.subset_cards.value) != len(State.subsets.value):
+            while len(SubsetState.subset_cards.value) > len(
+                    State.subsets.value):
+                SubsetState.subset_cards.value.pop(-1)
+        return
+
+    sl.use_thread(
+        monitor_cards,
+        dependencies=[
+            len(SubsetState.subset_cards.value),
+            len(State.subsets.value)
+        ],
+    )
+
     with sl.Column(gap="0px") as main:
         with rv.Card(class_="justify-center",
                      flat=True,
@@ -191,6 +208,8 @@ def SubsetMenu():
             # multiple=True,
             # v_model=model,
             # on_v_model=set_model):
+            print("Number of cards", len(SubsetState.subset_cards.value))
+            print("Number of known subsets =", len(State.subsets.value))
             for card in SubsetState.subset_cards.value:
                 sl.display(card)
         with Dialog(
@@ -760,7 +779,7 @@ def VirtualColumnsPanel():
         active.set(False)
 
     with rv.ExpansionPanel() as main:
-        rv.ExpansionPanelHeader(children=["Virtual calculations"])
+        rv.ExpansionPanelHeader(children=["Virtual Calculations"])
         with rv.ExpansionPanelContent():
             VirtualColumnList()
             with sl.Tooltip("Create custom columns based on the dataset"):

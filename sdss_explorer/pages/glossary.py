@@ -50,7 +50,7 @@ def ColumnGlossary():
 
     # user-facing panel
     with rv.ExpansionPanel() as main:
-        rv.ExpansionPanelHeader(children=["Column list"])
+        rv.ExpansionPanelHeader(children=["Column Glossary"])
         with rv.ExpansionPanelContent():
             with sl.Column(gap="0px"):
                 sl.Markdown(column_mdtext)
