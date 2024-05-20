@@ -171,6 +171,7 @@ def SubsetMenu():
 
     with sl.Column(gap="0px") as main:
         with rv.Card(class_="justify-center",
+                     flat=True,
                      style_="width: 100%; height: 100%"):
             rv.CardTitle(
                 class_="justify-center",
@@ -186,7 +187,7 @@ def SubsetMenu():
         # NOTE: starting app with expanded panels requires
         # enabling the multiple prop for this version of vuetify.
         # This is really annoying for UX (too much info), so we cant do it
-        with rv.ExpansionPanels(popout=True):
+        with rv.ExpansionPanels(flat=True, popout=True):
             # multiple=True,
             # v_model=model,
             # on_v_model=set_model):
@@ -472,7 +473,7 @@ def SubsetOptions(key: str, deleter: Callable, **kwargs):
     with sl.Column() as main:
         ExprEditor(expression, set_expression, error, result)
         # complex option panels
-        with rv.ExpansionPanels():
+        with rv.ExpansionPanels(flat=True):
             # PANEL1: carton mapper
             CartonMapperPanel(mapper, set_mapper, carton, set_carton, dataset,
                               set_dataset)
