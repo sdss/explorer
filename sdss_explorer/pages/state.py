@@ -1,4 +1,3 @@
-from typing import cast
 import os
 
 import solara as sl
@@ -6,6 +5,8 @@ import reacton.ipyvuetify as rv
 import vaex as vx
 import pyarrow as pa  # noqa
 import numpy as np
+
+from .util import generate_unique_key
 
 
 def load_datapath():
@@ -25,8 +26,10 @@ class State:
     mapping = sl.reactive(
         vx.open(f"{load_datapath()}/mappings.parquet") if load_datapath(
         ) is not None else None)
-    subsets = sl.reactive(["A"], )  # List[str]
+    subsets = sl.reactive(
+        {})  # Dict[str,str]; initialization done in SubsetCard
     # initializing app with a simple default to demonstrate functionality
+    subset_names = sl.reactive(["A"])
     token = sl.reactive(None)
 
     @staticmethod

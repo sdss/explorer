@@ -62,28 +62,32 @@ class PlotState:
     Combination of reactive states which instantiate a specific plot's settings/properties
     """
 
-    def __init__(self, type):
+    def __init__(self, plottype):
         # common settings
-        self.subset = sl.use_reactive("A")
+        self.plottype = str(plottype)
+        self.subset = sl.use_reactive(list(State.subsets.value.keys())[-1])
+        print("plotstate instantiate key:", self.subset.value)
         self.x = sl.use_reactive("teff")
+        self.subset_name = sl.use_reactive(
+            State.subsets.value[self.subset.value])
         self.flipx = sl.use_reactive(False)
         self.flipy = sl.use_reactive(False)
 
         # moderately unique plot parameters/settings
-        if type != "histogram":
+        if plottype != "histogram":
             self.y = sl.use_reactive("logg")
             self.color = sl.use_reactive("fe_h")
             self.colorscale = sl.use_reactive("cividis")
-        if type != "aggregated" and type != "skyplot":
+        if plottype != "aggregated" and plottype != "skyplot":
             self.logx = sl.use_reactive(False)
             self.logy = sl.use_reactive(False)
-        if type in ["scatter", "skyplot"]:
+        if plottype in ["scatter", "skyplot"]:
             self.colorlog = sl.use_reactive(cast(str, None))
 
         # statistics settings
-        if type == "heatmap" or type == "histogram" or "delta" in type:
+        if plottype == "heatmap" or plottype == "histogram" or "delta" in plottype:
             self.nbins = sl.use_reactive(200)
-            if type == "heatmap" or type == "delta2d":
+            if plottype == "heatmap" or plottype == "delta2d":
                 self.bintype = sl.use_reactive("mean")
                 self.binscale = sl.use_reactive(None)
             else:
@@ -91,16 +95,18 @@ class PlotState:
                 self.norm = sl.use_reactive(cast(str, None))
 
         # skyplot settings
-        if type == "skyplot":
+        if plottype == "skyplot":
             self.geo_coords = sl.use_reactive("celestial")
             self.projection = sl.use_reactive("hammer")
 
         # delta view settings
-        if "delta" in type:
-            self.subset_b = sl.use_reactive(State.subsets.value[-1] if len(
-                State.subsets.value) > 1 else "")
+        if "delta" in plottype:
+            self.subset_b = sl.use_reactive(
+                list(State.subsets.value.keys())[0])
+            self.subset_name_b = sl.use_reactive(
+                State.subsets.value[self.subset_b.value])
 
-        # all lookup data for types
+        # all lookup data for plottypes
         # TODO: move this lookup data elsewhere to reduce the size of the plotstate objects
         self.Lookup = dict(
             norms=[
@@ -138,15 +144,19 @@ class PlotState:
     def reset_values(self):
         """Conditional reset based on if given column/subset is still in list"""
         # subset resets
-        if self.subset.value not in State.subsets.value:
+        if self.subset.value not in State.subsets.value.keys():
+            new_subset_key = list(State.subsets.value.keys())[-1]
             Alert.update(
-                f"Subset in view was removed, reset to {State.subsets.value[0]}",
+                f"Subset in view was removed, reset to {State.subsets.value[new_subset_key]}",
                 color="info",
             )
-            self.subset.value = State.subsets.value[0]
+            self.subset.value = new_subset_key
+            self.subset_name.value = State.subsets.value[new_subset_key]
         try:
-            if self.subset_b.value not in State.subsets.value:
-                self.subset_b.value = State.subsets.value[-1]
+            if self.subset_b.value not in State.subsets.value.keys():
+                new_subset_key = list(State.subsets.value.keys())[-1]
+                self.subset_b.value = new_subset_key
+                self.subset_name_b.value = State.subsets.value[new_subset_key]
         except:
             pass
 
@@ -154,12 +164,28 @@ class PlotState:
         if self.x.value not in State.columns.value:
             Alert.update("VC removed! Column reset to 'teff'", color="info")
             self.x.value = "teff"
-        if self.y.value not in State.columns.value:
-            Alert.update("VC removed! Column reset to 'logg'", color="info")
-            self.y.value = "logg"
-        if self.color.value not in State.columns.value:
-            Alert.update("VC removed! Column reset to 'fe_h'", color="info")
-            self.color.value = "fe_h"
+        if self.plottype != "histogram":
+            if self.y.value not in State.columns.value:
+                Alert.update("VC removed! Column reset to 'logg'",
+                             color="info")
+                self.y.value = "logg"
+            if self.color.value not in State.columns.value:
+                Alert.update("VC removed! Column reset to 'fe_h'",
+                             color="info")
+                self.color.value = "fe_h"
+
+    def update_subset(self, name: str, b: bool = False):
+        if not b:
+            subset = self.subset
+            namevar = self.subset_name
+        else:
+            subset = self.subset_b
+            namevar = self.subset_name_b
+        for key, value in State.subsets.value.items():
+            if value == name:
+                subset.set(key)
+                namevar.set(value)
+                break
 
 
 def range_loop(start, offset):
@@ -179,28 +205,28 @@ def check_cat_color(color: vx.Expression) -> bool:
 
 
 # SHOW PLOT
-def show_plot(type, del_func):
+def show_plot(plottype, del_func):
     # NOTE: force set to grey darken-3 colour for visibility of card against grey darken-4 background
     with rv.Card(class_="grey darken-3", style_="width: 100%; height: 100%"):
-        plotstate = PlotState(type)
+        plotstate = PlotState(plottype)
         with rv.CardText():
             with sl.Column(classes=["grey darken-3"]):
-                if type == "histogram":
+                if plottype == "histogram":
                     HistogramPlot(plotstate)
-                elif type == "heatmap":
+                elif plottype == "heatmap":
                     HeatmapPlot(plotstate)
-                elif type == "scatter":
+                elif plottype == "scatter":
                     ScatterPlot(plotstate)
-                elif type == "skyplot":
+                elif plottype == "skyplot":
                     SkymapPlot(plotstate)
-                elif type == "delta2d":
+                elif plottype == "delta2d":
                     DeltaHeatmapPlot(plotstate)
                 btn = sl.Button(icon_name="mdi-settings",
                                 outlined=False,
                                 classes=["grey darken-3"])
                 with Menu(activator=btn, close_on_content_click=False):
                     with sl.Card(margin=0):
-                        show_settings(type, plotstate)
+                        show_settings(plottype, plotstate)
                         sl.Button(
                             icon_name="mdi-delete",
                             color="red",
@@ -218,7 +244,7 @@ def ScatterPlot(plotstate):
     relayout, set_relayout = sl.use_state({})
     local_filter, set_local_filter = sl.use_state(None)
     i = sl.use_context(index_context)
-    layout, set_layout = sl.use_state(GridState.grid_layout.value[0])
+    layout, set_layout = sl.use_state({"w": 6, "h": 10, "i": i})
 
     def update_grid():
         # fetch from gridstate
@@ -526,7 +552,7 @@ def HistogramPlot(plotstate):
     nbins = plotstate.nbins.value
     filter, set_filter = use_subset(id(df), plotstate.subset, "histogram")
     i = sl.use_context(index_context)
-    layout, set_layout = sl.use_state(GridState.grid_layout.value[0])
+    layout, set_layout = sl.use_state({"w": 6, "h": 10, "i": i})
 
     def update_grid():
         # fetch from gridstate
@@ -782,7 +808,7 @@ def HeatmapPlot(plotstate):
                                     "filter-aggregated")
     # dark = use_dark_effective()
     i = sl.use_context(index_context)
-    layout, set_layout = sl.use_state(GridState.grid_layout.value[0])
+    layout, set_layout = sl.use_state({"w": 6, "h": 10, "i": i})
 
     def update_grid():
         # fetch from gridstate
@@ -1100,7 +1126,7 @@ def SkymapPlot(plotstate):
     relayout, set_relayout = sl.use_state({})
     local_filter, set_local_filter = sl.use_state(None)
     i = sl.use_context(index_context)
-    layout, set_layout = sl.use_state(GridState.grid_layout.value[0])
+    layout, set_layout = sl.use_state({"w": 6, "h": 10, "i": i})
 
     def update_grid():
         # fetch from gridstate
@@ -1454,6 +1480,7 @@ def DeltaHeatmapPlot(plotstate):
                     len(dff) > 40
                 ), "0"  # NOTE: trial and error found this value. arbitrary
                 assert plotstate.x.value != plotstate.y.value, "1"
+                assert len(State.subset_names.value) != 1, "3"
                 assert plotstate.subset.value != plotstate.subset_b.value, "1"
 
                 assert not check_catagorical(dff[plotstate.x.value]), "2"
@@ -1483,6 +1510,11 @@ def DeltaHeatmapPlot(plotstate):
                     Alert.update(
                         "Catagorical data column set for aggregated -- not yet implemented! Not updating.",
                         color="error",
+                    )
+                elif msg == "3":
+                    Alert.update(
+                        "Delta view is only informative with 2 subsets. Please create another subset to compare against.",
+                        color="info",
                     )
 
                 return (None, None, None)

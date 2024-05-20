@@ -1,6 +1,7 @@
 """Plot settings menus"""
 
 import solara as sl
+import numpy as np
 from solara.components.card import Card
 from solara.components.columns import Columns
 
@@ -28,14 +29,22 @@ def SkymapMenu(plotstate):
     columns = State.columns.value
     sl.use_thread(
         plotstate.reset_values,
-        dependencies=[State.subsets.value, State.columns.value],
+        dependencies=[
+            len(State.subsets.value),
+            State.subsets.value,
+            State.columns.value,
+        ],
     )
+
+    name = plotstate.subset_name.value
+    names = State.subset_names.value
     with sl.Columns([1, 1]):
         with Card(margin=0):
             sl.Select(
                 label="Subset",
-                values=State.subsets.value,
-                value=plotstate.subset,
+                values=names,
+                value=name,
+                on_value=plotstate.update_subset,
             )
             with sl.Column():
                 sl.ToggleButtonsSingle(value=plotstate.geo_coords,
@@ -75,13 +84,21 @@ def ScatterMenu(plotstate):
     columns = State.columns.value
     sl.use_thread(
         plotstate.reset_values,
-        dependencies=[State.subsets.value, State.columns.value],
+        dependencies=[
+            len(State.subsets.value),
+            State.subsets.value,
+            State.columns.value,
+        ],
     )
+
+    name = plotstate.subset_name.value
+    names = State.subset_names.value
     with sl.Card():
         sl.Select(
             label="Subset",
-            values=State.subsets.value,
-            value=plotstate.subset,
+            values=names,
+            value=name,
+            on_value=plotstate.update_subset,
         )
         with sl.Columns([1, 1]):
             with sl.Column():
@@ -137,14 +154,22 @@ def HistogramMenu(plotstate):
     columns = State.columns.value
     sl.use_thread(
         plotstate.reset_values,
-        dependencies=[State.subsets.value, State.columns.value],
+        dependencies=[
+            len(State.subsets.value),
+            State.subsets.value,
+            State.columns.value,
+        ],
     )
 
-    sl.Select(
-        label="Subset",
-        values=State.subsets.value,
-        value=plotstate.subset,
-    )
+    name = plotstate.subset_name.value
+    names = State.subset_names.value
+    with sl.Card():
+        sl.Select(
+            label="Subset",
+            values=names,
+            value=name,
+            on_value=plotstate.update_subset,
+        )
     with sl.Columns([1, 1]):
         with Card(margin=0):
             with sl.Column():
@@ -179,14 +204,21 @@ def HeatmapMenu(plotstate):
     columns = State.columns.value
     sl.use_thread(
         plotstate.reset_values,
-        dependencies=[State.subsets.value, State.columns.value],
+        dependencies=[
+            len(State.subsets.value),
+            State.subsets.value,
+            State.columns.value,
+        ],
     )
+    name = State.subsets.value[plotstate.subset.value]
+    names = State.subset_names.value
     with sl.Columns([1, 1]):
-        with Card(margin=0):
+        with sl.Card():
             sl.Select(
                 label="Subset",
-                values=State.subsets.value,
-                value=plotstate.subset,
+                values=names,
+                value=name,
+                on_value=plotstate.update_subset,
             )
             with Columns([3, 3, 1], gutters_dense=True):
                 with sl.Column():
@@ -252,25 +284,29 @@ def DeltaHeatmapMenu(plotstate):
     columns = State.columns.value
     sl.use_thread(
         plotstate.reset_values,
-        dependencies=[State.subsets.value, State.columns.value],
+        dependencies=[
+            len(State.subsets.value),
+            State.subsets.value,
+            State.columns.value,
+        ],
     )
+
+    name_a = plotstate.subset_name.value
+    name_b = plotstate.subset_name_b.value
+    names = State.subset_names.value
     with Card(margin=0):
         with sl.Columns([3, 3, 1]):
             sl.Select(
                 label="Subset 1",
-                values=[
-                    subset for subset in State.subsets.value
-                    if subset != plotstate.subset_b.value
-                ],
-                value=plotstate.subset,
+                values=names,
+                value=name_a,
+                on_value=plotstate.update_subset,
             )
             sl.Select(
                 label="Subset 2",
-                values=[
-                    subset for subset in State.subsets.value
-                    if subset != plotstate.subset.value
-                ],
-                value=plotstate.subset_b,
+                values=names,
+                value=name_b,
+                on_value=lambda *args: plotstate.update_subset(*args, b=True),
             )
             sl.Button(
                 icon=True,
