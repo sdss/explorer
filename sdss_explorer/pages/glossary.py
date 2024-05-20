@@ -30,7 +30,13 @@ def HelpBlurb():
                 text=True,
                 on_click=lambda: set_open(True),
             )
-        with Dialog(open, ok=None, title="About", cancel="close"):
+        with Dialog(
+                open,
+                ok=None,
+                title="About",
+                cancel="close",
+                on_cancel=lambda: set_open(False),
+        ):
             with rv.Card(style_="width: 100%; height: 100%"):
                 sl.Markdown(md_text)
 
