@@ -12,7 +12,7 @@ dependencies = [
     "vaex>=4.17.0",
     "numpy",
 ]
-requires-python = "==3.10.*"
+requires-python = ">= 3.10"
 readme = "README.md"
 
 [build-system]
