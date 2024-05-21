@@ -1,11 +1,20 @@
 """Components to assist with user information, including about the app,"""
 
+import json
 import solara as sl
-from typing import Union, List, Callable
 from solara.alias import rv
 
-from .state import State
+from .state import State, load_datapath
 from .dialog import Dialog
+
+with open(f"{load_datapath()}/ipl3_partial.json") as f:
+    try:
+        data = json.load(f).values()
+    except:
+        data = None
+    f.close()
+
+print(data)
 
 # NOTE: can be moved to assets directory to keep separate.
 md_text = r"""
@@ -46,19 +55,65 @@ def HelpBlurb():
 @sl.component()
 def ColumnGlossary():
     """Complete list of all columns and what they do"""
-    df = State.df.value
+    # TODO: fetch via valis instead of via basic
+    # TODO: for above, make datamodel/airflow render for data file
+    json = data
+    filter, set_filter = sl.use_state("")
+    columns, set_columns = sl.use_state(json)
 
-    # don't use State.columns, instead get all natural columns
-    columns = df.get_column_names(virtual=False)
-    column_mdtext = "\n".join(columns)  # turn to markdown text
+    def update_columns():
+        if filter:
+            set_columns(
+                [k for k in json if filter.lower() in k["name"].lower()])
+        elif filter == "":
+            set_columns(data)
 
-    # TODO: convert to markdown table of |Column | Description|
+    result = sl.use_thread(update_columns, dependencies=[filter])
 
-    # user-facing panel
     with rv.ExpansionPanel() as main:
         rv.ExpansionPanelHeader(children=["Column Glossary"])
         with rv.ExpansionPanelContent():
-            with sl.Column(gap="0px"):
-                sl.Markdown(column_mdtext)
+            with sl.Div():
+                if data is None:
+                    sl.Error("Error in datamodel load.")
+                else:
+                    sl.InputText(
+                        label="Filter columns by name",
+                        value=filter,
+                        on_value=set_filter,
+                        continuous_update=True,
+                    )
+                    with sl.GridFixed(columns=1,
+                                      align_items="end",
+                                      justify_items="stretch"):
+                        if result.state == sl.ResultState.FINISHED:
+                            if len(columns) == 0:
+                                sl.Warning(
+                                    "No columns found, try a different filter")
+                            else:
+                                # summary text logic
+                                if len(columns) > 20:
+                                    summary = f"{len(columns):,}/{len(data):,} columns (showing 20)"
+                                elif len(columns) == len(data):
+                                    summary = (
+                                        f"{len(data):,} total columns (showing 20)"
+                                    )
+                                else:
+                                    summary = f"{len(columns):,}/{len(data):,} columns"
 
+                                sl.Info(summary)
+                                # TODO: change from showing just first 20 to more via lazy-loading
+                                for n, col in enumerate(columns):
+                                    if n > 20:
+                                        break
+                                    name = col["name"]
+                                    desc = col["description"]
+                                    with sl.Columns([1, 1]):
+                                        sl.Text(name)
+                                        sl.Text(desc, style={"opacity": ".5"})
+                        else:
+                            with sl.Div():
+                                sl.Text("Loading...")
+                                rv.ProgressCircular(indeterminate=True,
+                                                    class_="solara-progress")
     return main
