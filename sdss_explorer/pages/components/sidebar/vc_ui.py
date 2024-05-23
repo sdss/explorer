@@ -10,10 +10,10 @@ from ...dataclass import State, VCData, Alert
 from ..dialog import Dialog
 
 
-@sl.component()
 def VirtualColumnList():
     """Renders list of created virtual columns with delete buttons"""
     # NOTE: this should be efficient, but it could also just not be
+    # NOTE: doesn't need header -- for some reason adding the decorator makes it not update properly
     with sl.Column(gap="0px") as main:
         for name, expression in VCData.columns.value:
             with rv.Card():
@@ -54,6 +54,9 @@ def VirtualColumnsPanel():
             # validate via AST
             assert expression != "", "no expression set"
             df.validate_expression(expression)
+
+            assert df[
+                expression].dtype != bool, "do not enter comparative expression"
 
             # alert user about powers
             if r"^" in expression:

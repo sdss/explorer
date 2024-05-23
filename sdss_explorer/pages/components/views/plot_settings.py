@@ -5,6 +5,7 @@ from solara.components.card import Card
 from solara.components.columns import Columns
 
 from ...dataclass import State
+from ..sidebar.subset_cards import SubsetState
 
 
 def show_settings(type, state):
@@ -29,14 +30,17 @@ def SkymapMenu(plotstate):
     sl.use_thread(
         plotstate.reset_values,
         dependencies=[
-            len(State.subsets.value),
-            State.subsets.value,
+            len(SubsetState.active.value),
+            SubsetState.active.value,
             State.columns.value,
         ],
     )
 
-    name = plotstate.subset_name.value
-    names = State.subset_names.value
+    name, names = sl.use_memo(
+        plotstate.update_names,
+        dependencies=[SubsetState.names.value, SubsetState.active.value],
+    )
+
     with sl.Columns([1, 1]):
         with Card(margin=0):
             sl.Select(
@@ -84,14 +88,16 @@ def ScatterMenu(plotstate):
     sl.use_thread(
         plotstate.reset_values,
         dependencies=[
-            len(State.subsets.value),
-            State.subsets.value,
+            len(SubsetState.active.value),
+            SubsetState.active.value,
             State.columns.value,
         ],
     )
 
-    name = plotstate.subset_name.value
-    names = State.subset_names.value
+    name, names = sl.use_memo(
+        plotstate.update_names,
+        dependencies=[SubsetState.names.value, SubsetState.active.value],
+    )
     with sl.Card():
         sl.Select(
             label="Subset",
@@ -154,14 +160,20 @@ def HistogramMenu(plotstate):
     sl.use_thread(
         plotstate.reset_values,
         dependencies=[
-            len(State.subsets.value),
-            State.subsets.value,
+            len(SubsetState.active.value),
+            SubsetState.active.value,
             State.columns.value,
         ],
     )
 
-    name = plotstate.subset_name.value
-    names = State.subset_names.value
+    name, names = sl.use_memo(
+        plotstate.update_names,
+        dependencies=[
+            plotstate.subset.value,
+            SubsetState.names.value,
+        ],
+    )
+
     with sl.Card():
         sl.Select(
             label="Subset",
@@ -204,13 +216,20 @@ def HeatmapMenu(plotstate):
     sl.use_thread(
         plotstate.reset_values,
         dependencies=[
-            len(State.subsets.value),
-            State.subsets.value,
+            len(SubsetState.active.value),
+            SubsetState.active.value,
             State.columns.value,
         ],
     )
-    name = State.subsets.value[plotstate.subset.value]
-    names = State.subset_names.value
+
+    name, names = sl.use_memo(
+        plotstate.update_names,
+        dependencies=[
+            plotstate.subset.value,
+            SubsetState.names.value,
+            SubsetState.cards.value,
+        ],
+    )
     with sl.Columns([1, 1]):
         with sl.Card():
             sl.Select(
@@ -284,26 +303,31 @@ def DeltaHeatmapMenu(plotstate):
     sl.use_thread(
         plotstate.reset_values,
         dependencies=[
-            len(State.subsets.value),
-            State.subsets.value,
+            len(SubsetState.active.value),
+            SubsetState.active.value,
             State.columns.value,
         ],
     )
 
-    name_a = plotstate.subset_name.value
-    name_b = plotstate.subset_name_b.value
-    names = State.subset_names.value
+    name_a, name_b, names = sl.use_memo(
+        lambda: plotstate.update_names(delta=True),
+        dependencies=[SubsetState.names.value, SubsetState.active.value],
+    )
     with Card(margin=0):
         with sl.Columns([3, 3, 1]):
             sl.Select(
                 label="Subset 1",
-                values=names,
+                values=[
+                    n for n in SubsetState.active_names.value if n != name_b
+                ],
                 value=name_a,
                 on_value=plotstate.update_subset,
             )
             sl.Select(
                 label="Subset 2",
-                values=names,
+                values=[
+                    n for n in SubsetState.active_names.value if n != name_a
+                ],
                 value=name_b,
                 on_value=lambda *args: plotstate.update_subset(*args, b=True),
             )

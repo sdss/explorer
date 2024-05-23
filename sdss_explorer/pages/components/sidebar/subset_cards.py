@@ -10,8 +10,7 @@ import reacton.ipyvuetify as rv
 import solara as sl
 from solara.lab import ConfirmationDialog
 
-from ...dataclass import Alert, State, init_key, use_subset
-from ...util import generate_unique_key
+from ...dataclass import Alert, State, use_subset
 from ..dialog import Dialog
 from .subset_filters import CartonMapperPanel, DownloadMenu, ExprEditor
 
@@ -19,48 +18,14 @@ operator_map = {"AND": operator.and_, "OR": operator.or_, "XOR": operator.xor}
 
 # context for updater and renamer
 updater_context = sl.create_context(print)  # context for forcing updates
-rename_context = sl.create_context(
-    ("hi", print))  # context for renamer function
-
-
-def remove_key(d: dict, key: str) -> dict:
-    """Function to pop a dict map and return the altered dict via shallow copy"""
-    r = dict(d)
-    r.pop(key)
-    return r
 
 
 @sl.component()
-def SubsetCard(key: str, **kwargs):
+def SubsetCard(key: int, **kwargs):
     """Holds filter update info, card structure, and calls to options"""
     df = State.df.value
     filter, _set_filter = use_subset(id(df), key, "subset-summary")
-    updater = sl.use_context(updater_context)
-    name, set_name = sl.use_state(
-        State.subsets.value[key])  # instantiation parameter
-    sl.provide_context(rename_context, (name, set_name))
-
-    def remove(subset_key):
-        """
-        q: index of subset in list; variate
-        """
-        for n, (k, v) in enumerate(State.subsets.value.items()):
-            if k == subset_key:
-                q = n
-                break
-
-        # pop from subset name mappings
-        State.subsets.value = remove_key(State.subsets.value, subset_key)
-        print(State.subsets.value)
-
-        # slice the card list
-        SubsetState.subset_cards.value = (
-            SubsetState.subset_cards.value[:q] +
-            SubsetState.subset_cards.value[q + 1:])
-
-        # force update
-        updater()
-        SubsetState.update_subset_names()  # forcefully update subsetname list
+    name = SubsetState.names.value.setdefault(key, "A")
 
     # progress bar logic
     if filter:
@@ -92,35 +57,43 @@ def SubsetCard(key: str, **kwargs):
         with rv.ExpansionPanelContent():
             # filter bar
             sl.ProgressLinear(value=progress, color="blue")
-            SubsetOptions(key, lambda: remove(key), **kwargs).key(key)
+            SubsetOptions(key, lambda: SubsetState.remove_subset(key),
+                          **kwargs)
     return main
 
 
 class SubsetState:
-    subset_cards = sl.reactive([
+    names = sl.reactive({0: "A"})  # all names; never mutated
+    active = sl.reactive([0])  # active indexes
+    index = sl.reactive(1)
+    cards = sl.reactive([
         SubsetCard(
-            init_key,
+            0,
             **{
                 "expression": "teff < 15e3",
                 "mapper": ["mwm"]
             },
-        ).key(init_key)
+        ).key(0)
     ])
 
     @staticmethod
     def add_subset(name: str, **kwargs):
         """Adds subset and subsetcard, generating new unique key for subset. Boolean return for success."""
-        if name not in State.subset_names.value and len(name) > 0:
+        if name not in SubsetState.names.value.values() and len(name) > 0:
             # generate unique key
-            key = generate_unique_key(name)
+            key = SubsetState.index.value
 
-            # add to name, mapping + object list
+            # add to elem list, names, and active
             # NOTE: must be done in this order
-            State.subsets.value[key] = name
-            SubsetState.subset_cards.value = [
-                *SubsetState.subset_cards.value,
+            SubsetState.active.value = [*SubsetState.active.value, key]
+            SubsetState.names.value = {**SubsetState.names.value, key: name}
+            SubsetState.cards.value = [
+                *SubsetState.cards.value,
                 SubsetCard(key, **kwargs).key(key),
             ]
+
+            # update key variable
+            SubsetState.index.set(SubsetState.index.value + 1)
 
             return True
         elif name == "":
@@ -130,26 +103,45 @@ class SubsetState:
             Alert.update("Subset with name already exists!", color="error")
         return False
 
-    def update_subset_names():
-        State.subset_names.set(list(State.subsets.value.values()))
-        print(State.subset_names.value)
-        return
-
     @staticmethod
-    def rename_subset(key: str, new_name: str):
-        print("RENAME: key=", key)
-        print("keys", State.subsets.value.keys())
-        if key not in State.subsets.value.keys():
+    def rename_subset(key: int, new_name: str):
+        print("Key =", key)
+        if key not in SubsetState.names.value.keys():
             Alert.update("BUG: subset rename failed! Key not in hashmap.",
                          color="error")
             return False
+        elif key not in SubsetState.active.value:
+            Alert.update("BUG: subset rename failed! Key not in actives.",
+                         color="error")
+            return False
         else:
-            State.subsets.value[key] = new_name
+            q = SubsetState.names.value
+            qc = q.copy()
+            qc[key] = new_name
+            SubsetState.names.set(qc)
             return True
+
+    @staticmethod
+    def remove_subset(key: int):
+        """
+        q: index of subset in lists; variate
+        """
+        for n, thiskey in enumerate(SubsetState.active.value):
+            if key == thiskey:
+                q = n
+                break
+
+        # slice the card list
+        SubsetState.cards.value = (SubsetState.cards.value[:q] +
+                                   SubsetState.cards.value[q + 1:])
+
+        # slice the active list
+        SubsetState.active.value = (SubsetState.active.value[:q] +
+                                    SubsetState.active.value[q + 1:])
 
 
 @sl.component()
-def SubsetOptions(key: str, deleter: Callable, **kwargs):
+def SubsetOptions(key: int, deleter: Callable, **kwargs):
     """
     Contains all subset configuration threads and state variables,
     including expression, cartonmapper, clone and delete.
@@ -179,7 +171,6 @@ def SubsetOptions(key: str, deleter: Callable, **kwargs):
     df = State.df.value
     mapping = State.mapping.value
     updater = sl.use_context(updater_context)  # fetch update forcer
-    name, set_name = sl.use_context(rename_context)  # fetch renme function
 
     # dialog states
     delete = sl.use_reactive(False)
@@ -215,7 +206,7 @@ def SubsetOptions(key: str, deleter: Callable, **kwargs):
     def clone_subset():
         """Self cloner function"""
         if SubsetState.add_subset(
-                "Copy of " + name,
+                "Copy of " + SubsetState.names.value[key],
                 **{
                     "mapper": mapper,
                     "carton": carton,
@@ -233,21 +224,20 @@ def SubsetOptions(key: str, deleter: Callable, **kwargs):
         """Wrapper for renaming subsets via dataclass method."""
         if SubsetState.rename_subset(key, newname):
             rename.set(False)
-            set_name(newname)
             set_newname("")
             updater()  # force update; could do without it
-            SubsetState.update_subset_names(
-            )  # forcefully update subsetname list
         return
 
     def update_n_subsets():
-        return len(State.subset_names.value)
+        return len(SubsetState.active.value)
 
-    # NOTE: callback to bypass reactive monitoring limitations
     n_subsets = sl.use_memo(
         update_n_subsets,
-        dependencies=[State.subset_names.value,
-                      len(State.subset_names.value)],
+        dependencies=[
+            len(SubsetState.active.value),
+            SubsetState.active.value,
+            SubsetState.cards.value,
+        ],
     )
 
     # Expression Editor thread

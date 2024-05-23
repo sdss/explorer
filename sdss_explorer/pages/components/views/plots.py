@@ -17,6 +17,9 @@ from solara.lab import Menu
 
 from ...dataclass import State, Alert, GridState, use_subset
 from ...util import check_catagorical
+from ..sidebar.subset_cards import (
+    SubsetState,
+)  # TODO: fix this import's location in the codebase to somewhere better
 from .plot_settings import show_settings
 
 # index context for grid
@@ -61,12 +64,11 @@ class PlotState:
     Combination of reactive states which instantiate a specific plot's settings/properties
     """
 
-    def __init__(self, plottype):
+    def __init__(self, plottype, current_key):
         # subset and type states
         self.plottype = str(plottype)
-        self.subset = sl.use_reactive(list(State.subsets.value.keys())[-1])
-        self.subset_name = sl.use_reactive(
-            State.subsets.value.setdefault(self.subset.value, "name"))
+        # NOTE: this prevents a reactive update to override the initialization prop
+        self.subset = sl.use_reactive(current_key)
 
         # common plot settings
         self.x = sl.use_reactive("teff")
@@ -101,11 +103,8 @@ class PlotState:
 
         # delta view settings
         if "delta" in plottype:
-            self.subset_b = sl.use_reactive(
-                list(State.subsets.value.keys())[0])
-            self.subset_name_b = sl.use_reactive(
-                State.subsets.value.setdefault(self.subset_b.value, "name2"))
-
+            # NOTE: view can only be created when there are 2 subsets
+            self.subset_b = sl.use_reactive(current_key)
         # all lookup data for plottypes
         # TODO: move this lookup data elsewhere to reduce the size of the plotstate objects
         self.Lookup = dict(
@@ -144,19 +143,17 @@ class PlotState:
     def reset_values(self):
         """Conditional reset based on if given column/subset is still in list"""
         # subset resets
-        if self.subset.value not in State.subsets.value.keys():
-            new_subset_key = list(State.subsets.value.keys())[-1]
+        if self.subset.value not in SubsetState.active.value:
+            new_subset_key = SubsetState.active.value[-1]
             Alert.update(
-                f"Subset in view was removed, reset to {State.subsets.value[new_subset_key]}",
+                f"Subset in view was removed, reset to {SubsetState.names.value[new_subset_key]}",
                 color="info",
             )
             self.subset.value = new_subset_key
-            self.subset_name.value = State.subsets.value[new_subset_key]
         try:
-            if self.subset_b.value not in State.subsets.value.keys():
-                new_subset_key = list(State.subsets.value.keys())[-1]
+            if self.subset_b.value not in SubsetState.active.value:
+                new_subset_key = SubsetState.active.value[-1]
                 self.subset_b.value = new_subset_key
-                self.subset_name_b.value = State.subsets.value[new_subset_key]
         except:
             pass
 
@@ -175,17 +172,34 @@ class PlotState:
                 self.color.value = "fe_h"
 
     def update_subset(self, name: str, b: bool = False):
+        """Callback to update subset by name."""
         if not b:
             subset = self.subset
-            namevar = self.subset_name
         else:
             subset = self.subset_b
-            namevar = self.subset_name_b
-        for key, value in State.subsets.value.items():
+        for key, value in SubsetState.names.value.items():
             if value == name:
                 subset.set(key)
-                namevar.set(value)
                 break
+        return
+
+    def update_names(self, delta: bool = False):
+        """Provide name and active name list for this instance."""
+        # get current names
+        name = SubsetState.names.value[self.subset.value]
+        if delta:
+            name_b = SubsetState.names.value[self.subset_b.value]
+
+        # get active names
+        names = list()
+        for i in SubsetState.active.value:
+            names.append(SubsetState.names.value[i])
+
+        # return switch case
+        if delta:
+            return name, name_b, names
+        else:
+            return name, names
 
 
 def range_loop(start, offset):
@@ -208,7 +222,10 @@ def check_cat_color(color: vx.Expression) -> bool:
 def show_plot(plottype, del_func):
     # NOTE: force set to grey darken-3 colour for visibility of card against grey darken-4 background
     with rv.Card(class_="grey darken-3", style_="width: 100%; height: 100%"):
-        plotstate = PlotState(plottype)
+        # NOTE: current key has to be memoized outside the instantiation (why I couldn't tell you)
+        current_key = sl.use_memo(lambda: SubsetState.active.value[-1],
+                                  dependencies=[])
+        plotstate = PlotState(plottype, current_key)
         with rv.CardText():
             with sl.Column(classes=["grey darken-3"]):
                 if plottype == "histogram":
@@ -1482,7 +1499,7 @@ def DeltaHeatmapPlot(plotstate):
                     len(dff) > 40
                 ), "0"  # NOTE: trial and error found this value. arbitrary
                 assert plotstate.x.value != plotstate.y.value, "1"
-                assert len(State.subset_names.value) != 1, "3"
+                assert len(SubsetState.active.value) != 1, "3"
                 assert plotstate.subset.value != plotstate.subset_b.value, "1"
 
                 assert not check_catagorical(dff[plotstate.x.value]), "2"

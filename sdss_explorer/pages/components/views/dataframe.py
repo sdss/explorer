@@ -18,6 +18,7 @@ from solara.lab import Menu, Task, use_task
 from solara.lab.hooks.dataframe import use_df_column_names
 
 from ...dataclass import State, use_subset
+from ..sidebar.subset_cards import SubsetState
 
 
 @sl.component
@@ -241,17 +242,37 @@ def ModdedDataTable(
 def StatisticsTable(del_func: Callable):
     """Statistics description view for the dataset."""
     df = State.df.value
-    subset = sl.use_reactive(list(
-        State.subsets.value.keys())[-1])  # inits with last subset
+    subset = sl.use_reactive(
+        sl.use_memo(lambda: SubsetState.active.value[-1],
+                    dependencies=[]))  # inits with last subset
     filter, set_filter = use_subset(id(df), subset, name="statsview")
     columns, set_columns = sl.use_state(["teff", "logg", "fe_h"])
-    name, set_name = sl.use_state(State.subset_names.value[-1])
+
+    def update_names():
+        """Memoize fetch of names"""
+        # NOTE: this function is redefined from the one in plot_settings.py
+        # TODO: refactor plotstate -> viewstate, flexible to any view...
+
+        # get current name
+        name = SubsetState.names.value[subset.value]
+
+        # get active names
+        names = list()
+        for i in SubsetState.active.value:
+            names.append(SubsetState.names.value[i])
+
+        return name, names
+
+    name, names = sl.use_memo(
+        update_names,
+        dependencies=[SubsetState.names.value, SubsetState.cards.value])
 
     def update_subset(name: str):
-        for key, value in State.subsets.value.items():
+        # NOTE: this function is redefined from the one in plot_settings.py
+        # TODO: refactor plotstate -> viewstate, flexible to any view...
+        for key, value in SubsetState.names.value.items():
             if value == name:
                 subset.set(key)
-                set_name(value)
                 break
 
     if filter:
@@ -321,7 +342,7 @@ def StatisticsTable(del_func: Callable):
                             )
                             sl.Select(
                                 label="Subset",
-                                values=State.subset_names.value,
+                                values=names,
                                 value=name,
                                 on_value=update_subset,
                             )

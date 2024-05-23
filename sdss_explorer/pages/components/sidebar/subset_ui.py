@@ -6,7 +6,6 @@ import numpy as np
 import reacton.ipyvuetify as rv
 from solara.hooks.misc import use_force_update
 
-from ...dataclass import State
 from ..dialog import Dialog
 
 from .subset_cards import SubsetState, updater_context
@@ -23,8 +22,6 @@ def SubsetMenu():
     """Control and display subset cards"""
     add = sl.use_reactive(False)
     name, set_name = sl.use_state("")
-    # model, set_model = sl.use_state([0])  # init with subset A open
-    # NOTE: initialization here must be synchronized with State.subsets
     updater = use_force_update()
     updater_context.provide(updater)  # provide updater to context
 
@@ -32,8 +29,6 @@ def SubsetMenu():
         "Wraps subset add to support dialog interface"
         if SubsetState.add_subset(name):
             updater()  # force rerender
-            SubsetState.update_subset_names(
-            )  # forcefully update subsetname list
             close()
 
     def close():
@@ -64,15 +59,15 @@ def SubsetMenu():
             # multiple=True,
             # v_model=model,
             # on_v_model=set_model):
-            print("Number of cards", len(SubsetState.subset_cards.value))
-            print("Number of known subsets =", len(State.subsets.value))
-            for card in SubsetState.subset_cards.value:
+            print("Number of cards", len(SubsetState.cards.value))
+            for card in SubsetState.cards.value:
                 sl.display(card)
         with Dialog(
                 add,
                 title="Enter a name for the new subset",
                 close_on_ok=False,
                 on_ok=lambda: add_subset(name),
+                on_cancel=lambda: set_name(""),
         ):
             sl.InputText(
                 label="Subset name",
