@@ -1,35 +1,33 @@
-"""Sidebar initializations"""
+"""Subset cards and SubsetState class"""
 
-from typing import cast, Callable
-from functools import reduce
 import operator
 import re
+from functools import reduce
+from typing import Callable, cast
 
-import solara as sl
-from solara.lab import ConfirmationDialog
-import vaex as vx
 import numpy as np
 import reacton.ipyvuetify as rv
-from solara.hooks.misc import use_force_update
+import solara as sl
+from solara.lab import ConfirmationDialog
 
-from .state import State, VCData, Alert
-from .dialog import Dialog
-from .subsets import use_subset
-from .subset_options import ExprEditor, CartonMapperPanel
-from .glossary import ColumnGlossary
-from .util import generate_unique_key
+from ...dataclass import Alert, State, init_key, use_subset
+from ...util import generate_unique_key
+from ..dialog import Dialog
+from .subset_filters import CartonMapperPanel, DownloadMenu, ExprEditor
 
 operator_map = {"AND": operator.and_, "OR": operator.or_, "XOR": operator.xor}
 
+# context for updater and renamer
 updater_context = sl.create_context(print)  # context for forcing updates
 rename_context = sl.create_context(
     ("hi", print))  # context for renamer function
 
 
-@vx.register_function()
-def check_flags(flags, vals):
-    """Converts flags & values to boolean vaex expression for use as a filter."""
-    return np.any(np.logical_and(flags, vals), axis=1)
+def remove_key(d: dict, key: str) -> dict:
+    """Function to pop a dict map and return the altered dict via shallow copy"""
+    r = dict(d)
+    r.pop(key)
+    return r
 
 
 @sl.component()
@@ -38,8 +36,8 @@ def SubsetCard(key: str, **kwargs):
     df = State.df.value
     filter, _set_filter = use_subset(id(df), key, "subset-summary")
     updater = sl.use_context(updater_context)
-    name, set_name = sl.use_state(State.subsets.value.setdefault(
-        key, "A"))  # instantiation parameter
+    name, set_name = sl.use_state(
+        State.subsets.value[key])  # instantiation parameter
     sl.provide_context(rename_context, (name, set_name))
 
     def remove(subset_key):
@@ -52,7 +50,8 @@ def SubsetCard(key: str, **kwargs):
                 break
 
         # pop from subset name mappings
-        State.subsets.value.pop(subset_key)
+        State.subsets.value = remove_key(State.subsets.value, subset_key)
+        print(State.subsets.value)
 
         # slice the card list
         SubsetState.subset_cards.value = (
@@ -93,19 +92,19 @@ def SubsetCard(key: str, **kwargs):
         with rv.ExpansionPanelContent():
             # filter bar
             sl.ProgressLinear(value=progress, color="blue")
-            SubsetOptions(key, lambda: remove(key), **kwargs)
+            SubsetOptions(key, lambda: remove(key), **kwargs).key(key)
     return main
 
 
 class SubsetState:
     subset_cards = sl.reactive([
         SubsetCard(
-            generate_unique_key("A"),
+            init_key,
             **{
                 "expression": "teff < 15e3",
                 "mapper": ["mwm"]
             },
-        )
+        ).key(init_key)
     ])
 
     @staticmethod
@@ -118,7 +117,10 @@ class SubsetState:
             # add to name, mapping + object list
             # NOTE: must be done in this order
             State.subsets.value[key] = name
-            SubsetState.subset_cards.value.append(SubsetCard(key, **kwargs))
+            SubsetState.subset_cards.value = [
+                *SubsetState.subset_cards.value,
+                SubsetCard(key, **kwargs).key(key),
+            ]
 
             return True
         elif name == "":
@@ -144,87 +146,6 @@ class SubsetState:
         else:
             State.subsets.value[key] = new_name
             return True
-
-
-@sl.component()
-def SubsetMenu():
-    """Control and display subset cards"""
-    add = sl.use_reactive(False)
-    name, set_name = sl.use_state("")
-    # model, set_model = sl.use_state([0])  # init with subset A open
-    # NOTE: initialization here must be synchronized with State.subsets
-    updater = use_force_update()
-    updater_context.provide(updater)  # provide updater to context
-
-    def add_subset(name):
-        "Wraps subset add to support dialog interface"
-        if SubsetState.add_subset(name):
-            updater()  # force rerender
-            SubsetState.update_subset_names(
-            )  # forcefully update subsetname list
-            close()
-
-    def close():
-        """Dialog close handler, resetting state vars"""
-        add.set(False)
-        set_name("")
-        return
-
-    # BUG: subsets sometimes save in the reactive (we don't want this)
-    def monitor_cards():
-        if len(SubsetState.subset_cards.value) != len(State.subsets.value):
-            while len(SubsetState.subset_cards.value) > len(
-                    State.subsets.value):
-                SubsetState.subset_cards.value.pop(-1)
-        return
-
-    sl.use_thread(
-        monitor_cards,
-        dependencies=[
-            len(SubsetState.subset_cards.value),
-            len(State.subsets.value)
-        ],
-    )
-
-    with sl.Column(gap="0px") as main:
-        with rv.Card(class_="justify-center",
-                     flat=True,
-                     style_="width: 100%; height: 100%"):
-            rv.CardTitle(
-                class_="justify-center",
-                children=["Subsets"],
-            )
-            with rv.CardText():
-                with sl.Tooltip("Create filtered subsets of the dataset"):
-                    sl.Button(
-                        label="Add new subset",
-                        on_click=lambda: add.set(True),
-                        block=True,
-                    )
-        # NOTE: starting app with expanded panels requires
-        # enabling the multiple prop for this version of vuetify.
-        # This is really annoying for UX (too much info), so we cant do it
-        with rv.ExpansionPanels(flat=True, popout=True):
-            # multiple=True,
-            # v_model=model,
-            # on_v_model=set_model):
-            print("Number of cards", len(SubsetState.subset_cards.value))
-            print("Number of known subsets =", len(State.subsets.value))
-            for card in SubsetState.subset_cards.value:
-                sl.display(card)
-        with Dialog(
-                add,
-                title="Enter a name for the new subset",
-                close_on_ok=False,
-                on_ok=lambda: add_subset(name),
-        ):
-            sl.InputText(
-                label="Subset name",
-                value=name,
-                on_value=set_name,
-            )
-
-    return main
 
 
 @sl.component()
@@ -425,7 +346,7 @@ def SubsetOptions(key: str, deleter: Callable, **kwargs):
             # set_filter(None)
             set_error(e)  # saves error msg to state
             return False
-        except SyntaxError as e:
+        except SyntaxError:
             set_error("modifier at end of sequence with no expression")
             return False
 
@@ -580,276 +501,4 @@ def SubsetOptions(key: str, deleter: Callable, **kwargs):
                 value=newname,
                 on_value=set_newname,
             )
-    return main
-
-
-@sl.component()
-def DownloadMenu():
-    # df = State.df.value
-    # filter, set_filter = sl.use_cross_filter(id(df), "download")
-    # if filter:
-    #    dff = df[filter]
-    # else:
-    #    dff = df
-
-    def get_data():
-        # TODO: change all of these methods to better valis-integrated methods that dont involve
-        # dropping the entire DB file into memory...
-        # dfp = dff.to_pandas_df()
-        Alert.update(
-            "Download currently unsupported due to memory issues server-side. Coming soon!",
-            color="info",
-        )
-        return  # dfp.to_csv(index=False)
-
-    with sl.Tooltip("Download subset as csv") as main:
-        sl.Button(
-            label="",
-            icon_name="mdi-download",
-            icon=True,
-            text=True,
-            on_click=get_data,
-            # NOTE: temporary disable because the interface is poor
-        )
-
-    return main
-
-
-@sl.component()
-def QuickFilterMenu(name):
-    """
-    Apply quick filters via check boxes.
-    """
-    df = State.df.value
-    # TODO: find out how flags work, currently using 1 col as plceholders:
-    flag_cols = ["result_flags"]
-    _filter, set_filter = use_subset(id(df), name, "quickflags")
-
-    # Quick filter states
-    flag_nonzero, set_flag_nonzero = sl.use_state(False)
-    flag_snr50, set_flag_snr50 = sl.use_state(False)
-
-    def reset_filters():
-        set_flag_nonzero(False)
-        set_flag_snr50(False)
-
-    def work():
-        filters = []
-        flags = [flag_nonzero, flag_snr50]
-
-        # all false
-        if np.all(np.logical_not(flags)):
-            set_filter(None)
-            return
-
-        # flag out all nonzero
-        if flag_nonzero:
-            for flag in flag_cols:
-                filters.append(df[f"({flag}==0)"])
-        if flag_snr50:
-            filters.append(df["(snr > 50)"])
-        concat_filter = reduce(operator.and_, filters[1:], filters[0])
-        set_filter(concat_filter)
-        return
-
-    # apply thread to filtering logic so it only runs on rerenders
-    sl.use_thread(
-        work,
-        dependencies=[flag_nonzero, flag_snr50],
-    )
-
-    with rv.Card() as main:
-        with rv.CardTitle(children=["Quick filters"]):
-            rv.Icon(children=["mdi-filter-plus-outline"])
-        with rv.CardText():
-            sl.Checkbox(
-                label="All flags zero",
-                value=flag_nonzero,
-                on_value=set_flag_nonzero,
-            )
-            sl.Checkbox(label="SNR > 50",
-                        value=flag_snr50,
-                        on_value=set_flag_snr50)
-    return main
-
-
-@sl.component()
-def PivotTablePanel():
-    df = State.df.value
-    with rv.ExpansionPanel() as main:
-        with rv.ExpansionPanelHeader():
-            rv.Icon(children=["mdi-table-plus"])
-            with rv.CardTitle(children=["Pivot Table"]):
-                pass
-        with rv.ExpansionPanelContent():
-            if ~isinstance(df, dict):
-                # BUG: says the df is a dictionary when it isnt, no idea why this occurs
-                # NOTE: the fix below fixes it, but is weird
-                if type(df) != dict:
-                    sl.PivotTableCard(df, y=["telescope"], x=["release"])
-    return main
-
-
-def VirtualColumnList():
-    """Renders list of created virtual columns with delete buttons"""
-    # NOTE: this should be efficient, but it could also just not be
-    with sl.Column(gap="0px"):
-        for name, expression in VCData.columns.value:
-            with rv.Card():
-                rv.CardTitle(children=[name])
-                rv.CardSubtitle(children=[expression])
-                with rv.CardActions(class_="justify-center"):
-                    sl.Button(
-                        label="",
-                        icon_name="mdi-delete-outline",
-                        text=True,
-                        icon=True,
-                        color="red",
-                        on_click=lambda: VCData.delete_column(
-                            name, expression),
-                    )
-
-
-@sl.component()
-def VirtualColumnsPanel():
-    df = State.df.value
-    open, set_open = sl.use_state(False)
-    name, set_name = sl.use_state("snr_var_teff")
-    expression, set_expression = sl.use_state("snr / e_teff**2")
-    error, set_error = sl.use_state("")
-    active = sl.use_reactive(False)
-
-    def validate():
-        "Ensure syntax is correct"
-        try:
-            if expression == "" and name == "":
-                return None
-            # none cases
-            assert name != "", "no name given"
-            # check name
-            assert name not in df.get_column_names(), "name already exists"
-
-            # validate via AST
-            assert expression != "", "no expression set"
-            df.validate_expression(expression)
-
-            # alert user about powers
-            if r"^" in expression:
-                Alert.update(
-                    "'^' is a bit operator. If you're looking to use powers, use '**' (Python syntax) instead.",
-                    color="warning",
-                )
-
-            # set button to active
-            active.set(True)
-            return True
-
-        except Exception as e:
-            set_error(str(e))
-            return False
-
-    def add_column():
-        """Adds virtual column"""
-        df.add_virtual_column(name, expression)
-        VCData.add_column(name, expression)
-        close()
-
-    result: sl.Result = sl.use_thread(validate,
-                                      dependencies=[expression, name])
-
-    def update_columns():
-        """Thread to update master column list on VCData update"""
-        df = State.df.value
-        columns = df.get_column_names(virtual=False)
-        virtuals = list()
-        for name, _expr in VCData.columns.value:
-            virtuals.append(name)
-        State.columns.value = virtuals + columns
-
-    sl.use_thread(
-        update_columns,
-        dependencies=[len(VCData.columns.value)],
-    )
-
-    def close():
-        """Clears state variables and closes dialog."""
-        set_open(False)
-        set_name("")
-        set_expression("")
-        active.set(False)
-
-    with rv.ExpansionPanel() as main:
-        rv.ExpansionPanelHeader(children=["Virtual Calculations"])
-        with rv.ExpansionPanelContent():
-            VirtualColumnList()
-            with sl.Tooltip("Create custom columns based on the dataset"):
-                sl.Button(
-                    label="Add virtual column",
-                    block=True,
-                    on_click=lambda: set_open(True),
-                )
-
-        with Dialog(
-                open,
-                title="Add virtual column",
-                on_cancel=close,
-                ok="Add",
-                close_on_ok=False,
-                on_ok=add_column,
-                persistent=True,
-                ok_enable=active,
-        ):
-            sl.InputText(
-                label="Enter an name for the new column.",
-                value=name,
-                on_value=set_name,
-            )
-            sl.InputText(
-                label="Enter an expression for the new column.",
-                value=expression,
-                on_value=set_expression,
-            )
-            if result.state == sl.ResultState.FINISHED:
-                if result.value:
-                    sl.Success(
-                        label="Valid expression & name entered.",
-                        icon=True,
-                        dense=True,
-                        outlined=False,
-                    )
-                elif result.value is None:
-                    sl.Info(
-                        label="Enter an expression and a name for the column.",
-                        icon=True,
-                        dense=True,
-                        outlined=False,
-                    )
-                else:
-                    sl.Error(
-                        label=f"Invalid expression/name entered: {error}",
-                        icon=True,
-                        dense=True,
-                        outlined=False,
-                    )
-            elif result.state == sl.ResultState.ERROR:
-                sl.Error(f"Error occurred: {result.error}")
-            else:
-                sl.Info("Evaluating expression...")
-                rv.ProgressLinear(indeterminate=True)
-    return main
-
-
-@sl.component()
-def sidebar():
-    df = State.df.value
-
-    with sl.Sidebar() as main:
-        if df is not None:
-            SubsetMenu()
-            rv.Divider()
-            with rv.ExpansionPanels(accordion=True, multiple=True):
-                VirtualColumnsPanel()
-                ColumnGlossary()
-        else:
-            sl.Info("No data loaded.")
     return main

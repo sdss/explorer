@@ -15,9 +15,8 @@ import xarray
 from plotly.graph_objs._figurewidget import FigureWidget
 from solara.lab import Menu
 
-from .state import State, Alert, GridState
-from .util import check_catagorical
-from .subsets import use_subset
+from ...dataclass import State, Alert, GridState, use_subset
+from ...util import check_catagorical
 from .plot_settings import show_settings
 
 # index context for grid
@@ -354,7 +353,9 @@ def ScatterPlot(plotstate):
                     # print(trace.customdata[points.point_inds[0]])
                 elif selector.button == 0 and selector.shift:
                     # NOTE: binding is <Shift+LMB>
-                    zora_url = "http://localhost:8080"  # TODO: get zora url from ENVVAR
+                    zora_url = (
+                        "http://data.sdss5.org/zora"  # TODO: get zora url from ENVVAR
+                    )
                     wb.open(
                         f"{zora_url}/target/{trace.customdata[points.point_inds[0]]}"
                     )

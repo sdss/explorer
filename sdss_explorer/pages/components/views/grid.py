@@ -8,9 +8,10 @@ import reacton as r
 import ipyvuetify as v
 import ipywidgets as widgets
 
+from ...dataclass import State, GridState
+
 from .plots import show_plot, index_context
 from .dataframe import StatisticsTable
-from .state import State, GridState
 
 
 class GridLayout(v.VuetifyTemplate):
@@ -22,7 +23,7 @@ class GridLayout(v.VuetifyTemplate):
     """
 
     template_file = os.path.join(os.path.dirname(__file__),
-                                 "../vue/gridlayout_toolbar.vue")
+                                 "../../../vue/gridlayout_toolbar.vue")
     gridlayout_loaded = t.Bool(False).tag(sync=True)
     items = t.Union([t.List(), t.Dict()],
                     default_value=[]).tag(sync=True,

@@ -1,5 +1,6 @@
+"""Authorization components and functions"""
+
 from typing import cast, Callable
-import time as t
 import os
 import dotenv
 
@@ -12,8 +13,8 @@ from solara.lab import headers
 from solara.components.input import use_change
 from ipyvue import VueWidget
 
-from .state import State, Alert
-from .dialog import Dialog
+from ...dataclass import State, Alert
+from ..dialog import Dialog
 
 
 def get_url():

@@ -4,17 +4,16 @@ import json
 import solara as sl
 from solara.alias import rv
 
-from .state import State, load_datapath
-from .dialog import Dialog
+from ...dataclass import load_datapath
+from ..dialog import Dialog
 
-with open(f"{load_datapath()}/ipl3_partial.json") as f:
-    try:
+# TODO: maybe change to reference datapath in diff way to not use this try/except structure
+try:
+    with open(f"{load_datapath()}/ipl3_partial.json") as f:
         data = json.load(f).values()
-    except:
-        data = None
-    f.close()
-
-print(data)
+        f.close()
+except:
+    data = None
 
 # NOTE: can be moved to assets directory to keep separate.
 md_text = r"""

@@ -3,11 +3,11 @@
 import solara as sl
 import vaex as vx
 
-from .state import State, AlertSystem
-from .dataframe import NoDF
-from .sidebar import sidebar
-from .grid import ObjectGrid
-from .glossary import HelpBlurb
+from .dataclass import State, AlertSystem
+from .components.sidebar import Sidebar
+from .components.sidebar.glossary import HelpBlurb
+from .components.views import ObjectGrid
+from .components.views.dataframe import NoDF
 
 # NOTE: cache with these settings are in memory
 # we can change this in future to a disk cache, which will be shared among worker processes, see https://vaex.io/docs/guides/caching.html
@@ -33,7 +33,7 @@ def Page():
 
     if df is not None:
         # SIDEBAR
-        sidebar()
+        Sidebar()
         # MAIN GRID
         ObjectGrid()
     else:

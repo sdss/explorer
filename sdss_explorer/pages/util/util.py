@@ -1,6 +1,10 @@
+"""Util functions for the app"""
+
 import uuid
 
 import vaex as vx  # noqa
+
+__all__ = ["check_catagorical", "generate_unique_key"]
 
 
 def check_catagorical(expression: str) -> bool:

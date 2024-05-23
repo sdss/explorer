@@ -1,3 +1,5 @@
+"""Main application state variables"""
+
 import os
 
 import solara as sl
@@ -6,7 +8,7 @@ import vaex as vx
 import pyarrow as pa  # noqa
 import numpy as np
 
-from .util import generate_unique_key
+from ..util import generate_unique_key
 
 
 def load_datapath():
@@ -20,6 +22,10 @@ def load_datapath():
         return None
 
 
+# initial key for subset A
+init_key = generate_unique_key("A")
+
+
 class State:
     """Holds app-wide state variables"""
 
@@ -27,7 +33,7 @@ class State:
         vx.open(f"{load_datapath()}/mappings.parquet") if load_datapath(
         ) is not None else None)
     subsets = sl.reactive(
-        {})  # Dict[str,str]; initialization done in SubsetCard
+        {init_key: "A"})  # Dict[str,str]; initialization done in SubsetCard
     # initializing app with a simple default to demonstrate functionality
     subset_names = sl.reactive(["A"])
     token = sl.reactive(None)
@@ -72,79 +78,3 @@ class State:
 
     class Lookup:
         views = ["histogram", "histogram2d", "scatter", "skyplot"]
-
-
-class VCData:
-    """Virtual column data class"""
-
-    columns = sl.reactive(list())
-
-    @staticmethod
-    def add_column(name, expression):
-        VCData.columns.value.append((name, expression))
-
-    @staticmethod
-    def delete_column(name, expression):
-        for n, (colname, _expr) in enumerate(VCData.columns.value):
-            if colname == name:
-                q = n
-                break
-        State.df.value.delete_virtual_column(name)
-        VCData.columns.value = VCData.columns.value[:q] + VCData.columns.value[
-            q + 1:]
-
-
-class Alert:
-    """Alert message settings"""
-
-    open = sl.reactive(False)
-    message = sl.reactive("")
-    color = sl.reactive("")
-    closeable = sl.reactive(True)
-
-    @staticmethod
-    def update(message, color="info", closeable=True):
-        # possible colors are success, info, warning, and error
-        Alert.color.set(color)
-        Alert.message.set(message)
-        Alert.closeable.set(closeable)
-        Alert.open.set(True)
-
-
-class GridState:
-    """
-    Class holding current state of grid layout.
-    """
-
-    objects = sl.reactive([])
-    grid_layout = sl.reactive([])
-    index = 0
-
-
-def AlertSystem():
-    """Global alert system"""
-    with rv.Snackbar(
-            class_="d-flex justify-left ma-0 pa-0 rounded-pill",
-            v_model=Alert.open.value,
-            on_v_model=Alert.open.set,
-            color=Alert.color.value,
-            multi_line=True,
-            top=True,
-            timeout=3000.0,
-    ) as main:
-        rv.Alert(
-            class_="d-flex justify-center ma-2",
-            value=True,
-            type=Alert.color.value,
-            # prominent=True,
-            dense=True,
-            children=[Alert.message.value],
-        )
-        if Alert.closeable.value:
-            sl.Button(
-                icon=True,
-                icon_name="mdi-close",
-                on_click=lambda: Alert.open.set(False),
-                text=True,
-            )
-    return main

@@ -1,11 +1,10 @@
 """Plot settings menus"""
 
 import solara as sl
-import numpy as np
 from solara.components.card import Card
 from solara.components.columns import Columns
 
-from .state import State
+from ...dataclass import State
 
 
 def show_settings(type, state):

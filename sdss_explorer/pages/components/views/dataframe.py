@@ -17,8 +17,7 @@ from solara.components.datatable import CellAction, ColumnAction
 from solara.lab import Menu, Task, use_task
 from solara.lab.hooks.dataframe import use_df_column_names
 
-from .state import State
-from .subsets import use_subset
+from ...dataclass import State, use_subset
 
 
 @sl.component
@@ -124,7 +123,7 @@ def _drop_keys_from_list_of_mappings(drop):
 
 class DataTableWidget(v.VuetifyTemplate):
     template_file = os.path.join(os.path.dirname(__file__),
-                                 "../vue/datatable.vue")
+                                 "../../../vue/datatable.vue")
 
     total_length = traitlets.CInt().tag(sync=True)
     checked = traitlets.List(cast(List[Any], [])).tag(
