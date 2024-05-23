@@ -63,6 +63,7 @@ def SubsetCard(key: int, **kwargs):
 
 
 class SubsetState:
+    # TODO: move subsetstate to dataclass submodule
     names = sl.reactive({0: "A"})  # all names; never mutated
     active = sl.reactive([0])  # active indexes
     index = sl.reactive(1)

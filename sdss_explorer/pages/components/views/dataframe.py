@@ -17,7 +17,7 @@ from solara.components.datatable import CellAction, ColumnAction
 from solara.lab import Menu, Task, use_task
 from solara.lab.hooks.dataframe import use_df_column_names
 
-from ...dataclass import State, use_subset
+from ...dataclass import State, use_subset, Alert
 from ..sidebar.subset_cards import SubsetState
 
 
@@ -286,7 +286,15 @@ def StatisticsTable(del_func: Callable):
     def generate_describe() -> pd.DataFrame:
         """Generates the description table only on column/filter updates"""
         # INFO: vaex returns a pandas df.describe()
-        return dff[columns].describe(strings=False)
+        try:
+            dfd = dff[columns].describe(strings=False)
+        except:
+            Alert.update(
+                "Statistics describe routine encountered stride bug, excepting...",
+                color="warning",
+            )
+            dfd = pd.DataFrame({"error": ["frame"], "no": ["data"]})
+        return dfd
 
     result: Task[pd.DataFrame] = use_task(
         generate_describe, dependencies=[filter, columns,
