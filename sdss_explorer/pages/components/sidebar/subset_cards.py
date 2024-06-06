@@ -216,8 +216,6 @@ def SubsetOptions(key: int, deleter: Callable, **kwargs):
                 },
         ):
             updater()  # force update
-            SubsetState.update_subset_names(
-            )  # forcefully update subsetname list
 
         return
 
