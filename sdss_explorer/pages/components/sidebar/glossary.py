@@ -4,12 +4,12 @@ import json
 import solara as sl
 from solara.alias import rv
 
-from ...dataclass import load_datapath
+from ...dataclass import _datapath
 from ..dialog import Dialog
 
 # TODO: maybe change to reference datapath in diff way to not use this try/except structure
 try:
-    with open(f"{load_datapath()}/ipl3_partial.json") as f:
+    with open(f"{_datapath()}/ipl3_partial.json") as f:
         data = json.load(f).values()
         f.close()
 except:
@@ -45,7 +45,7 @@ def HelpBlurb():
                 cancel="close",
                 on_cancel=lambda: set_open(False),
         ):
-            with rv.Card(style_="width: 100%; height: 100%"):
+            with rv.Card(flat=True, style_="width: 100%; height: 100%"):
                 sl.Markdown(md_text)
 
     return main

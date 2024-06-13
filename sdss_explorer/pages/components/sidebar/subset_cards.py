@@ -344,8 +344,15 @@ def SubsetOptions(key: int, deleter: Callable, **kwargs):
 
     # Carton Mapper thread
     def update_cm():
-        # convert chosens to bool mask
+        # fail on no mapping
+        if mapping is None:
+            Alert.update(
+                "Mappings file not found! Please contact server admins.",
+                color="warning",
+            )
+            return
 
+        # convert chosens to bool mask
         cmp_filter = None
         if len(mapper) == 0 and len(carton) == 0 and len(dataset) == 0:
             set_cmfilter(None)

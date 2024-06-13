@@ -11,7 +11,7 @@ import numpy as np
 from ..util import generate_unique_key
 
 
-def load_datapath():
+def _datapath():
     """fetches path to parquet files from envvar"""
     datapath = os.getenv(
         "EXPLORER_DATAPATH"
@@ -22,6 +22,25 @@ def load_datapath():
         return None
 
 
+def _load_check(filename):
+    """Pre-loader to check for loading errors"""
+    # get dataset name
+    # TODO: verify auth status when attempting to load a working group dataset
+    datapath = _datapath()
+
+    # fail case for no envvar
+    if datapath is None:
+        return False
+
+    # fail case for no file found
+    try:
+        vx.open(f"{datapath}/{filename}")
+    except FileNotFoundError:
+        return False
+
+    return True
+
+
 # initial key for subset A
 init_key = generate_unique_key("A")
 
@@ -30,8 +49,8 @@ class State:
     """Holds app-wide state variables"""
 
     mapping = sl.reactive(
-        vx.open(f"{load_datapath()}/mappings.parquet") if load_datapath(
-        ) is not None else None)
+        vx.open(f"{_datapath()}/mappings.parquet"
+                ) if _load_check("mappings.parquet") else None)
     subsets = sl.reactive(
         {init_key: "A"})  # Dict[str,str]; initialization done in SubsetCard
     # initializing app with a simple default to demonstrate functionality
@@ -45,13 +64,11 @@ class State:
 
     @staticmethod
     def load_dataset(dataset):
-        # get dataset name
-        datapath = load_datapath()
-        if datapath is None:
-            return None  # for when envvar is not set
-        # TODO: verify auth status when attempting to load a working group dataset
+        # fail case for no file found/dne OR no envvar
+        if not _load_check(f"{dataset}.parquet"):
+            return None
 
-        df = vx.open(f"{datapath}/{dataset}.parquet")
+        df = vx.open(f"{_datapath()}/{dataset}.parquet")
 
         # force cast flags as a numpy array via my method bypassing pyarrow
         flags = np.array(list(
@@ -73,8 +90,8 @@ class State:
 
     df = sl.reactive(load_dataset("ipl3_partial"))
 
-    columns = sl.reactive(
-        df.value.get_column_names() if load_datapath() is not None else None)
+    columns = sl.reactive(df.value.get_column_names(
+    ) if load_dataset("ipl3_partial") is not None else None)
 
     class Lookup:
         views = ["histogram", "histogram2d", "scatter", "skyplot"]

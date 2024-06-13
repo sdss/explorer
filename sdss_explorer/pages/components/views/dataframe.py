@@ -368,6 +368,6 @@ def NoDF() -> None:
     with sl.Columns([1]):
         sl.Info(
             label=
-            "No dataset loaded. Please inform server admins to set EXPLORER_DATAPATH envvar.",
+            "No dataset loaded. Please inform server admins to set EXPLORER_DATAPATH envvar and ensure app has read-access to data files.",
             icon=True,
         )

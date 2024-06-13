@@ -61,33 +61,40 @@ def CartonMapperPanel(mapper, set_mapper, carton, set_carton, dataset,
     with rv.ExpansionPanel() as main:
         rv.ExpansionPanelHeader(children=["Targeting Filters"])
         with rv.ExpansionPanelContent():
-            with sl.Column(gap="2px"):
-                with sl.Columns([1, 1]):
-                    sl.SelectMultiple(
-                        label="Mapper",
-                        values=mapper,
-                        on_value=set_mapper,
-                        dense=True,
-                        all_values=State.mapping.value["mapper"].unique(),
-                        classes=['variant="solo"'],
-                    )
-                    sl.SelectMultiple(
-                        label="Dataset",
-                        values=dataset,
-                        on_value=set_dataset,
-                        dense=True,
-                        # TODO: fetch via valis or via df itself
-                        all_values=["apogeenet", "thecannon", "aspcap"],
-                        classes=['variant="solo"'],
-                    )
-                sl.SelectMultiple(
-                    label="Carton",
-                    values=carton,
-                    on_value=set_carton,
+            if State.mapping.value is None:
+                sl.Warning(
                     dense=True,
-                    all_values=State.mapping.value["alt_name"].unique(),
-                    classes=['variant="solo"'],
+                    label=
+                    "Mappings file not found! Please contact server admins.",
                 )
+            else:
+                with sl.Column(gap="2px"):
+                    with sl.Columns([1, 1]):
+                        sl.SelectMultiple(
+                            label="Mapper",
+                            values=mapper,
+                            on_value=set_mapper,
+                            dense=True,
+                            all_values=State.mapping.value["mapper"].unique(),
+                            classes=['variant="solo"'],
+                        )
+                        sl.SelectMultiple(
+                            label="Dataset",
+                            values=dataset,
+                            on_value=set_dataset,
+                            dense=True,
+                            # TODO: fetch via valis or via df itself
+                            all_values=["apogeenet", "thecannon", "aspcap"],
+                            classes=['variant="solo"'],
+                        )
+                    sl.SelectMultiple(
+                        label="Carton",
+                        values=carton,
+                        on_value=set_carton,
+                        dense=True,
+                        all_values=State.mapping.value["alt_name"].unique(),
+                        classes=['variant="solo"'],
+                    )
     return main
 
 
