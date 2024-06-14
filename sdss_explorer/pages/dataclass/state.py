@@ -90,8 +90,8 @@ class State:
 
     df = sl.reactive(load_dataset("ipl3_partial"))
 
-    columns = sl.reactive(df.value.get_column_names(
-    ) if load_dataset("ipl3_partial") is not None else None)
+    columns = sl.reactive(
+        df.value.get_column_names() if df.value is not None else None)
 
     class Lookup:
         views = ["histogram", "histogram2d", "scatter", "skyplot"]
