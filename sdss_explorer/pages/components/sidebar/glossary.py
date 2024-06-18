@@ -12,7 +12,7 @@ try:
     with open(f"{_datapath()}/ipl3_partial.json") as f:
         data = json.load(f).values()
         f.close()
-except:
+except Exception:
     data = None
 
 # NOTE: can be moved to assets directory to keep separate.

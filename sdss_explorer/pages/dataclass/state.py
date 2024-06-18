@@ -22,23 +22,23 @@ def _datapath():
         return None
 
 
-def _load_check(filename):
-    """Pre-loader to check for loading errors"""
+def open_file(filename):
+    """Loader for files to catch excepts"""
     # get dataset name
     # TODO: verify auth status when attempting to load a working group dataset
     datapath = _datapath()
 
     # fail case for no envvar
     if datapath is None:
-        return False
+        return None
 
     # fail case for no file found
     try:
-        vx.open(f"{datapath}/{filename}")
-    except FileNotFoundError:
-        return False
-
-    return True
+        dataset = vx.open(f"{datapath}/{filename}")
+        return dataset
+    except Exception as e:  # noqa
+        # NOTE: this should deal with exception quietly; can be changed later if desired
+        return None
 
 
 # initial key for subset A
@@ -48,9 +48,7 @@ init_key = generate_unique_key("A")
 class State:
     """Holds app-wide state variables"""
 
-    mapping = sl.reactive(
-        vx.open(f"{_datapath()}/mappings.parquet"
-                ) if _load_check("mappings.parquet") else None)
+    mapping = sl.reactive(open_file('mappings.parquet'))
     subsets = sl.reactive(
         {init_key: "A"})  # Dict[str,str]; initialization done in SubsetCard
     # initializing app with a simple default to demonstrate functionality
@@ -64,11 +62,11 @@ class State:
 
     @staticmethod
     def load_dataset(dataset):
-        # fail case for no file found/dne OR no envvar
-        if not _load_check(f"{dataset}.parquet"):
-            return None
+        # start with standard open operation
+        df = open_file(f'{dataset}.parquet')
 
-        df = vx.open(f"{_datapath()}/{dataset}.parquet")
+        if df is None:
+            return
 
         # force cast flags as a numpy array via my method bypassing pyarrow
         flags = np.array(list(
