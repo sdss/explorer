@@ -13,11 +13,6 @@ from .components.views.dataframe import NoDF
 # we can change this in future to a disk cache, which will be shared among worker processes, see https://vaex.io/docs/guides/caching.html
 vx.cache.on()
 
-# disable the vaex built-in logging (clogs on FileNotFounds et al)
-# TODO: set to only remove on production mode (no reload context; is this registered as a variable i can access?)
-# alternatively can I pass it up to valis?
-vx.logging.remove_handler()
-
 
 @sl.component
 def Page():
