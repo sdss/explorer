@@ -7,44 +7,51 @@ The SDSS Parameter Explorer is a custom data visualization application developed
 Ensure that a new virtual environment is created prior to installation
 ```
 python3.10 -m venv venv
+pip install solara=1.30.0 vaex pandas
 ```
 or for Anaconda distributions, run:
 ```
-conda create -n sdss-explorer python=3.10 solara=1.27.0
+conda create -c conda-forge -n sdss-explorer python=3.10 solara=1.30.0 vaex
 ```
 
 To install in this `venv`, run one of the following:
 
-To just install it, run:
+To just install it tracking `main`, run:
 ```
 pip install git+https://www.github.com/sdss/explorer.git@main
 ```
-or, to have a local copy for development on your machine, clone and install as an editable package:
+or, to have a local copy for development on your machine, clone and install as an editable package via `pip`:
 ```
-git clone https://www.github.com/sdss/explorer ./sdss-explorer
+git clone https://www.github.com/sdss/explorer.git ./sdss-explorer
 cd sdss-explorer
-pip install -e .
+pip install -e . 
 ```
 
 ### Data files
-Currently, the dashboard uses custom parquet versions of the allStar summary files from each pipeline. You can download the parquet files from [here](https://data.sdss5.org/sas/sdsswork/users/u6054929/). These are proprietary SDSS data files, and should not be shared outside the collaboration.
+Currently, the dashboard uses custom parquet versions of the Astra allStar summary files from each pipeline. You can download the parquet files from [here](https://data.sdss5.org/sas/sdsswork/users/u6054929/). These are proprietary SDSS data files, and should not be shared outside the collaboration.
 
 The app uses two files:
-- `ipl3-partial.parquet` :: a parquet of 3 allStar redux files (APOGEENet, ASPCAP, The Cannon) -- to be expanded upon with more
+- `ipl3-partial.parquet` :: a parquet of 3 allStar parameter files (APOGEENet, ASPCAP, The Cannon) -- to be expanded upon with more
 - `mappings.parquet` :: a converted version of the `bitmappings.csv` used in [sdss/semaphore](https://github.com/sdss/semaphore), for creating filters for cartons and mappers
 
 ## Starting the server
 To run, the environment variables must be exported to the shell environment. These are:
 
- - `EXPLORER_DATAPATH` :: path to data files (proprietary SDSS data, found on the SAS).
- - `VALIS_API_URL` :: url for [valis](https://www.github.com/sdss/valis). This is required for login functionality.
+ - `EXPLORER_DATAPATH` :: path to data files (proprietary SDSS data, found on the SAS). In the deployment context a folder is mounted onto the VM.
+ - `VALIS_API_URL` :: url for [valis](https://www.github.com/sdss/valis). This is required for login authentication (to be implemented).
 
 there will likely be more in future.
 
-After this, one can run by using:
+## Deployment
+
+### Solara Server deployment (starlette)
+
+One can run using Solara's starlette deployment by using:
 ```
 solara run explorer.pages --theme-variant dark
 ```
+
+This will start _purely_ the app in development refresh mode on a uvicorn instance. To run in production mode, add `--production` to the above command.
 
 ### Bundled shell scripts
 This repo comes bundled with shell scripts to run the application via `solara`. They don't particularly do anything different to just running it manually. To ensure they work, make the scripts executable:
@@ -52,14 +59,30 @@ This repo comes bundled with shell scripts to run the application via `solara`. 
 chmod +x run.sh run_production.sh
 ```
 
-To run using the provided shell scripts, use:
+To run using the provided shell scripts, use one of:
 ```
 ./run.sh
 ```
-
+or
 ```
 ./run_production.sh
 ```
+
+### Valis
+
+This application is currently embedded in the SDSS [valis](https://www.github.com/sdss/valis) API for deployment. You can test and develop the app within this deployment context through a `poetry install`:
+```
+git clone https://github.com/sdss/valis.git
+cd valis
+poetry install -E solara
+```
+
+Load the relevant created virtual environment (generally in poetry cache unless stated otherwise) and deploy as:
+```
+uvicorn valis.wsgi:app --reload
+```
+
+The local web server is exposed at `http://localhost:8000`, with the solara app at `http://localhost:8000/valis/solara/dashboard`.
 
 
 ---
@@ -67,7 +90,7 @@ To run using the provided shell scripts, use:
 This project is Copyright (c) 2024, Riley Thai. All rights reserved.
 
 # Contributing
-We love contributions! `explorer` is open source, built on open source, and we'd love to have you hang out in our community.
+We love contributions! `explorer` is open source, built on open source, and we`d love to have you hang out in our community.
 
 Imposter syndrome disclaimer: We want your help. No, really.
 
