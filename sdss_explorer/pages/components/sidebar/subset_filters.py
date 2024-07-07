@@ -18,39 +18,40 @@ md_text = """_Expressions_ refer to columnar data-based filters you can apply on
 
 For example, you can enter:
 
-    ```teff < 9e3 & logg > 2```
+    teff < 9e3 & logg > 2
 
 to apply a filter for $T_{\mathrm{eff}} < 9000$ and $\log g > 2$ across the SDSS dataset.
 
 Similarly, you can enter more advanced expressions like:
 
-    ```(teff < 9e3 | teff > 12e3) & fe_h <= -2.1 & result_flags != 1```
+    (teff < 9e3 | teff > 12e3) & fe_h <= -2.1 & result_flags != 1
 """
 
 
 @sl.component()
 def ExpressionBlurb():
     """Simple markdown-based blurb for expression syntax."""
-    """Dialog popup to provide general description of the application."""
     open, set_open = sl.use_state(False)
 
-    with rv.AppBarNavIcon() as main:
-        with sl.Tooltip("About expressions"):
-            sl.Button(
-                icon_name="mdi-information-outline",
+    with sl.Tooltip("About expression syntax") as main:
+        with sl.Button(
                 icon=True,
-                text=True,
+                icon_name="mdi-information-outline",
                 on_click=lambda: set_open(True),
-            )
-        with Dialog(
-                open,
-                ok=None,
-                title="About Expressions",
-                cancel="close",
-                on_cancel=lambda: set_open(False),
+                style={
+                    "align": "center",
+                    "justify": "center"
+                },
         ):
-            with rv.Card(flat=True, style_="width: 100%; height: 100%"):
-                sl.Markdown(md_text)
+            with Dialog(
+                    open,
+                    ok=None,
+                    title="About Expressions",
+                    cancel="close",
+                    on_cancel=lambda: set_open(False),
+            ):
+                with rv.Card(flat=True, style_="width: 100%; height: 100%"):
+                    sl.Markdown(md_text)
 
     return main
 
@@ -60,7 +61,7 @@ def ExprEditor(expression, set_expression, error, result):
     """Expression editor user-facing set"""
     # expression editor
     with sl.Column(gap="0px") as main:
-        with sl.Columns([9, 1]):
+        with sl.Row(justify='center', style={"align-items": "center"}):
             sl.InputText(
                 label="Enter an expression",
                 value=expression,
