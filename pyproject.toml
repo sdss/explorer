@@ -11,6 +11,7 @@ dependencies = [
     "plotly",
     "vaex>=4.17.0",
     "numpy",
+    "diskcache>=5.6.3",
 ]
 requires-python = ">= 3.10"
 readme = "README.md"

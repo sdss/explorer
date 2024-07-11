@@ -39,8 +39,17 @@ To run, the environment variables must be exported to the shell environment. The
 
  - `EXPLORER_DATAPATH` :: path to data files (proprietary SDSS data, found on the SAS). In the deployment context a folder is mounted onto the VM.
  - `VALIS_API_URL` :: url for [valis](https://www.github.com/sdss/valis). This is required for login authentication (to be implemented).
+ - `VAEX_HOME` :: path to store `vaex` cache and lock files during runtime. Defaults on startup to `$HOME/.vaex`.
 
-there will likely be more in future.
+### Cache setup
+The Explorer utilizes a hybrid memory cache of 1GB per worker and disk cache of total 10GB. To set these up, use the following environment variables on runtime:
+ - `VAEX_CACHE="memory,disk"`
+ - `VAEX_CACHE_DISK_SIZE_LIMIT="10GB"`
+ - `VAEX_CACHE_MEMORY_SIZE_LIMIT="1GB`
+
+ These are automatically set when using the bundled shell scripts.
+
+
 
 ## Deployment
 
