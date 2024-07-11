@@ -10,9 +10,8 @@ import numpy as np
 from ..util import generate_unique_key
 
 # disable the vaex built-in logging (clogs on FileNotFounds et al)
-# TODO: set to only remove on production mode (no reload context; is this registered as a variable i can access?)
-# alternatively can I pass it up to valis?
-vx.logging.remove_handler()
+if sl.server.settings.main.mode == 'production':
+    vx.logging.remove_handler()  # force remove handler on production instance
 
 
 def _datapath():

@@ -3,15 +3,17 @@
 import solara as sl
 import vaex as vx
 
-from .dataclass import State, AlertSystem
-from .components.sidebar import Sidebar
-from .components.sidebar.glossary import HelpBlurb
-from .components.views import ObjectGrid
-from .components.views.dataframe import NoDF
+# vaex setup
+if sl.server.settings.main.mode == 'production':
+    vx.logging.remove_handler(
+    )  # force remove handler prior to any imports on production
+vx.cache.on()  # activate caching
 
-# NOTE: cache with these settings are in memory
-# we can change this in future to a disk cache, which will be shared among worker processes, see https://vaex.io/docs/guides/caching.html
-vx.cache.on()
+from .dataclass import State, AlertSystem  # noqa: E402
+from .components.sidebar import Sidebar  # noqa: E402
+from .components.sidebar.glossary import HelpBlurb  # noqa: E402
+from .components.views import ObjectGrid  # noqa: E402
+from .components.views.dataframe import NoDF  # noqa: E402
 
 
 @sl.component
