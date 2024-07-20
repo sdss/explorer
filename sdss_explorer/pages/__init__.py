@@ -2,6 +2,7 @@
 
 import solara as sl
 import vaex as vx
+from solara.lab import ThemeToggle
 
 from .dataclass import State, AlertSystem
 from .components.sidebar import Sidebar
@@ -35,6 +36,7 @@ def Page():
 
         # help icon
         HelpBlurb()
+        ThemeToggle()
 
     if df is not None:
         # SIDEBAR
