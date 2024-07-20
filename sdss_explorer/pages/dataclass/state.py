@@ -3,12 +3,15 @@
 import os
 
 import solara as sl
-import reacton.ipyvuetify as rv
 import vaex as vx
 import pyarrow as pa  # noqa
 import numpy as np
 
 from ..util import generate_unique_key
+
+# disable the vaex built-in logging (clogs on FileNotFounds et al)
+if sl.server.settings.main.mode == 'production':
+    vx.logging.remove_handler()  # force remove handler on production instance
 
 
 def _datapath():
