@@ -1,13 +1,11 @@
 """User-facing components for virtual columns"""
 
-from functools import reduce
-import operator
-
 import solara as sl
 import reacton.ipyvuetify as rv
 
 from ...dataclass import State, VCData, Alert
-from ..dialog import Dialog
+from ..dialog import Dialog, InputTextAF
+from ...util import add_keyup_enter_event
 
 
 def VirtualColumnList():
@@ -124,16 +122,25 @@ def VirtualColumnsPanel():
                 persistent=True,
                 ok_enable=active,
         ):
-            sl.InputText(
+            nameComponent = InputTextAF(
                 label="Enter an name for the new column.",
                 value=name,
                 on_value=set_name,
+                continuous_update=True,
+                autofocus=True,
             )
-            sl.InputText(
+            exprComponent = InputTextAF(
                 label="Enter an expression for the new column.",
                 value=expression,
                 on_value=set_expression,
+                continuous_update=True,
+                autofocus=True,
             )
+            # TODO: make the callback do a confirmation case
+            # TODO: make the callbacks jump the cursor to the empty one or something idk how to do that
+            add_keyup_enter_event(nameComponent, lambda _: add_column())
+            add_keyup_enter_event(exprComponent, lambda _: add_column())
+
             if result.state == sl.ResultState.FINISHED:
                 if result.value:
                     sl.Success(

@@ -1,13 +1,16 @@
 """Main user-facing subset components"""
 
-import solara as sl
-import vaex as vx
+from typing import Callable
+
 import numpy as np
 import reacton.ipyvuetify as rv
+import solara as sl
+import vaex as vx
+from ipyvue import VueWidget
 from solara.hooks.misc import use_force_update
 
-from ..dialog import Dialog
-
+from ..dialog import Dialog, InputTextAF
+from ...util import add_keyup_enter_event
 from .subset_cards import SubsetState, updater_context
 
 
@@ -38,6 +41,7 @@ def SubsetMenu():
         return
 
     with sl.Column(gap="0px") as main:
+        print(name)
         with rv.Card(class_="justify-center",
                      flat=True,
                      style_="width: 100%; height: 100%"):
@@ -69,10 +73,12 @@ def SubsetMenu():
                 on_ok=lambda: add_subset(name),
                 on_cancel=lambda: set_name(""),
         ):
-            sl.InputText(
+            cmp = InputTextAF(
                 label="Subset name",
                 value=name,
                 on_value=set_name,
+                autofocus=True,
             )
+            add_keyup_enter_event(cmp, lambda input: add_subset(str(input)))
 
     return main
