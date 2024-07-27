@@ -2,6 +2,8 @@
 
 import solara as sl
 import vaex as vx
+from solara.lab import ThemeToggle
+from os import getenv
 
 # vaex setup
 if sl.server.settings.main.mode == 'production':
@@ -14,6 +16,8 @@ from .components.sidebar import Sidebar  # noqa: E402
 from .components.sidebar.glossary import HelpBlurb  # noqa: E402
 from .components.views import ObjectGrid  # noqa: E402
 from .components.views.dataframe import NoDF  # noqa: E402
+
+DEV = getenv('EXPLORER_DEV', False)
 
 
 @sl.component
@@ -32,6 +36,10 @@ def Page():
 
         # help icon
         HelpBlurb()
+
+        # theme toggle button
+        if DEV:
+            ThemeToggle()
 
     if df is not None:
         # SIDEBAR
