@@ -9,6 +9,7 @@ import reacton.ipyvuetify as rv
 
 from ...dataclass import State, use_subset, Alert
 from ..dialog import Dialog
+from .autocomplete import AutocompleteSelect
 
 __all__ = [
     "ExprEditor", "CartonMapperPanel", "QuickFilterMenu", "PivotTablePanel"
@@ -113,32 +114,41 @@ def CartonMapperPanel(mapper, set_mapper, carton, set_carton, dataset,
                 )
             else:
                 with sl.Column(gap="2px"):
-                    with sl.Columns([1, 1]):
-                        sl.SelectMultiple(
-                            label="Mapper",
-                            values=mapper,
-                            on_value=set_mapper,
-                            dense=True,
-                            all_values=State.mapping.value["mapper"].unique(),
-                            classes=['variant="solo"'],
-                        )
-                        sl.SelectMultiple(
-                            label="Dataset",
-                            values=dataset,
-                            on_value=set_dataset,
-                            dense=True,
-                            # TODO: fetch via valis or via df itself
-                            all_values=["apogeenet", "thecannon", "aspcap"],
-                            classes=['variant="solo"'],
-                        )
-                    sl.SelectMultiple(
-                        label="Carton",
-                        values=carton,
-                        on_value=set_carton,
-                        dense=True,
-                        all_values=State.mapping.value["alt_name"].unique(),
-                        classes=['variant="solo"'],
-                    )
+                    AutocompleteSelect(mapper,
+                                       set_mapper,
+                                       df=State.mapping.value,
+                                       expr='mapper',
+                                       field='Mapper',
+                                       multiple=True)
+                    AutocompleteSelect(dataset,
+                                       set_dataset,
+                                       df=['apogeenet', 'thecannon', 'aspcap'],
+                                       expr='dataset',
+                                       field='Dataset',
+                                       multiple=True)
+                    AutocompleteSelect(carton,
+                                       set_carton,
+                                       df=State.mapping.value,
+                                       expr='alt_name',
+                                       field='Carton',
+                                       multiple=True)
+                    #sl.SelectMultiple(
+                    #    label="Dataset",
+                    #    values=dataset,
+                    #    on_value=set_dataset,
+                    #    dense=True,
+                    #    # TODO: fetch via valis or via df itself
+                    #    all_values=["apogeenet", "thecannon", "aspcap"],
+                    #    classes=['variant="solo"'],
+                    #)
+                    #sl.SelectMultiple(
+                    #    label="Carton",
+                    #    values=carton,
+                    #    on_value=set_carton,
+                    #    dense=True,
+                    #    all_values=State.mapping.value["alt_name"].unique(),
+                    #    classes=['variant="solo"'],
+                    #)
     return main
 
 
