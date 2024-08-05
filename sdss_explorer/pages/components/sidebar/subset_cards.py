@@ -12,7 +12,7 @@ from solara.lab import ConfirmationDialog
 
 from ...dataclass import Alert, State, use_subset
 from ..dialog import Dialog
-from .subset_filters import CartonMapperPanel, DownloadMenu, ExprEditor
+from .subset_filters import TargetingFiltersPanel, DownloadMenu, ExprEditor
 
 operator_map = {"AND": operator.and_, "OR": operator.or_, "XOR": operator.xor}
 
@@ -420,9 +420,9 @@ def SubsetOptions(key: int, deleter: Callable, **kwargs):
         ExprEditor(expression, set_expression, error, result)
         # complex option panels
         with rv.ExpansionPanels(flat=True):
-            # PANEL1: carton mapper
-            CartonMapperPanel(mapper, set_mapper, carton, set_carton, dataset,
-                              set_dataset)
+            # PANEL1: targeting filters
+            TargetingFiltersPanel(mapper, set_mapper, carton, set_carton,
+                                  dataset, set_dataset, flags, set_flags)
         # delete & clone buttons
         with rv.Row(style_="width: 100%; height: 100%"):
             # download button
