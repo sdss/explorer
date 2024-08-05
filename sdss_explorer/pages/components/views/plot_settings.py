@@ -5,6 +5,7 @@ from solara.components.card import Card
 from solara.components.columns import Columns
 
 from ...dataclass import State
+from ..sidebar.autocomplete import SingleAutocomplete
 from ..sidebar.subset_cards import SubsetState
 
 
@@ -43,7 +44,7 @@ def SkymapMenu(plotstate):
 
     with sl.Columns([1, 1]):
         with Card(margin=0):
-            sl.Select(
+            SingleAutocomplete(
                 label="Subset",
                 values=names,
                 value=name,
@@ -52,23 +53,23 @@ def SkymapMenu(plotstate):
             with sl.Column():
                 sl.ToggleButtonsSingle(value=plotstate.geo_coords,
                                        values=["celestial", "galactic"])
-                sl.Select(
+                SingleAutocomplete(
                     label="Projection",
                     value=plotstate.projection,
                     values=plotstate.Lookup["projections"],
                 )
             with sl.Row():
-                sl.Select(
+                SingleAutocomplete(
                     label="Color",
                     values=columns,
                     value=plotstate.color,
                 )
-                sl.Select(
+                SingleAutocomplete(
                     label="Colorscale",
                     values=plotstate.Lookup["colorscales"],
                     value=plotstate.colorscale,
                 )
-                sl.Select(
+                SingleAutocomplete(
                     label="Color log",
                     values=plotstate.Lookup["binscales"],
                     value=plotstate.colorlog,
@@ -99,7 +100,7 @@ def ScatterMenu(plotstate):
         dependencies=[SubsetState.names.value, SubsetState.active.value],
     )
     with sl.Card():
-        sl.Select(
+        SingleAutocomplete(
             label="Subset",
             values=names,
             value=name,
@@ -108,14 +109,14 @@ def ScatterMenu(plotstate):
         with sl.Columns([1, 1]):
             with sl.Column():
                 with Columns([8, 8, 2], gutters_dense=True):
-                    sl.Select(
+                    SingleAutocomplete(
                         "Column x",
                         values=[
                             col for col in columns if col != plotstate.y.value
                         ],
                         value=plotstate.x,
                     )
-                    sl.Select(
+                    SingleAutocomplete(
                         "Column y",
                         values=[
                             col for col in columns if col != plotstate.x.value
@@ -128,18 +129,18 @@ def ScatterMenu(plotstate):
                         on_click=plotstate.swap_axes,
                     )
                 with sl.Column():
-                    sl.Select(
+                    SingleAutocomplete(
                         label="Color",
                         values=columns,
                         value=plotstate.color,
                     )
                     with sl.Row(gap="2px"):
-                        sl.Select(
+                        SingleAutocomplete(
                             label="Colorscale",
                             values=plotstate.Lookup["colorscales"],
                             value=plotstate.colorscale,
                         )
-                        sl.Select(
+                        SingleAutocomplete(
                             label="Color log",
                             values=plotstate.Lookup["binscales"],
                             value=plotstate.colorlog,
@@ -175,7 +176,7 @@ def HistogramMenu(plotstate):
     )
 
     with sl.Card():
-        sl.Select(
+        SingleAutocomplete(
             label="Subset",
             values=names,
             value=name,
@@ -184,7 +185,7 @@ def HistogramMenu(plotstate):
     with sl.Columns([1, 1]):
         with Card(margin=0):
             with sl.Column():
-                sl.Select(
+                SingleAutocomplete(
                     "Column",
                     values=columns,
                     value=plotstate.x,
@@ -197,7 +198,7 @@ def HistogramMenu(plotstate):
                 min=10,
                 max=1e3,
             )
-            sl.Select(
+            SingleAutocomplete(
                 label="Bintype",
                 values=plotstate.Lookup["bintypes"],
                 value=plotstate.bintype,
@@ -232,7 +233,7 @@ def HeatmapMenu(plotstate):
     )
     with sl.Columns([1, 1]):
         with sl.Card():
-            sl.Select(
+            SingleAutocomplete(
                 label="Subset",
                 values=names,
                 value=name,
@@ -240,7 +241,7 @@ def HeatmapMenu(plotstate):
             )
             with Columns([3, 3, 1], gutters_dense=True):
                 with sl.Column():
-                    sl.Select(
+                    SingleAutocomplete(
                         "Column x",
                         values=[
                             col for col in columns if col != plotstate.y.value
@@ -248,7 +249,7 @@ def HeatmapMenu(plotstate):
                         value=plotstate.x,
                     )
                 with sl.Column():
-                    sl.Select(
+                    SingleAutocomplete(
                         "Column y",
                         values=[
                             col for col in columns if col != plotstate.x.value
@@ -260,7 +261,7 @@ def HeatmapMenu(plotstate):
                     icon_name="mdi-swap-horizontal",
                     on_click=plotstate.swap_axes,
                 )
-            sl.Select(
+            SingleAutocomplete(
                 label="Colorscale",
                 values=plotstate.Lookup["colorscales"],
                 value=plotstate.colorscale,
@@ -278,18 +279,18 @@ def HeatmapMenu(plotstate):
                 min=2,
                 max=250,
             )
-            sl.Select(
+            SingleAutocomplete(
                 label="Binning type",
                 values=plotstate.Lookup["bintypes"],
                 value=plotstate.bintype,
             )
             if str(plotstate.bintype.value) != "count":
-                sl.Select(
+                SingleAutocomplete(
                     label="Column to Bin",
                     values=columns,
                     value=plotstate.color,
                 )
-            sl.Select(
+            SingleAutocomplete(
                 label="Binning scale",
                 values=plotstate.Lookup["binscales"],
                 value=plotstate.binscale,
@@ -315,7 +316,7 @@ def DeltaHeatmapMenu(plotstate):
     )
     with Card(margin=0):
         with sl.Columns([3, 3, 1]):
-            sl.Select(
+            SingleAutocomplete(
                 label="Subset 1",
                 values=[
                     n for n in SubsetState.active_names.value if n != name_b
@@ -323,7 +324,7 @@ def DeltaHeatmapMenu(plotstate):
                 value=name_a,
                 on_value=plotstate.update_subset,
             )
-            sl.Select(
+            SingleAutocomplete(
                 label="Subset 2",
                 values=[
                     n for n in SubsetState.active_names.value if n != name_a
@@ -341,7 +342,7 @@ def DeltaHeatmapMenu(plotstate):
         with Card(margin=0):
             with Columns([3, 3, 1], gutters_dense=True):
                 with sl.Column():
-                    sl.Select(
+                    SingleAutocomplete(
                         "Column x",
                         values=[
                             col for col in columns if col != plotstate.y.value
@@ -349,7 +350,7 @@ def DeltaHeatmapMenu(plotstate):
                         value=plotstate.x,
                     )
                 with sl.Column():
-                    sl.Select(
+                    SingleAutocomplete(
                         "Column y",
                         values=[
                             col for col in columns if col != plotstate.x.value
@@ -361,7 +362,7 @@ def DeltaHeatmapMenu(plotstate):
                     icon_name="mdi-swap-horizontal",
                     on_click=plotstate.swap_axes,
                 )
-            sl.Select(
+            SingleAutocomplete(
                 label="Colorscale",
                 values=plotstate.Lookup["colorscales"],
                 value=plotstate.colorscale,
@@ -379,18 +380,18 @@ def DeltaHeatmapMenu(plotstate):
                 min=2,
                 max=500,
             )
-            sl.Select(
+            SingleAutocomplete(
                 label="Binning type",
                 values=plotstate.Lookup["bintypes"],
                 value=plotstate.bintype,
             )
             if str(plotstate.bintype.value) != "count":
-                sl.Select(
+                SingleAutocomplete(
                     label="Column to Bin",
                     values=columns,
                     value=plotstate.color,
                 )
-            sl.Select(
+            SingleAutocomplete(
                 label="Binning scale",
                 values=plotstate.Lookup["binscales"],
                 value=plotstate.binscale,
