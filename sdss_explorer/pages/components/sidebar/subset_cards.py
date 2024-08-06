@@ -12,7 +12,7 @@ from solara.lab import ConfirmationDialog
 
 from ...dataclass import Alert, State, use_subset
 from ..dialog import Dialog
-from .subset_filters import CartonMapperPanel, DownloadMenu, ExprEditor
+from .subset_filters import DatasetSelect, TargetingFiltersPanel, DownloadMenu, ExprEditor
 
 operator_map = {"AND": operator.and_, "OR": operator.or_, "XOR": operator.xor}
 
@@ -72,7 +72,9 @@ class SubsetState:
             0,
             **{
                 "expression": "teff < 15e3",
-                "mapper": ["mwm"]
+                "mapper": ["mwm"],
+                "dataset": "aspcap",
+                "flags": ["Purely non-flagged"],
             },
         ).key(0)
     ])
@@ -160,7 +162,7 @@ def SubsetOptions(key: int, deleter: Callable, **kwargs):
     :error: expression editor error message
     :carton: list of selected cartons
     :mapper: list of selected mappers
-    :dataset: list of selected datasets
+    :dataset: selected dataset string
     :delete: deletion c-dialog v-slot reactive
     :rename: rename dialog v-slot reactive
 
@@ -188,6 +190,10 @@ def SubsetOptions(key: int, deleter: Callable, **kwargs):
                                          key,
                                          "cartonmapper",
                                          write_only=True)
+    _flagfilter, set_flagfilter = use_subset(id(df),
+                                             key,
+                                             "flags",
+                                             write_only=True)
 
     # state for expreditor
     expression, set_expression = sl.use_state(
@@ -197,7 +203,9 @@ def SubsetOptions(key: int, deleter: Callable, **kwargs):
     # state for cartonmapper
     mapper, set_mapper = sl.use_state(kwargs.setdefault("mapper", []))
     carton, set_carton = sl.use_state(kwargs.setdefault("carton", []))
-    dataset, set_dataset = sl.use_state(kwargs.setdefault("dataset", []))
+    dataset, set_dataset = sl.use_state(kwargs.setdefault("dataset", "aspcap"))
+    flags, set_flags = sl.use_state(
+        kwargs.setdefault("flags", ["Purely non-flagged"]))
     combotype = (
         "AND"  # NOTE: remains for functionality as potential state var (in future)
     )
@@ -397,12 +405,13 @@ def SubsetOptions(key: int, deleter: Callable, **kwargs):
             # generate a filter based on the vaex-defined flag combiner
             cmp_filter = df.func.check_flags(df["sdss5_target_flags"], filters)
 
-        if len(dataset) > 0:
+        print("DATASET =", dataset)
+        if dataset is not None:
             if cmp_filter is not None:
                 cmp_filter = operator_map[combotype](
-                    cmp_filter, df["dataset"].isin(dataset))
+                    cmp_filter, df["dataset"].isin([dataset]))
             else:
-                cmp_filter = df["dataset"].isin(dataset)
+                cmp_filter = df["dataset"].isin([dataset])
 
         # invert if requested
         if invert.value:
@@ -415,14 +424,47 @@ def SubsetOptions(key: int, deleter: Callable, **kwargs):
     sl.use_thread(update_cm,
                   dependencies=[mapper, carton, dataset, invert.value])
 
+    # flag data
+    def update_flags():
+        filters = []
+        # TODO: relocate this somewhere better, like into a lookup dataclass or a file
+        flagList = {
+            'SDSS5 only': "release=='sdss5'",
+            'SNR > 50': "snr>=50",
+            'Purely non-flagged': 'result_flags==0',
+            #'No APO 1m': "telescope!='apo1m'", # WARNING: this one doesn't work for some reason, maybe it's not string; haven't checked
+            'No bad flags': 'flag_bad==0',
+            'Vmag < 13': 'v_jkc_mag<=13'
+        }
+        # get the flag lookup
+        if len(flags) > 0:
+            for flag in flags:
+                filters.append(flagList[flag])
+
+            # string join
+            print('FLAG FILTERS', filters)
+            concat_filter = ")&(".join(filters)
+            concat_filter = "((" + concat_filter + "))"
+            concat_filter = df[concat_filter]
+            if invert.value:
+                concat_filter = ~concat_filter
+        else:
+            concat_filter = None
+
+        set_flagfilter(concat_filter)
+        return
+
+    sl.use_thread(update_flags, dependencies=[flags, invert.value])
+
     # User facing
     with sl.Column() as main:
         ExprEditor(expression, set_expression, error, result)
+        DatasetSelect(dataset, set_dataset)
         # complex option panels
         with rv.ExpansionPanels(flat=True):
-            # PANEL1: carton mapper
-            CartonMapperPanel(mapper, set_mapper, carton, set_carton, dataset,
-                              set_dataset)
+            # PANEL1: targeting filters
+            TargetingFiltersPanel(mapper, set_mapper, carton, set_carton,
+                                  flags, set_flags)
         # delete & clone buttons
         with rv.Row(style_="width: 100%; height: 100%"):
             # download button

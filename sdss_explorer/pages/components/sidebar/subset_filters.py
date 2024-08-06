@@ -9,9 +9,11 @@ import reacton.ipyvuetify as rv
 
 from ...dataclass import State, use_subset, Alert
 from ..dialog import Dialog
+from .autocomplete import AutocompleteSelect, SingleAutocomplete
 
 __all__ = [
-    "ExprEditor", "CartonMapperPanel", "QuickFilterMenu", "PivotTablePanel"
+    "ExprEditor", "TargetingFiltersPanel", "QuickFilterMenu",
+    "PivotTablePanel", "DatasetSelect"
 ]
 
 md_text = """_Expressions_ refer to columnar data-based filters you can apply onto the subset. The exact syntax uses generic, Python-like modifiers, similarly to the `pandas` DataFrame protocol. 
@@ -100,8 +102,19 @@ def ExprEditor(expression, set_expression, error, result):
 
 
 @sl.component()
-def CartonMapperPanel(mapper, set_mapper, carton, set_carton, dataset,
-                      set_dataset):
+def DatasetSelect(dataset, set_dataset):
+    """Select box for pipeline."""
+    return SingleAutocomplete(
+        label='Dataset',
+        # TODO: fetch via valis or via df.row.unique()
+        values=['apogeenet', 'thecannon', 'aspcap'],
+        value=dataset,
+        on_value=set_dataset)
+
+
+@sl.component()
+def TargetingFiltersPanel(mapper, set_mapper, carton, set_carton, flags,
+                          set_flags):
     with rv.ExpansionPanel() as main:
         rv.ExpansionPanelHeader(children=["Targeting Filters"])
         with rv.ExpansionPanelContent():
@@ -113,90 +126,82 @@ def CartonMapperPanel(mapper, set_mapper, carton, set_carton, dataset,
                 )
             else:
                 with sl.Column(gap="2px"):
-                    with sl.Columns([1, 1]):
-                        sl.SelectMultiple(
-                            label="Mapper",
-                            values=mapper,
-                            on_value=set_mapper,
-                            dense=True,
-                            all_values=State.mapping.value["mapper"].unique(),
-                            classes=['variant="solo"'],
-                        )
-                        sl.SelectMultiple(
-                            label="Dataset",
-                            values=dataset,
-                            on_value=set_dataset,
-                            dense=True,
-                            # TODO: fetch via valis or via df itself
-                            all_values=["apogeenet", "thecannon", "aspcap"],
-                            classes=['variant="solo"'],
-                        )
-                    sl.SelectMultiple(
-                        label="Carton",
-                        values=carton,
-                        on_value=set_carton,
-                        dense=True,
-                        all_values=State.mapping.value["alt_name"].unique(),
-                        classes=['variant="solo"'],
-                    )
+                    AutocompleteSelect(mapper,
+                                       set_mapper,
+                                       df=State.mapping.value,
+                                       expr='mapper',
+                                       field='Mapper',
+                                       multiple=True)
+                    AutocompleteSelect(carton,
+                                       set_carton,
+                                       df=State.mapping.value,
+                                       expr='alt_name',
+                                       field='Carton',
+                                       multiple=True)
+                    AutocompleteSelect(
+                        flags,
+                        set_flags,
+                        df=[
+                            'SDSS5 only',
+                            'SNR > 50',
+                            'Purely non-flagged',  #'No APO 1m',
+                            'No bad flags',
+                            'Vmag < 13'
+                        ],
+                        expr='foobar',
+                        field='Quick Flags',
+                        multiple=True)
     return main
 
 
 @sl.component()
 def QuickFilterMenu(name):
     """
-    Apply quick filters via check boxes. Deprecated, to be implemented again in future.
+    Apply Quick Filters
     """
     df = State.df.value
     # TODO: find out how flags work, currently using 1 col as plceholders:
     flag_cols = ["result_flags"]
-    _filter, set_filter = use_subset(id(df), name, "quickflags")
+    _filter, set_filter = use_subset(id(df),
+                                     name,
+                                     "quickflags",
+                                     write_only=True)
 
     # Quick filter states
-    flag_nonzero, set_flag_nonzero = sl.use_state(False)
-    flag_snr50, set_flag_snr50 = sl.use_state(False)
+    flags, set_flags = sl.use_state(["SNR > 50"])
 
     def reset_filters():
-        set_flag_nonzero(False)
-        set_flag_snr50(False)
+        set_flags([])
 
     def work():
         filters = []
-        flags = [flag_nonzero, flag_snr50]
 
-        # all false
-        if np.all(np.logical_not(flags)):
-            set_filter(None)
-            return
-
-        # flag out all nonzero
-        if flag_nonzero:
-            for flag in flag_cols:
-                filters.append(df[f"({flag}==0)"])
-        if flag_snr50:
-            filters.append(df["(snr > 50)"])
         concat_filter = reduce(operator.and_, filters[1:], filters[0])
         set_filter(concat_filter)
         return
 
     # apply thread to filtering logic so it only runs on rerenders
-    sl.use_thread(
-        work,
-        dependencies=[flag_nonzero, flag_snr50],
-    )
+    sl.use_thread(work, dependencies=[flags])
+    with rv.ExpansionPanel() as main:
+        with rv.ExpansionPanelHeader():
+            rv.Icon(children=["mdi-table-plus"])
+            with rv.CardTitle(children=["Quick Flags"]):
+                pass
+        with rv.ExpansionPanelContent():
+            pass
 
-    with rv.Card() as main:
-        with rv.CardTitle(children=["Quick filters"]):
-            rv.Icon(children=["mdi-filter-plus-outline"])
-        with rv.CardText():
-            sl.Checkbox(
-                label="All flags zero",
-                value=flag_nonzero,
-                on_value=set_flag_nonzero,
-            )
-            sl.Checkbox(label="SNR > 50",
-                        value=flag_snr50,
-                        on_value=set_flag_snr50)
+            #with rv.Card() as main:
+            #    with rv.CardTitle(children=["Quick filters"]):
+            #        rv.Icon(children=["mdi-filter-plus-outline"])
+            #    with rv.CardText():
+            #        sl.Checkbox(
+            #            label="All flags zero",
+            #            value=flag_nonzero,
+            #            on_value=set_flag_nonzero,
+            #        )
+            #        sl.Checkbox(label="SNR > 50",
+            #                    value=flag_snr50,
+            #                    on_value=set_flag_snr50)
     return main
 
 
@@ -210,10 +215,10 @@ def PivotTablePanel():
             with rv.CardTitle(children=["Pivot Table"]):
                 pass
         with rv.ExpansionPanelContent():
-            if ~isinstance(df, dict):
+            if not isinstance(df, dict):
                 # BUG: says the df is a dictionary when it isnt, no idea why this occurs
                 # NOTE: the fix below fixes it, but is weird
-                if type(df) != dict:
+                if type(df) != dict:  # noqa
                     sl.PivotTableCard(df, y=["telescope"], x=["release"])
     return main
 
