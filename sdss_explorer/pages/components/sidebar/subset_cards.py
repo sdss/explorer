@@ -74,6 +74,7 @@ class SubsetState:
                 "expression": "teff < 15e3",
                 "mapper": ["mwm"],
                 "dataset": "aspcap",
+                "flags": ["Purely non-flagged"],
             },
         ).key(0)
     ])
@@ -203,7 +204,8 @@ def SubsetOptions(key: int, deleter: Callable, **kwargs):
     mapper, set_mapper = sl.use_state(kwargs.setdefault("mapper", []))
     carton, set_carton = sl.use_state(kwargs.setdefault("carton", []))
     dataset, set_dataset = sl.use_state(kwargs.setdefault("dataset", "aspcap"))
-    flags, set_flags = sl.use_state(kwargs.setdefault("flags", []))
+    flags, set_flags = sl.use_state(
+        kwargs.setdefault("flags", ["Purely non-flagged"]))
     combotype = (
         "AND"  # NOTE: remains for functionality as potential state var (in future)
     )
