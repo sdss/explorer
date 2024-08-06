@@ -9,10 +9,11 @@ import reacton.ipyvuetify as rv
 
 from ...dataclass import State, use_subset, Alert
 from ..dialog import Dialog
-from .autocomplete import AutocompleteSelect
+from .autocomplete import AutocompleteSelect, SingleAutocomplete
 
 __all__ = [
-    "ExprEditor", "TargetingFiltersPanel", "QuickFilterMenu", "PivotTablePanel"
+    "ExprEditor", "TargetingFiltersPanel", "QuickFilterMenu",
+    "PivotTablePanel", "DatasetSelect"
 ]
 
 md_text = """_Expressions_ refer to columnar data-based filters you can apply onto the subset. The exact syntax uses generic, Python-like modifiers, similarly to the `pandas` DataFrame protocol. 
@@ -101,8 +102,19 @@ def ExprEditor(expression, set_expression, error, result):
 
 
 @sl.component()
-def TargetingFiltersPanel(mapper, set_mapper, carton, set_carton, dataset,
-                      set_dataset,flags, set_flags):
+def DatasetSelect(dataset, set_dataset):
+    """Select box for pipeline."""
+    return SingleAutocomplete(
+        label='Dataset',
+        # TODO: fetch via valis or via df.row.unique()
+        values=['apogeenet', 'thecannon', 'aspcap'],
+        value=dataset,
+        on_value=set_dataset)
+
+
+@sl.component()
+def TargetingFiltersPanel(mapper, set_mapper, carton, set_carton, flags,
+                          set_flags):
     with rv.ExpansionPanel() as main:
         rv.ExpansionPanelHeader(children=["Targeting Filters"])
         with rv.ExpansionPanelContent():
@@ -114,23 +126,11 @@ def TargetingFiltersPanel(mapper, set_mapper, carton, set_carton, dataset,
                 )
             else:
                 with sl.Column(gap="2px"):
-                    AutocompleteSelect(
-                        flags,
-                        set_flags,
-                        clearable=True,
-                        df=['SNR > 50', 'Only non-flagged', 'No bad flags'],expr='foobar',field='Quick Flags',multiple=True)
                     AutocompleteSelect(mapper,
                                        set_mapper,
                                        df=State.mapping.value,
                                        expr='mapper',
                                        field='Mapper',
-                                       multiple=True)
-                    AutocompleteSelect(dataset,
-                                       set_dataset,
-                                       # TODO: fetch via valis or via df.row.unique()
-                                       df=['apogeenet', 'thecannon', 'aspcap'],
-                                       expr='dataset',
-                                       field='Dataset',
                                        multiple=True)
                     AutocompleteSelect(carton,
                                        set_carton,
@@ -138,6 +138,19 @@ def TargetingFiltersPanel(mapper, set_mapper, carton, set_carton, dataset,
                                        expr='alt_name',
                                        field='Carton',
                                        multiple=True)
+                    AutocompleteSelect(
+                        flags,
+                        set_flags,
+                        df=[
+                            'SDSS5 only',
+                            'SNR > 50',
+                            'Purely non-flagged',  #'No APO 1m',
+                            'No bad flags',
+                            'Vmag < 13'
+                        ],
+                        expr='foobar',
+                        field='Quick Flags',
+                        multiple=True)
     return main
 
 
@@ -162,23 +175,20 @@ def QuickFilterMenu(name):
 
     def work():
         filters = []
-        if "SNR > 50" in flags:
 
         concat_filter = reduce(operator.and_, filters[1:], filters[0])
         set_filter(concat_filter)
         return
 
     # apply thread to filtering logic so it only runs on rerenders
-    sl.use_thread(
-        work,
-        dependencies=[flags]
-    )
+    sl.use_thread(work, dependencies=[flags])
     with rv.ExpansionPanel() as main:
         with rv.ExpansionPanelHeader():
             rv.Icon(children=["mdi-table-plus"])
             with rv.CardTitle(children=["Quick Flags"]):
                 pass
         with rv.ExpansionPanelContent():
+            pass
 
             #with rv.Card() as main:
             #    with rv.CardTitle(children=["Quick filters"]):
