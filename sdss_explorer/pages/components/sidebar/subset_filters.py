@@ -1,10 +1,10 @@
 """Holds specific filter components"""
 
+from typing import Optional, List, Union, Callable, Dict
 from functools import reduce
 import operator
 
 import solara as sl
-import numpy as np
 import reacton.ipyvuetify as rv
 
 from ...dataclass import State, use_subset, Alert
@@ -31,73 +31,172 @@ Similarly, you can enter more advanced expressions like:
 
 
 @sl.component()
-def ExpressionBlurb():
+def ExpressionBlurb(open, set_open):
     """Simple markdown-based blurb for expression syntax."""
-    open, set_open = sl.use_state(False)
-
-    with sl.Tooltip("About expression syntax") as main:
-        with sl.Button(
-                icon=True,
-                icon_name="mdi-information-outline",
-                on_click=lambda: set_open(True),
-                style={
-                    "align": "center",
-                    "justify": "center"
-                },
-        ):
-            with Dialog(
-                    open,
-                    ok=None,
-                    title="About Expressions",
-                    cancel="close",
-                    on_cancel=lambda: set_open(False),
-            ):
-                with rv.Card(flat=True, style_="width: 100%; height: 100%"):
-                    sl.Markdown(md_text)
+    with Dialog(
+            open,
+            ok=None,
+            title="About Expressions",
+            cancel="close",
+            on_cancel=lambda: set_open(False),
+    ) as main:
+        with rv.Card(flat=True, style_="width: 100%; height: 100%"):
+            sl.Markdown(md_text)
 
     return main
 
 
 @sl.component()
+def InputTextExposed(
+    label: str,
+    value: Union[str, sl.Reactive[str]] = "",
+    on_value: Callable[[str], None] = None,
+    disabled: bool = False,
+    password: bool = False,
+    continuous_update: bool = False,
+    update_events: List[str] = ["focusout", "keyup.enter"],
+    error: Union[bool, str] = False,
+    message: Optional[str] = None,
+    loading: Optional[bool] = False,
+    hint: Optional[str] = None,
+    placeholder: Optional[str] = None,
+    classes: List[str] = [],
+    style: Optional[Union[str, Dict[str, str]]] = None,
+    **kwargs,
+):
+    """Free form text input with hint and messages exposed
+
+    ## Arguments
+
+    * `label`: Label to display next to the slider.
+    * `value`: The currently entered value.
+    * `on_value`: Callback to call when the value changes.
+    * `disabled`: Whether the input is disabled.
+    * `password`: Whether the input is a password input (typically shows input text obscured with an asterisk).
+    * `continuous_update`: Whether to call the `on_value` callback on every change or only when the input loses focus or the enter key is pressed.
+    * `update_events`: A list of events that should trigger `on_value`. If continuous update is enabled, this will effectively be ignored,
+        since updates will happen every change.
+    * `error`: If truthy, show the input as having an error (in red). If a string is passed, it will be shown as the error message.
+    * `message`: Message to show below the input. If `error` is a string, this will be ignored.
+    * `classes`: List of CSS classes to apply to the input.
+    * `style`: CSS style to apply to the input.
+    """
+    reactive_value = sl.use_reactive(value, on_value)
+    del value, on_value
+    style_flat = sl.util._flatten_style(style)
+    classes_flat = sl.util._combine_classes(classes)
+
+    def set_value_cast(value):
+        reactive_value.value = str(value)
+
+    def on_v_model(value):
+        if continuous_update:
+            set_value_cast(value)
+
+    messages = []
+    if error and isinstance(error, str):
+        messages.append(error)
+    elif message:
+        messages.append(message)
+    text_field = rv.TextField(
+        v_model=reactive_value.value,
+        on_v_model=on_v_model,
+        label=label,
+        disabled=disabled,
+        type="password" if password else None,
+        error=bool(error),
+        hint=hint,
+        persistent_placeholder=False,
+        persistent_hint=False,
+        placeholder=placeholder,
+        loading=loading,
+        validate_on_blur=True,
+        messages=messages,
+        outlined=True,  # zora-like styling
+        class_=classes_flat,
+        style_=style_flat,
+        **kwargs,
+    )
+    from solara.components.input import use_change
+    use_change(text_field,
+               set_value_cast,
+               enabled=not continuous_update,
+               update_events=update_events)
+    return text_field
+
+
+@sl.component()
 def ExprEditor(expression, set_expression, error, result):
     """Expression editor user-facing set"""
+    open, set_open = sl.use_state(False)
+    if result.state == sl.ResultState.FINISHED:
+        progress = False
+        if result.value:
+            errorFound = False
+            message = "Valid expression entered"
+        elif result.value is None:
+            errorFound = False
+            message = "No expression entered. Filter unset."
+        else:
+            errorFound = True
+            message = f"Invalid expression entered: {error}"
+
+    elif result.state == sl.ResultState.ERROR:
+        errorFound = True
+        message = f"Backend failure occurred: {result.error}"
+    else:
+        # processing
+        errorFound = False
+        message = None
+        progress = True
+
+    def add_effect(el: sl.Element):
+
+        def add_append_handler():
+
+            def on_click(widget, event, data):
+                set_open(True)
+
+            widget = sl.get_widget(el)
+            widget.on_event("click:append", on_click)
+
+            def cleanup():
+                widget.on_event("click:append", on_click, remove=True)
+
+            return cleanup
+
+        def add_clear_handler():
+
+            def on_click(widget, event, data):
+                set_expression('')
+                widget.v_model = ""
+
+            widget = sl.get_widget(el)
+            widget.on_event("click:clear", on_click)
+
+            def cleanup():
+                widget.on_event("click:clear", on_click, remove=True)
+
+            return cleanup
+
+        sl.use_effect(add_append_handler, dependencies=[])
+        sl.use_effect(add_clear_handler, dependencies=[])
+
     # expression editor
     with sl.Column(gap="0px") as main:
         with sl.Row(justify='center', style={"align-items": "center"}):
-            sl.InputText(
+            el = InputTextExposed(
                 label="Enter an expression",
                 value=expression,
                 on_value=set_expression,
-            )
-            ExpressionBlurb()
-        if result.state == sl.ResultState.FINISHED:
-            if result.value:
-                sl.Success(
-                    label="Valid expression entered.",
-                    icon=True,
-                    dense=True,
-                    outlined=False,
-                )
-            elif result.value is None:
-                sl.Info(
-                    label="No expression entered. Filter unset.",
-                    icon=True,
-                    dense=True,
-                    outlined=False,
-                )
-            else:
-                sl.Error(
-                    label=f"Invalid expression entered: {error}",
-                    icon=True,
-                    dense=True,
-                    outlined=False,
-                )
-
-        elif result.state == sl.ResultState.ERROR:
-            sl.Error(f"Error occurred: {result.error}")
-        else:
-            sl.Info("Evaluating expression...")
-            rv.ProgressLinear(indeterminate=True)
+                loading=progress,
+                message=message,
+                error=errorFound,
+                append_icon='mdi-information-outline',
+                clearable=True,
+                placeholder='teff < 15e3 & (mg_h > -1 | fe_h < -2)')
+            add_effect(el)
+            ExpressionBlurb(open, set_open)
     return main
 
 
