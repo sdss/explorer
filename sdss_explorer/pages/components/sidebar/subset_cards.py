@@ -56,9 +56,10 @@ def SubsetCard(key: int, **kwargs):
 
         with rv.ExpansionPanelContent():
             # filter bar
-            sl.ProgressLinear(value=progress, color="blue")
-            SubsetOptions(key, lambda: SubsetState.remove_subset(key),
-                          **kwargs)
+            with sl.Column(gap='12px'):
+                sl.ProgressLinear(value=progress, color="blue")
+                SubsetOptions(key, lambda: SubsetState.remove_subset(key),
+                              **kwargs)
     return main
 
 
@@ -221,6 +222,7 @@ def SubsetOptions(key: int, deleter: Callable, **kwargs):
                     "carton": carton,
                     "dataset": dataset,
                     "expression": expression,
+                    "flags": flags,
                 },
         ):
             updater()  # force update
@@ -255,8 +257,9 @@ def SubsetOptions(key: int, deleter: Callable, **kwargs):
         """
         columns = State.columns.value
         try:
-            if expression is None or expression == "":
+            if expression is None or expression == "" or expression == 'None':
                 set_expfilter(None)
+                set_expression('')
                 return None
             # first, remove all spaces
             expr = expression.replace(" ", "")
