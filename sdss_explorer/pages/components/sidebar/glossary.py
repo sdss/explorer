@@ -36,8 +36,6 @@ lookup = dict()
 for i, k in enumerate(sorted(help_text.keys())):
     lookup[k] = i
 
-print("LOOKUP", lookup)
-
 
 class Help:
     """
@@ -62,7 +60,6 @@ class Help:
 @sl.component()
 def HelpBlurb():
     """Dialog popup to provide short help blurbs for the application. Expected to read markdown files."""
-    print("CURRENT TAB", Help.tab.value)
     with rv.AppBarNavIcon() as main:
         with sl.Tooltip("About the app + Help"):
             sl.Button(
