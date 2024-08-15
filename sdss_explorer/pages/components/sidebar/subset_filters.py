@@ -130,7 +130,6 @@ def ExprEditor(expression, set_expression, error, result):
     """Expression editor user-facing set"""
     open, set_open = sl.use_state(False)
     if result.state == sl.ResultState.FINISHED:
-        progress = False
         if result.value:
             errorFound = False
             message = "Valid expression entered"
@@ -148,7 +147,6 @@ def ExprEditor(expression, set_expression, error, result):
         # processing
         errorFound = False
         message = None
-        progress = True
 
     def add_effect(el: sl.Element):
 
@@ -189,7 +187,6 @@ def ExprEditor(expression, set_expression, error, result):
                 label="Enter an expression",
                 value=expression,
                 on_value=set_expression,
-                loading=progress,
                 message=message,
                 error=errorFound,
                 append_icon='mdi-information-outline',
