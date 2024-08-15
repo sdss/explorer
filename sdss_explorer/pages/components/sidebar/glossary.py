@@ -1,11 +1,14 @@
 """Components to assist with user information, including about the app,"""
 
+import os
+import glob
 import json
 import solara as sl
 from solara.alias import rv
 
 from ...dataclass import _datapath
 from ..dialog import Dialog
+from solara.lab import Tabs, Tab
 
 # TODO: maybe change to reference datapath in diff way to not use this try/except structure
 try:
@@ -15,38 +18,69 @@ try:
 except Exception:
     data = None
 
-# NOTE: can be moved to assets directory to keep separate.
-md_text = r"""
-### Parameter Explorer
-The Parameter Explorer is SDSS-V's interface for accessing and exploring Milky Way Mapper stellar parameters provided by Astra for SDSS-V targets. The Explorer is designed to provide a high-speed interface for aggregated statistics and visualizations of filtered _Subsets_ of the SDSS-V database.
+# read help info
+# NOTE: may not work on deployment, check with Brian.
+HELPDIR = os.path.join(os.path.dirname(__file__), '../../../assets/help/')
+
+# NOTE: the IO read on this is quite large, but it should be okay, right?
+help_text = dict()
+for file in map(os.path.basename, glob.glob(f'{HELPDIR}/*.md')):
+    with open(f'{HELPDIR}/{file}', 'r') as f:
+        icon = f.readline()
+        help_text[file.split('.')[0].replace('_',
+                                             ' ')] = (icon,
+                                                      "\n".join(f.readlines()))
+        f.close()
+
+lookup = dict()
+for i, k in enumerate(sorted(help_text.keys())):
+    lookup[k] = i
 
 
-Explorer is developed by SDSS-V, using `solara`, `vaex`, and `plotly`. Explorer was developed and designed by Riley Thai, and is maintained by the SDSS-V Data Visualization Team (Riley Thai, Brian Cherinka).
-"""
+class Help:
+    """
+    Help message settings
+    """
+
+    open = sl.reactive(False)
+    tab = sl.reactive("")
+    lookup = lookup
+
+    @staticmethod
+    def update(tab):
+        Help.tab.set(Help.lookup[tab])
+        Help.open.set(True)
+
+    @staticmethod
+    def close():
+        Help.tab.set(1)
+        Help.open.set(False)
 
 
 @sl.component()
 def HelpBlurb():
-    """Dialog popup to provide general description of the application."""
-    open, set_open = sl.use_state(False)
-
+    """Dialog popup to provide short help blurbs for the application. Expected to read markdown files."""
     with rv.AppBarNavIcon() as main:
-        with sl.Tooltip("About the app"):
+        with sl.Tooltip("About the app + Help"):
             sl.Button(
                 icon_name="mdi-information-outline",
                 icon=True,
                 text=True,
-                on_click=lambda: set_open(True),
+                on_click=lambda: Help.update('about'),
             )
         with Dialog(
-                open,
+                Help.open.value,
                 ok=None,
                 title="About",
                 cancel="close",
-                on_cancel=lambda: set_open(False),
+                max_width='960',  # 1920/2
+                on_cancel=lambda: Help.close(),
         ):
             with rv.Card(flat=True, style_="width: 100%; height: 100%"):
-                sl.Markdown(md_text)
+                with Tabs(value=Help.tab.value, on_value=Help.tab.set):
+                    for label, (icon, text) in sorted(help_text.items()):
+                        with Tab(label=label, icon_name=icon):
+                            sl.Markdown(text)
 
     return main
 

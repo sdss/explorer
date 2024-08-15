@@ -8,42 +8,13 @@ import solara as sl
 import reacton.ipyvuetify as rv
 
 from ...dataclass import State, use_subset, Alert
-from ..dialog import Dialog
 from .autocomplete import AutocompleteSelect, SingleAutocomplete
+from .glossary import Help
 
 __all__ = [
     "ExprEditor", "TargetingFiltersPanel", "QuickFilterMenu",
     "PivotTablePanel", "DatasetSelect"
 ]
-
-md_text = """_Expressions_ refer to columnar data-based filters you can apply onto the subset. The exact syntax uses generic, Python-like modifiers, similarly to the `pandas` DataFrame protocol. 
-
-For example, you can enter:
-
-    teff < 9e3 & logg > 2
-
-to apply a filter for $T_{\mathrm{eff}} < 9000$ and $\log g > 2$ across the SDSS dataset.
-
-Similarly, you can enter more advanced expressions like:
-
-    (teff < 9e3 | teff > 12e3) & fe_h <= -2.1 & result_flags != 1
-"""
-
-
-@sl.component()
-def ExpressionBlurb(open, set_open):
-    """Simple markdown-based blurb for expression syntax."""
-    with Dialog(
-            open,
-            ok=None,
-            title="About Expressions",
-            cancel="close",
-            on_cancel=lambda: set_open(False),
-    ) as main:
-        with rv.Card(flat=True, style_="width: 100%; height: 100%"):
-            sl.Markdown(md_text)
-
-    return main
 
 
 @sl.component()
@@ -153,7 +124,7 @@ def ExprEditor(expression, set_expression, error, result):
         def add_append_handler():
 
             def on_click(widget, event, data):
-                set_open(True)
+                Help.update('expressions')
 
             widget = sl.get_widget(el)
             widget.on_event("click:append", on_click)
@@ -193,7 +164,6 @@ def ExprEditor(expression, set_expression, error, result):
                 clearable=True,
                 placeholder='teff < 15e3 & (mg_h > -1 | fe_h < -2)')
             add_effect(el)
-            ExpressionBlurb(open, set_open)
     return main
 
 
