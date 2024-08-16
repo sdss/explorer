@@ -1,107 +1,186 @@
 """Holds specific filter components"""
 
+from typing import Optional, List, Union, Callable, Dict
 from functools import reduce
 import operator
 
 import solara as sl
-import numpy as np
 import reacton.ipyvuetify as rv
 
 from ...dataclass import State, use_subset, Alert
-from ..dialog import Dialog
+from .autocomplete import AutocompleteSelect, SingleAutocomplete
+from .glossary import Help
 
 __all__ = [
-    "ExprEditor", "CartonMapperPanel", "QuickFilterMenu", "PivotTablePanel"
+    "ExprEditor", "TargetingFiltersPanel", "QuickFilterMenu",
+    "PivotTablePanel", "DatasetSelect"
 ]
-
-md_text = """_Expressions_ refer to columnar data-based filters you can apply onto the subset. The exact syntax uses generic, Python-like modifiers, similarly to the `pandas` DataFrame protocol. 
-
-For example, you can enter:
-
-    teff < 9e3 & logg > 2
-
-to apply a filter for $T_{\mathrm{eff}} < 9000$ and $\log g > 2$ across the SDSS dataset.
-
-Similarly, you can enter more advanced expressions like:
-
-    (teff < 9e3 | teff > 12e3) & fe_h <= -2.1 & result_flags != 1
-"""
 
 
 @sl.component()
-def ExpressionBlurb():
-    """Simple markdown-based blurb for expression syntax."""
-    open, set_open = sl.use_state(False)
+def InputTextExposed(
+    label: str,
+    value: Union[str, sl.Reactive[str]] = "",
+    on_value: Callable[[str], None] = None,
+    disabled: bool = False,
+    password: bool = False,
+    continuous_update: bool = False,
+    update_events: List[str] = ["focusout", "keyup.enter"],
+    error: Union[bool, str] = False,
+    message: Optional[str] = None,
+    loading: Optional[bool] = False,
+    hint: Optional[str] = None,
+    placeholder: Optional[str] = None,
+    classes: List[str] = [],
+    style: Optional[Union[str, Dict[str, str]]] = None,
+    **kwargs,
+):
+    """Free form text input with hint and messages exposed
 
-    with sl.Tooltip("About expression syntax") as main:
-        with sl.Button(
-                icon=True,
-                icon_name="mdi-information-outline",
-                on_click=lambda: set_open(True),
-                style={
-                    "align": "center",
-                    "justify": "center"
-                },
-        ):
-            with Dialog(
-                    open,
-                    ok=None,
-                    title="About Expressions",
-                    cancel="close",
-                    on_cancel=lambda: set_open(False),
-            ):
-                with rv.Card(flat=True, style_="width: 100%; height: 100%"):
-                    sl.Markdown(md_text)
+    ## Arguments
 
-    return main
+    * `label`: Label to display next to the slider.
+    * `value`: The currently entered value.
+    * `on_value`: Callback to call when the value changes.
+    * `disabled`: Whether the input is disabled.
+    * `password`: Whether the input is a password input (typically shows input text obscured with an asterisk).
+    * `continuous_update`: Whether to call the `on_value` callback on every change or only when the input loses focus or the enter key is pressed.
+    * `update_events`: A list of events that should trigger `on_value`. If continuous update is enabled, this will effectively be ignored,
+        since updates will happen every change.
+    * `error`: If truthy, show the input as having an error (in red). If a string is passed, it will be shown as the error message.
+    * `message`: Message to show below the input. If `error` is a string, this will be ignored.
+    * `classes`: List of CSS classes to apply to the input.
+    * `style`: CSS style to apply to the input.
+    """
+    reactive_value = sl.use_reactive(value, on_value)
+    del value, on_value
+    style_flat = sl.util._flatten_style(style)
+    classes_flat = sl.util._combine_classes(classes)
+
+    def set_value_cast(value):
+        reactive_value.value = str(value)
+
+    def on_v_model(value):
+        if continuous_update:
+            set_value_cast(value)
+
+    messages = []
+    if error and isinstance(error, str):
+        messages.append(error)
+    elif message:
+        messages.append(message)
+    text_field = rv.TextField(
+        v_model=reactive_value.value,
+        on_v_model=on_v_model,
+        label=label,
+        disabled=disabled,
+        type="password" if password else None,
+        error=bool(error),
+        hint=hint,
+        persistent_placeholder=False,
+        persistent_hint=False,
+        placeholder=placeholder,
+        loading=loading,
+        validate_on_blur=True,
+        messages=messages,
+        outlined=True,  # zora-like styling
+        class_=classes_flat,
+        style_=style_flat,
+        **kwargs,
+    )
+    from solara.components.input import use_change
+    use_change(text_field,
+               set_value_cast,
+               enabled=not continuous_update,
+               update_events=update_events)
+    return text_field
 
 
 @sl.component()
 def ExprEditor(expression, set_expression, error, result):
     """Expression editor user-facing set"""
+    open, set_open = sl.use_state(False)
+    if result.state == sl.ResultState.FINISHED:
+        if result.value:
+            errorFound = False
+            message = "Valid expression entered"
+        elif result.value is None:
+            errorFound = False
+            message = "No expression entered. Filter unset."
+        else:
+            errorFound = True
+            message = f"Invalid expression entered: {error}"
+
+    elif result.state == sl.ResultState.ERROR:
+        errorFound = True
+        message = f"Backend failure occurred: {result.error}"
+    else:
+        # processing
+        errorFound = False
+        message = None
+
+    def add_effect(el: sl.Element):
+
+        def add_append_handler():
+
+            def on_click(widget, event, data):
+                Help.update('expressions')
+
+            widget = sl.get_widget(el)
+            widget.on_event("click:append", on_click)
+
+            def cleanup():
+                widget.on_event("click:append", on_click, remove=True)
+
+            return cleanup
+
+        def add_clear_handler():
+
+            def on_click(widget, event, data):
+                set_expression('')
+                widget.v_model = ""
+
+            widget = sl.get_widget(el)
+            widget.on_event("click:clear", on_click)
+
+            def cleanup():
+                widget.on_event("click:clear", on_click, remove=True)
+
+            return cleanup
+
+        sl.use_effect(add_append_handler, dependencies=[])
+        sl.use_effect(add_clear_handler, dependencies=[])
+
     # expression editor
     with sl.Column(gap="0px") as main:
         with sl.Row(justify='center', style={"align-items": "center"}):
-            sl.InputText(
+            el = InputTextExposed(
                 label="Enter an expression",
                 value=expression,
                 on_value=set_expression,
-            )
-            ExpressionBlurb()
-        if result.state == sl.ResultState.FINISHED:
-            if result.value:
-                sl.Success(
-                    label="Valid expression entered.",
-                    icon=True,
-                    dense=True,
-                    outlined=False,
-                )
-            elif result.value is None:
-                sl.Info(
-                    label="No expression entered. Filter unset.",
-                    icon=True,
-                    dense=True,
-                    outlined=False,
-                )
-            else:
-                sl.Error(
-                    label=f"Invalid expression entered: {error}",
-                    icon=True,
-                    dense=True,
-                    outlined=False,
-                )
-
-        elif result.state == sl.ResultState.ERROR:
-            sl.Error(f"Error occurred: {result.error}")
-        else:
-            sl.Info("Evaluating expression...")
-            rv.ProgressLinear(indeterminate=True)
+                message=message,
+                error=errorFound,
+                append_icon='mdi-information-outline',
+                clearable=True,
+                placeholder='teff < 15e3 & (mg_h > -1 | fe_h < -2)')
+            add_effect(el)
     return main
 
 
 @sl.component()
-def CartonMapperPanel(mapper, set_mapper, carton, set_carton, dataset,
-                      set_dataset):
+def DatasetSelect(dataset, set_dataset):
+    """Select box for pipeline."""
+    return SingleAutocomplete(
+        label='Dataset',
+        # TODO: fetch via valis or via df.row.unique()
+        values=['apogeenet', 'thecannon', 'aspcap'],
+        value=dataset,
+        on_value=set_dataset)
+
+
+@sl.component()
+def TargetingFiltersPanel(mapper, set_mapper, carton, set_carton, flags,
+                          set_flags):
     with rv.ExpansionPanel() as main:
         rv.ExpansionPanelHeader(children=["Targeting Filters"])
         with rv.ExpansionPanelContent():
@@ -113,90 +192,82 @@ def CartonMapperPanel(mapper, set_mapper, carton, set_carton, dataset,
                 )
             else:
                 with sl.Column(gap="2px"):
-                    with sl.Columns([1, 1]):
-                        sl.SelectMultiple(
-                            label="Mapper",
-                            values=mapper,
-                            on_value=set_mapper,
-                            dense=True,
-                            all_values=State.mapping.value["mapper"].unique(),
-                            classes=['variant="solo"'],
-                        )
-                        sl.SelectMultiple(
-                            label="Dataset",
-                            values=dataset,
-                            on_value=set_dataset,
-                            dense=True,
-                            # TODO: fetch via valis or via df itself
-                            all_values=["apogeenet", "thecannon", "aspcap"],
-                            classes=['variant="solo"'],
-                        )
-                    sl.SelectMultiple(
-                        label="Carton",
-                        values=carton,
-                        on_value=set_carton,
-                        dense=True,
-                        all_values=State.mapping.value["alt_name"].unique(),
-                        classes=['variant="solo"'],
-                    )
+                    AutocompleteSelect(mapper,
+                                       set_mapper,
+                                       df=State.mapping.value,
+                                       expr='mapper',
+                                       field='Mapper',
+                                       multiple=True)
+                    AutocompleteSelect(carton,
+                                       set_carton,
+                                       df=State.mapping.value,
+                                       expr='alt_name',
+                                       field='Carton',
+                                       multiple=True)
+                    AutocompleteSelect(
+                        flags,
+                        set_flags,
+                        df=[
+                            'SDSS5 only',
+                            'SNR > 50',
+                            'Purely non-flagged',  #'No APO 1m',
+                            'No bad flags',
+                            'Vmag < 13'
+                        ],
+                        expr='foobar',
+                        field='Quick Flags',
+                        multiple=True)
     return main
 
 
 @sl.component()
 def QuickFilterMenu(name):
     """
-    Apply quick filters via check boxes. Deprecated, to be implemented again in future.
+    Apply Quick Filters
     """
     df = State.df.value
     # TODO: find out how flags work, currently using 1 col as plceholders:
     flag_cols = ["result_flags"]
-    _filter, set_filter = use_subset(id(df), name, "quickflags")
+    _filter, set_filter = use_subset(id(df),
+                                     name,
+                                     "quickflags",
+                                     write_only=True)
 
     # Quick filter states
-    flag_nonzero, set_flag_nonzero = sl.use_state(False)
-    flag_snr50, set_flag_snr50 = sl.use_state(False)
+    flags, set_flags = sl.use_state(["SNR > 50"])
 
     def reset_filters():
-        set_flag_nonzero(False)
-        set_flag_snr50(False)
+        set_flags([])
 
     def work():
         filters = []
-        flags = [flag_nonzero, flag_snr50]
 
-        # all false
-        if np.all(np.logical_not(flags)):
-            set_filter(None)
-            return
-
-        # flag out all nonzero
-        if flag_nonzero:
-            for flag in flag_cols:
-                filters.append(df[f"({flag}==0)"])
-        if flag_snr50:
-            filters.append(df["(snr > 50)"])
         concat_filter = reduce(operator.and_, filters[1:], filters[0])
         set_filter(concat_filter)
         return
 
     # apply thread to filtering logic so it only runs on rerenders
-    sl.use_thread(
-        work,
-        dependencies=[flag_nonzero, flag_snr50],
-    )
+    sl.use_thread(work, dependencies=[flags])
+    with rv.ExpansionPanel() as main:
+        with rv.ExpansionPanelHeader():
+            rv.Icon(children=["mdi-table-plus"])
+            with rv.CardTitle(children=["Quick Flags"]):
+                pass
+        with rv.ExpansionPanelContent():
+            pass
 
-    with rv.Card() as main:
-        with rv.CardTitle(children=["Quick filters"]):
-            rv.Icon(children=["mdi-filter-plus-outline"])
-        with rv.CardText():
-            sl.Checkbox(
-                label="All flags zero",
-                value=flag_nonzero,
-                on_value=set_flag_nonzero,
-            )
-            sl.Checkbox(label="SNR > 50",
-                        value=flag_snr50,
-                        on_value=set_flag_snr50)
+            #with rv.Card() as main:
+            #    with rv.CardTitle(children=["Quick filters"]):
+            #        rv.Icon(children=["mdi-filter-plus-outline"])
+            #    with rv.CardText():
+            #        sl.Checkbox(
+            #            label="All flags zero",
+            #            value=flag_nonzero,
+            #            on_value=set_flag_nonzero,
+            #        )
+            #        sl.Checkbox(label="SNR > 50",
+            #                    value=flag_snr50,
+            #                    on_value=set_flag_snr50)
     return main
 
 
@@ -210,10 +281,10 @@ def PivotTablePanel():
             with rv.CardTitle(children=["Pivot Table"]):
                 pass
         with rv.ExpansionPanelContent():
-            if ~isinstance(df, dict):
+            if not isinstance(df, dict):
                 # BUG: says the df is a dictionary when it isnt, no idea why this occurs
                 # NOTE: the fix below fixes it, but is weird
-                if type(df) != dict:
+                if type(df) != dict:  # noqa
                     sl.PivotTableCard(df, y=["telescope"], x=["release"])
     return main
 

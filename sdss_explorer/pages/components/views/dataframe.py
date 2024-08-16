@@ -14,11 +14,12 @@ import solara.hooks.dataframe
 import solara.lab
 import traitlets
 from solara.components.datatable import CellAction, ColumnAction
-from solara.lab import Menu, Task, use_task
+from solara.lab import Menu, Task, use_task, use_dark_effective
 from solara.lab.hooks.dataframe import use_df_column_names
 
 from ...dataclass import State, use_subset, Alert
 from ..sidebar.subset_cards import SubsetState
+from ..sidebar.autocomplete import SingleAutocomplete, AutocompleteSelect
 
 
 @sl.component
@@ -35,7 +36,9 @@ def TableView(del_func: Callable):
     filter, set_filter = sl.use_cross_filter(id(df), name="filter-tableview")
     column, set_column = sl.use_state(cast(Optional[str], None))
     order, set_order = sl.use_state(cast(bool, None))
+    dark = use_dark_effective()
     dff = df
+    print('')
 
     def on_ascend(column):
         set_order(True)
@@ -54,47 +57,46 @@ def TableView(del_func: Callable):
                         on_click=on_descend),
     ]
 
-    if df is not None:
-        if filter:
-            dff = dff[filter]
-        dff = dff[[
-            "sdss_id",
-            "gaia_dr3_source_id",
-            "telescope",
-            "release",
-            "teff",
-            "logg",
-            "fe_h",
-        ]]
-        if column is not None and order is not None:
-            dff = dff.sort(dff[column], ascending=order)
-        # TODO: add column add/remove functionality
-        with rv.Card(class_="grey darken-3",
-                     style_="width: 100%; height: 100%"):
-            with rv.CardText():
-                with sl.Column(classes=["grey darken-3"]):
-                    sl.DataTable(
-                        dff,
-                        items_per_page=10,  # tablestate.height.value,
-                        scrollable=True,
-                        column_actions=column_actions,
-                    )
-                    btn = sl.Button(
-                        icon_name="mdi-settings",
-                        outlined=False,
-                        classes=["grey darken-3"],
-                    )
-                    with Menu(activator=btn, close_on_content_click=False):
-                        with sl.Card(margin=0):
-                            sl.Button(
-                                icon_name="mdi-delete",
-                                color="red",
-                                block=True,
-                                on_click=del_func,
-                            )
+    if filter:
+        dff = dff[filter]
+    dff = dff[[
+        "sdss_id",
+        "gaia_dr3_source_id",
+        "telescope",
+        "release",
+        "teff",
+        "logg",
+        "fe_h",
+    ]]
+    if column is not None and order is not None:
+        dff = dff.sort(dff[column], ascending=order)
 
-    else:
-        NoDF()
+    # TODO: add column add/remove functionality
+    with rv.Card(class_="grey darken-3" if dark else "grey lighten-3",
+                 style_="width: 100%; height: 100%"):
+        with rv.CardText():
+            with sl.Column(
+                    classes=["grey darken-3" if dark else "grey lighten-3"]):
+                sl.DataTable(
+                    dff,
+                    items_per_page=10,  # tablestate.height.value,
+                    scrollable=True,
+                    column_actions=column_actions,
+                )
+                btn = sl.Button(
+                    icon_name="mdi-settings",
+                    outlined=False,
+                    classes=["grey darken-3" if dark else 'grey lighten-3'],
+                )
+                with Menu(activator=btn, close_on_content_click=False):
+                    with sl.Card(margin=0):
+                        sl.Button(
+                            icon_name="mdi-delete",
+                            color="red",
+                            block=True,
+                            on_click=del_func,
+                        )
+    return
 
 
 def format_default(df, column, row_index, value):
@@ -247,6 +249,7 @@ def StatisticsTable(del_func: Callable):
                     dependencies=[]))  # inits with last subset
     filter, set_filter = use_subset(id(df), subset, name="statsview")
     columns, set_columns = sl.use_state(["teff", "logg", "fe_h"])
+    dark = use_dark_effective()
 
     def update_names():
         """Memoize fetch of names"""
@@ -320,10 +323,11 @@ def StatisticsTable(del_func: Callable):
                         on_click=remove_column),
     ]
 
-    with rv.Card(class_="grey darken-3",
+    with rv.Card(class_="grey darken-3" if dark else "grey lighten-3",
                  style_="width: 100%; height: 100%") as main:
         with rv.CardText():
-            with sl.Column(classes=["grey darken-3"]):
+            with sl.Column(
+                    classes=["grey darken-3" if dark else "grey lighten-3"]):
                 sl.ProgressLinear(result.pending)
                 if ~result.not_called and result.latest is not None:
                     ModdedDataTable(
@@ -336,19 +340,20 @@ def StatisticsTable(del_func: Callable):
                 btn = sl.Button(
                     icon_name="mdi-settings",
                     outlined=False,
-                    classes=["grey darken-3"],
+                    classes=["grey darken-3" if dark else "grey lighten-3"],
                 )
                 # settings menu
                 with Menu(activator=btn, close_on_content_click=False):
                     with sl.Card(margin=0):
                         with sl.Columns([2, 1]):
-                            sl.SelectMultiple(
-                                label="Columns",
-                                values=columns,
-                                all_values=State.columns.value,
-                                on_value=set_columns,
-                            )
-                            sl.Select(
+                            AutocompleteSelect(columns,
+                                               set_columns,
+                                               df=State.columns.value,
+                                               expr='column',
+                                               field='Column',
+                                               multiple=True)
+
+                            SingleAutocomplete(
                                 label="Subset",
                                 values=names,
                                 value=name,
