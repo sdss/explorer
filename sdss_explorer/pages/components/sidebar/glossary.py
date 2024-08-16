@@ -2,23 +2,18 @@
 
 import os
 import glob
-import json
 import solara as sl
 from solara.alias import rv
+import numpy as np
 
-from ...dataclass import _datapath
+from ...dataclass import State
 from ..dialog import Dialog
+from ...util import filter_regex
+from ..textfield import InputTextExposed
 from solara.lab import Tabs, Tab
 
-# TODO: maybe change to reference datapath in diff way to not use this try/except structure
-try:
-    with open(f"{_datapath()}/ipl3_partial.json") as f:
-        data = json.load(f).values()
-        f.close()
-except Exception:
-    data = None
-
 # read help info
+# TODO: consider moving to State? idk
 # NOTE: may not work on deployment, check with Brian.
 HELPDIR = os.path.join(os.path.dirname(__file__), '../../../assets/help/')
 
@@ -88,62 +83,68 @@ def HelpBlurb():
 @sl.component()
 def ColumnGlossary():
     """Complete list of all columns and what they do"""
-    # TODO: fetch via valis instead of via basic
-    # TODO: for above, make datamodel/airflow render for data file
-    json = data
-    filter, set_filter = sl.use_state("")
-    columns, set_columns = sl.use_state(json)
+    # TODO: fetch via valis instead of via precompiled json
+    # TODO: make datamodel/airflow render for data file
+    dm = State.datamodel
+    query, set_query = sl.use_state("")
+    filter, set_filter = sl.use_state(None)
+    dmf = dm
+    if filter is not None:
+        dmf = dm[filter]
 
     def update_columns():
-        if filter:
-            set_columns(
-                [k for k in json if filter.lower() in k["name"].lower()])
-        elif filter == "":
-            set_columns(data)
+        if query:
+            # union of regex across name and desc
+            # TODO: change algorithm to a true fzf
+            alpha = filter_regex(dm, query=query, col='name')
+            beta = filter_regex(dm, query=query, col='description')
+            set_filter(np.logical_or(alpha, beta))
 
-    result = sl.use_thread(update_columns, dependencies=[filter])
+        elif query == "":
+            set_filter(None)
+
+    result = sl.use_thread(update_columns, dependencies=[query])
 
     with rv.ExpansionPanel() as main:
         rv.ExpansionPanelHeader(children=["Column Glossary"])
         with rv.ExpansionPanelContent():
             with sl.Div():
-                if data is None:
+                if dm is None:
                     sl.Error("Error in datamodel load.")
                 else:
-                    sl.InputText(
+                    InputTextExposed(
                         label="Filter columns by name",
-                        value=filter,
-                        on_value=set_filter,
+                        value=query,
+                        on_value=set_query,
                         continuous_update=True,
                     )
                     with sl.GridFixed(columns=1,
                                       align_items="end",
                                       justify_items="stretch"):
                         if result.state == sl.ResultState.FINISHED:
-                            if len(columns) == 0:
+                            if len(dmf) == 0:
                                 sl.Warning(
                                     "No columns found, try a different filter")
                             else:
                                 # summary text logic
-                                if len(columns) > 20:
-                                    summary = f"{len(columns):,}/{len(data):,} columns (showing 20)"
-                                elif len(columns) == len(data):
+                                if len(dmf) > 20:
+                                    summary = f"{len(dmf):,}/{len(dm):,} columns (showing 20)"
+                                elif len(dmf) == len(dm):
                                     summary = (
-                                        f"{len(data):,} total columns (showing 20)"
+                                        f"{len(dm):,} total columns (showing 20)"
                                     )
                                 else:
-                                    summary = f"{len(columns):,}/{len(data):,} columns"
+                                    summary = f"{len(dmf):,}/{len(dm):,} columns"
 
                                 sl.Info(summary)
                                 # TODO: change from showing just first 20 to more via lazy-loading
-                                for n, col in enumerate(columns):
-                                    if n > 20:
+                                for n, d in enumerate(dmf.iloc):
+                                    if n > 19:
                                         break
-                                    name = col["name"]
-                                    desc = col["description"]
                                     with sl.Columns([1, 1]):
-                                        sl.Text(name)
-                                        sl.Text(desc, style={"opacity": ".5"})
+                                        sl.Text(d['name'])
+                                        sl.Text(d['description'])
+
                         else:
                             with sl.Div():
                                 sl.Text("Loading...")
