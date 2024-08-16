@@ -1,8 +1,10 @@
 """Main application state variables"""
 
 import os
+import json
 
 import solara as sl
+import pandas as pd
 import vaex as vx
 import pyarrow as pa  # noqa
 import numpy as np
@@ -44,16 +46,30 @@ def open_file(filename):
         return None
 
 
-# initial key for subset A
-init_key = generate_unique_key("A")
+def load_datamodel() -> vx.DataFrame | None:
+    """Loader for datamodel"""
+    # TODO: replace with a real datamodel from the real things
+    datapath = _datapath()
+    print('LOADING DATAMODEL ASJDIFJIJ')
+    # no datapath
+    if datapath is None:
+        return None
+
+    # no fail found
+    try:
+        with open(f"{_datapath()}/ipl3_partial.json") as f:
+            data = json.load(f).values()
+            f.close()
+        return pd.DataFrame(data)
+    except Exception:
+        return None
 
 
 class State:
     """Holds app-wide state variables"""
 
     mapping = sl.reactive(open_file('mappings.parquet'))
-    subsets = sl.reactive(
-        {init_key: "A"})  # Dict[str,str]; initialization done in SubsetCard
+    datamodel = load_datamodel()
     # initializing app with a simple default to demonstrate functionality
     subset_names = sl.reactive(["A"])
     token = sl.reactive(None)
