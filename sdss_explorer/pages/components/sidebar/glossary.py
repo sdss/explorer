@@ -95,7 +95,6 @@ def ColumnGlossary():
     def update_columns():
         if query:
             # union of regex across name and desc
-            # TODO: change algorithm to a true fzf
             alpha = filter_regex(dm, query=query, col='name')
             beta = filter_regex(dm, query=query, col='description')
             set_filter(np.logical_or(alpha, beta))
