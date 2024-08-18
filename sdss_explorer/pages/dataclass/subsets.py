@@ -1,138 +1,113 @@
-"""Subsets dataclass, containing all hooks/callback functions for subset functionality."""
+"""Subsets and SubsetState dataclasses, including all relevant add/remove/rename/clone callbacks."""
 
-import operator
-from functools import reduce
-from typing import Any, Union, Callable, Dict, List, TypeVar
+import dataclasses
+import solara as sl
 
-import solara.util
-from solara.hooks.misc import use_force_update, use_unique_key
-
-T = TypeVar("T")
-
-__all__ = [
-    "use_subset",
-]
+from .alert import Alert
 
 
-class SubsetStore:
+# frozen means it yells at us if we do assignment instead of replace
+@dataclasses.dataclass(frozen=True)
+class Subset:
+    """Subset dataclass."""
+    name: str = 'A'
+    expression: str = ''
+    dataset: str = 'aspcap'  # TODO: change to astra best when Andy makes it
+    flags: list[str] = dataclasses.field(
+        default_factory=lambda: ['Purely non-flagged'])
+    mapper: list[str] = dataclasses.field(default_factory=list)
+    carton: list[str] = dataclasses.field(default_factory=list)
 
-    def __init__(self) -> None:
-        self.listeners: Dict[Any, List[Callable]] = {}
-        # data_key (ID) : subset (str: name) : filter_key (unique str) : filter
-        # 3 layer dictionary
-        self.filters: Dict[Any, Dict[str, Any]] = {}
 
-    def add(self, subset_key, key, filter):
-        data_subset_filters = self.filters.setdefault(subset_key, {})
-        data_subset_filters[key] = filter
+class SubsetState:
+    """Subset storage namespace, with functions for add/remove/etc."""
+    index = sl.reactive(1)
+    subsets = sl.reactive({'s0': Subset()})
 
-    def use(self, subset_key, key, write_only: bool, eq=None):
-        # we use this state to trigger update, we could do without
+    @staticmethod
+    def add_subset(name: str, **kwargs) -> bool:
+        """Adds subset and subsetcard, generating new unique key for subset. Boolean return for success."""
+        for subset in SubsetState.subsets.value.values():
+            if name == subset.name:
+                Alert.update("Subset with name already exists!", color="error")
+                return False
+        if len(name) == 0:
+            Alert.update("Please enter a name for the subset.",
+                         color="warning")
+            return False
 
-        data_subset_filters = self.filters.setdefault(subset_key, {})
+        else:  # no name case
+            # add subset
+            key = SubsetState.index.value
+            subsets = SubsetState.subsets.value.copy()
+            subsets.update({'s' + str(key): Subset(name=name, **kwargs)})
+            SubsetState.subsets.set(dict(**subsets))
 
-        updater = use_force_update()
+            # iterate index
+            SubsetState.index.set(SubsetState.index.value + 1)
+            return True
 
-        # will update the filter if the subset changes
-        filter, set_filter = solara.use_state(data_subset_filters.get(key),
-                                              eq=eq)
+    @staticmethod
+    def update_subset(key: str, **kwargs) -> bool:
+        """Updates subset of key with specified kwargs"""
+        if key not in SubsetState.subsets.value.keys():
+            Alert.update(
+                f"BUG: subset update failed! Key {key} not in hashmap.",
+                color="error")
+            return False
 
-        def on_change():
-            set_filter(data_subset_filters.get(key))
-            # even if we don't change our own filter, the other may change
-            updater()
+        subsets = SubsetState.subsets.value.copy()
+        subset = SubsetState.subsets.value[key]
+        subsets[key] = dataclasses.replace(subset, **kwargs)
+        SubsetState.subsets.set(dict(**subsets))
+        return True
 
-        def connect():
-            self.listeners.setdefault(subset_key, []).append(on_change)
-            # we need to force an extra render after the first render
-            # to make sure we have the correct filter, since others components
-            # may set a filter after we have rendered, *or* mounted
-            on_change()
-
-            def cleanup():
-                self.listeners.setdefault(subset_key, []).remove(on_change)
-                # also remove our filter, and notify the rest
-                data_subset_filters.pop(key,
-                                        None)  # remove, ignoring key error
-                for listener in self.listeners.setdefault(subset_key, []):
-                    listener()
-
-            return cleanup
-
-        if not write_only:
-            # NOTE: conditional hook
-            solara.use_effect(connect, [subset_key, key])
-
-        def setter(filter):
-            data_subset_filters[key] = filter
-            print(
-                "N listeners for",
-                subset_key,
-                "is",
-                len(self.listeners.setdefault(subset_key, [])),
-            )
-            print(self.listeners.setdefault(subset_key, []))
-            for listener in self.listeners.setdefault(subset_key, []):
-                listener()
-
-        # only return the other filters if required.
-        if not write_only:
-            otherfilters = [
-                filter for key_other, filter in data_subset_filters.items()
-                if key != key_other and filter is not None
-            ]
+    @staticmethod
+    def rename_subset(key: str, newname: str) -> bool:
+        """Rename subset method, with specific logic"""
+        if key not in SubsetState.subsets.value.keys():
+            Alert.update("BUG: subset clone failed! Key not in hashmap.",
+                         color="error")
+            return False
+        elif len(newname) == 0:
+            Alert.update("Enter a name for the subset!", color='warning')
+            return False
+        elif newname == SubsetState.subsets.value[key].name:
+            Alert.update("Name is the same!", color='warning')
+            return False
+        elif newname in [ss.name for ss in SubsetState.subsets.value.values()]:
+            Alert.update("Name already exists!", color='warning')
+            return False
         else:
-            otherfilters = None
-        return filter, otherfilters, setter
+            return SubsetState.update_subset(key, name=newname)
 
-
-subset_context = solara.create_context(SubsetStore())
-
-
-def use_subset(
-    data_key,
-    subset_key: Union[solara.Reactive[str], str] = "A",
-    name: str = "no-name",
-    write_only: bool = False,
-    reducer: Callable[[T, T], T] = operator.and_,
-    eq=solara.util.numpy_equals,
-):
-    """Provides cross filtering across a subset, all other filters are combined using the reducer.
-
-    Cross filtering will collect a set of filters (from other components), and combine
-    them into a single filter, that excludes the filter we set for the current component.
-    This is often used in dashboards where a filter is defined in a visualization component,
-    but only applied to all other components.
-
-    The graph below shows what happens when component A and B set a filter, and C does not.
-
-    ```mermaid
-    graph TD;
-        A--"filter A"-->B;
-        B--"filter B"-->C;
-        A--"filter A"-->C;
-        B--"filter B"-->A;
-    ```
-    """
-    subset_reactive = solara.use_reactive(subset_key)
-    del subset_key
-
-    key = use_unique_key(prefix=f"ss-{name}-")
-    subset_store = solara.use_context(subset_context)
-    _own_filter, otherfilters, set_filter = subset_store.use(
-        subset_reactive.value, key, write_only=write_only, eq=eq)
-    if write_only:
-        cross_filter = None  # never update
-    else:
-        if otherfilters:
-            cross_filter = reduce(reducer, otherfilters[1:], otherfilters[0])
+    @staticmethod
+    def clone_subset(key: str) -> bool:
+        """Clones a subset"""
+        if key not in SubsetState.subsets.value.keys():
+            Alert.update("BUG: subset clone failed! Key not in hashmap.",
+                         color="error")
+            return False
         else:
-            cross_filter = None
-    return cross_filter, set_filter
+            key = SubsetState.index.value
+            subsets = SubsetState.subsets.value.copy()
+            subset = SubsetState.subsets.value[key]
+            # TODO: name logic
+            name = 'copy of ' + subset.name
 
+            subsets.update(
+                {'s' + str(key): dataclasses.replace(subset, name=name)})
+            SubsetState.subsets.set(dict(**subsets))
 
-def remove_subset(subset_key: str):
-    # TODO: how to trigger state updates correctly? How to force it
-    # so that when the subset is removed, it resets subset setting per
-    # plot to the only one in it?
-    pass
+    @staticmethod
+    def remove_subset(key: str):
+        """
+        Removes a subset from the Subset master list.
+
+        :key: string key of subset
+        """
+        # dict comprehension for reconstruction
+        SubsetState.subsets.value = dict(**{
+            k: v
+            for k, v in SubsetState.subsets.value.items() if k != key
+        })

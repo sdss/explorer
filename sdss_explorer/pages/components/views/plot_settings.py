@@ -4,9 +4,8 @@ import solara as sl
 from solara.components.card import Card
 from solara.components.columns import Columns
 
-from ...dataclass import State
+from ...dataclass import State, SubsetState, Subset
 from ..sidebar.autocomplete import SingleAutocomplete
-from ..sidebar.subset_cards import SubsetState
 
 
 def show_settings(type, state):
@@ -31,16 +30,16 @@ def SkymapMenu(plotstate):
     sl.use_thread(
         plotstate.reset_values,
         dependencies=[
-            len(SubsetState.active.value),
-            SubsetState.active.value,
+            len(SubsetState.subsets.value),
+            SubsetState.subsets.value,
             State.columns.value,
         ],
     )
 
-    name, names = sl.use_memo(
-        plotstate.update_names,
-        dependencies=[SubsetState.names.value, SubsetState.active.value],
-    )
+    name, names = SubsetState.subsets.value.get(
+        plotstate.subset.value, Subset(name='temp')).name, [
+            ss.name for ss in SubsetState.subsets.value.values()
+        ]
 
     with sl.Columns([1, 1]):
         with Card(margin=0):
@@ -89,16 +88,16 @@ def ScatterMenu(plotstate):
     sl.use_thread(
         plotstate.reset_values,
         dependencies=[
-            len(SubsetState.active.value),
-            SubsetState.active.value,
+            len(SubsetState.subsets.value),
+            SubsetState.subsets.value,
             State.columns.value,
         ],
     )
 
-    name, names = sl.use_memo(
-        plotstate.update_names,
-        dependencies=[SubsetState.names.value, SubsetState.active.value],
-    )
+    name, names = SubsetState.subsets.value.get(
+        plotstate.subset.value, Subset(name='temp')).name, [
+            ss.name for ss in SubsetState.subsets.value.values()
+        ]
     with sl.Card():
         SingleAutocomplete(
             label="Subset",
@@ -161,19 +160,16 @@ def HistogramMenu(plotstate):
     sl.use_thread(
         plotstate.reset_values,
         dependencies=[
-            len(SubsetState.active.value),
-            SubsetState.active.value,
+            len(SubsetState.subsets.value),
+            SubsetState.subsets.value,
             State.columns.value,
         ],
     )
 
-    name, names = sl.use_memo(
-        plotstate.update_names,
-        dependencies=[
-            plotstate.subset.value,
-            SubsetState.names.value,
-        ],
-    )
+    name, names = SubsetState.subsets.value.get(
+        plotstate.subset.value, Subset(name='temp')).name, [
+            ss.name for ss in SubsetState.subsets.value.values()
+        ]
 
     with sl.Card():
         SingleAutocomplete(
@@ -217,20 +213,16 @@ def HeatmapMenu(plotstate):
     sl.use_thread(
         plotstate.reset_values,
         dependencies=[
-            len(SubsetState.active.value),
-            SubsetState.active.value,
+            len(SubsetState.subsets.value),
+            SubsetState.subsets.value,
             State.columns.value,
         ],
     )
+    name, names = SubsetState.subsets.value.get(
+        plotstate.subset.value, Subset(name='temp')).name, [
+            ss.name for ss in SubsetState.subsets.value.values()
+        ]
 
-    name, names = sl.use_memo(
-        plotstate.update_names,
-        dependencies=[
-            plotstate.subset.value,
-            SubsetState.names.value,
-            SubsetState.cards.value,
-        ],
-    )
     with sl.Columns([1, 1]):
         with sl.Card():
             SingleAutocomplete(
@@ -304,31 +296,26 @@ def DeltaHeatmapMenu(plotstate):
     sl.use_thread(
         plotstate.reset_values,
         dependencies=[
-            len(SubsetState.active.value),
-            SubsetState.active.value,
+            len(SubsetState.subsets.value),
+            SubsetState.subsets.value,
             State.columns.value,
         ],
     )
+    name_a = SubsetState.subsets.value[plotstate.subset.value].name
+    name_b = SubsetState.subsets.value[plotstate.subset_b.value].name
+    names = SubsetState.subsets.value.keys()
 
-    name_a, name_b, names = sl.use_memo(
-        lambda: plotstate.update_names(delta=True),
-        dependencies=[SubsetState.names.value, SubsetState.active.value],
-    )
     with Card(margin=0):
         with sl.Columns([3, 3, 1]):
             SingleAutocomplete(
                 label="Subset 1",
-                values=[
-                    n for n in SubsetState.active_names.value if n != name_b
-                ],
+                values=[n for n in names if n != name_b],
                 value=name_a,
                 on_value=plotstate.update_subset,
             )
             SingleAutocomplete(
                 label="Subset 2",
-                values=[
-                    n for n in SubsetState.active_names.value if n != name_a
-                ],
+                values=[n for n in names if n != name_a],
                 value=name_b,
                 on_value=lambda *args: plotstate.update_subset(*args, b=True),
             )

@@ -8,8 +8,7 @@ import reacton as r
 import ipyvuetify as v
 import ipywidgets as widgets
 
-from ...dataclass import GridState
-from ..sidebar.subset_cards import SubsetState
+from ...dataclass import GridState, SubsetState
 
 from .plots import show_plot, index_context
 from .dataframe import StatisticsTable
@@ -138,14 +137,12 @@ def ObjectGrid():
 
     # NOTE: workaround for reactive monitoring of n subsets
     def update_n_subsets():
-        return len(SubsetState.active.value)
+        return len(SubsetState.subsets.value)
 
     n_subsets = sl.use_memo(
         update_n_subsets,
         dependencies=[
-            len(SubsetState.active.value),
-            SubsetState.active.value,
-            SubsetState.cards.value,
+            SubsetState.subsets.value,
         ],
     )
 

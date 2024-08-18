@@ -9,8 +9,6 @@ import vaex as vx
 import pyarrow as pa  # noqa
 import numpy as np
 
-from ..util import generate_unique_key
-
 # disable the vaex built-in logging (clogs on FileNotFounds et al)
 if sl.server.settings.main.mode == 'production':
     vx.logging.remove_handler()  # force remove handler on production instance
@@ -69,7 +67,7 @@ class State:
     """Holds app-wide state variables"""
 
     mapping = sl.reactive(open_file('mappings.parquet'))
-    datamodel = load_datamodel()
+    datamodel = sl.reactive(load_datamodel())
     # initializing app with a simple default to demonstrate functionality
     subset_names = sl.reactive(["A"])
     token = sl.reactive(None)
