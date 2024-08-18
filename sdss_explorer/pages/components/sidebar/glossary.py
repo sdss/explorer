@@ -85,7 +85,7 @@ def ColumnGlossary():
     """Complete list of all columns and what they do"""
     # TODO: fetch via valis instead of via precompiled json
     # TODO: make datamodel/airflow render for data file
-    dm = State.datamodel
+    dm = State.datamodel.value
     query, set_query = sl.use_state("")
     filter, set_filter = sl.use_state(None)
     dmf = dm

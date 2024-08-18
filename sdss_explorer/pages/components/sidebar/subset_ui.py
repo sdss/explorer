@@ -5,10 +5,12 @@ import vaex as vx
 import numpy as np
 import reacton.ipyvuetify as rv
 from solara.hooks.misc import use_force_update
+from reacton.core import ValueElement
 
 from ..dialog import Dialog
 
-from .subset_cards import SubsetState, updater_context
+from ...dataclass import SubsetState, State, use_subset
+from .subset_options import updater_context, SubsetOptions
 
 
 @vx.register_function()
@@ -26,13 +28,13 @@ def SubsetMenu():
     updater_context.provide(updater)  # provide updater to context
 
     def add_subset(name):
-        "Wraps subset add to support dialog interface"
+        "Wrapper on Subset Add to support dialog interface"
         if SubsetState.add_subset(name):
             updater()  # force rerender
             close()
 
     def close():
-        """Dialog close handler, resetting state vars"""
+        """Dialog close handler; resets state variables."""
         add.set(False)
         set_name("")
         return
@@ -59,9 +61,8 @@ def SubsetMenu():
             # multiple=True,
             # v_model=model,
             # on_v_model=set_model):
-            print("Number of cards", len(SubsetState.cards.value))
-            for card in SubsetState.cards.value:
-                sl.display(card)
+            for key in SubsetState.subsets.value.keys():
+                SubsetCard(key).key(key)
         with Dialog(
                 add,
                 title="Enter a name for the new subset",
@@ -75,4 +76,50 @@ def SubsetMenu():
                 on_value=set_name,
             )
 
+    return main
+
+
+@sl.component()
+def SubsetCard(key: str, **kwargs) -> ValueElement:
+    """Holds filter update info, card structure, and calls to options"""
+    df = State.df.value
+    filter, _set_filter = use_subset(id(df), key, "subset-summary")
+    name = SubsetState.subsets.value[key].name
+    dataset = SubsetState.subsets.value[key].dataset
+
+    dfp = df[df[f"(dataset == '{dataset}')"]]
+
+    # progress bar logic
+    if filter:
+        # filter from plots or self
+        filtered = True
+        dff = df[filter]
+    else:
+        # not filtered at all
+        filtered = False
+        dff = df
+    progress = len(dff) / len(dfp) * 100
+    summary = f"{len(dff):,}"
+    with rv.ExpansionPanel() as main:
+        with rv.ExpansionPanelHeader():
+            with sl.Row(gap="0px"):
+                rv.Col(cols="4", children=[name])
+                rv.Col(
+                    cols="8",
+                    class_="text--secondary",
+                    children=[
+                        rv.Icon(
+                            children=["mdi-filter"],
+                            style_="opacity:e0.1" if not filtered else "",
+                        ),
+                        summary,
+                    ],
+                )
+
+        with rv.ExpansionPanelContent():
+            # filter bar
+            with sl.Column(gap='12px'):
+                sl.ProgressLinear(value=progress, color="blue")
+                SubsetOptions(key, lambda: SubsetState.remove_subset(key),
+                              **kwargs)
     return main

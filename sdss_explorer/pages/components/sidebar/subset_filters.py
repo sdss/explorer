@@ -1,26 +1,144 @@
 """Holds specific filter components"""
 
-from functools import reduce
 import operator
+import re
+from functools import reduce
+from typing import cast
 
-import solara as sl
+import numpy as np
 import reacton.ipyvuetify as rv
+import solara as sl
+from reacton.core import ValueElement
 
-from ...dataclass import State, use_subset, Alert
+from ...dataclass import Alert, State, SubsetState, use_subset
+from ..textfield import InputTextExposed
 from .autocomplete import AutocompleteSelect, SingleAutocomplete
 from .glossary import Help
-from ..textfield import InputTextExposed
 
 __all__ = [
-    "ExprEditor", "TargetingFiltersPanel", "QuickFilterMenu",
-    "PivotTablePanel", "DatasetSelect"
+    "ExprEditor", "TargetingFiltersPanel", "PivotTablePanel", "DatasetSelect"
 ]
+
+operator_map = {"AND": operator.and_, "OR": operator.or_, "XOR": operator.xor}
 
 
 @sl.component()
-def ExprEditor(expression, set_expression, error, result):
-    """Expression editor user-facing set"""
+def ExprEditor(key: str, invert) -> ValueElement:
+    """Expression editor."""
+    # state for expreditor
+    df = State.df.value
+    subset = SubsetState.subsets.value[key]
+
+    _, set_expfilter = use_subset(id(df), key, "expr", write_only=True)
+    expression, set_expression = subset.expression, lambda arg: SubsetState.update_subset(
+        key, expression=arg)
+
     open, set_open = sl.use_state(False)
+    error, set_error = sl.use_state(cast(str, None))
+
+    # Expression Editor thread
+    def update_expr():
+        """
+        Validates if the expression is valid, and returns
+        a precise error message for any issues in the expression.
+        """
+        columns = State.columns.value
+        try:
+            if expression is None or expression == "" or expression == 'None':
+                set_expfilter(None)
+                set_expression('')
+                return None
+            # first, remove all spaces
+            expr = expression.replace(" ", "")
+            num_regex = r"^-?[0-9]+(?:\.[0-9]+)?(?:e-?\d+)?$"
+
+            # get expression in parts, saving split via () regex
+            subexpressions = re.split(r"(&|\||\)|\()", expr)
+            n = 1
+            for i, expr in enumerate(subexpressions):
+                # saved regex info -> skip w/o enumerating
+                if expr in ["", "&", "(", ")", "|"]:
+                    continue
+
+                parts = re.split(r"(>=|<=|<|>|==|!=)", expr)
+                if len(parts) == 1:
+                    assert False, f"expression {n} is invalid: no comparator"
+                elif len(parts) == 5:
+                    # first, check that parts 2 & 4 are lt or lte comparators
+                    assert (
+                        re.fullmatch(r"<=|<", parts[1]) is not None
+                        and re.fullmatch(r"<=|<", parts[3]) is not None
+                    ), f"expression {n} is invalid: not a proper 3-part inequality (a < col <= b)"
+
+                    # check middle
+                    assert (
+                        parts[2] in columns
+                    ), f"expression {n} is invalid: must be comparing a data column (a < col <= b)"
+
+                    # check a and b & if a < b
+                    assert (
+                        re.match(num_regex, parts[0]) is not None
+                    ), f"expression {n} is invalid: must be numeric for numerical data column"
+                    assert (
+                        float(parts[0]) < float(parts[-1])
+                    ), f"expression {n} is invalid: invalid inequality (a > b for a < col < b)"
+
+                    # change the expression to valid format
+                    subexpressions[i] = (
+                        f"(({parts[0]}{parts[1]}{parts[2]})&({parts[2]}{parts[3]}{parts[4]}))"
+                    )
+
+                elif len(parts) == 3:
+                    check = (parts[0] in columns, parts[2] in columns)
+                    if np.any(check):
+                        if check[0]:
+                            col = parts[0]
+                            num = parts[2]
+                        elif check[1]:
+                            col = parts[2]
+                            num = parts[0]
+                        dtype = str(df[col].dtype)
+                        if "float" in dtype or "int" in dtype:
+                            assert (
+                                re.match(num_regex, num) is not None
+                            ), f"expression {n} is invalid: must be numeric for numerical data column"
+                    else:
+                        assert (
+                            False
+                        ), f"expression {n} is invalid: one part must be column"
+                    assert (
+                        re.match(r">=|<=|<|>|==|!=", parts[1]) is not None
+                    ), f"expression {n} is invalid: middle is not comparator"
+
+                    # change the expression in subexpression
+                    subexpressions[i] = "(" + expr + ")"
+                else:
+                    assert False, f"expression {n} is invalid: too many comparators"
+
+                # enumerate the expr counter
+                n = n + 1
+
+            # create expression as str
+            expr = "(" + "".join(subexpressions) + ")"
+
+            # set filter corresponding to inverts & exit
+            if invert.value:
+                set_expfilter(~df[expr])
+            else:
+                set_expfilter(df[expr])
+            return True
+
+        except AssertionError as e:
+            # INFO: it's probably better NOT to unset filters if assertions fail.
+            # set_filter(None)
+            set_error(e)  # saves error msg to state
+            return False
+        except SyntaxError:
+            set_error("modifier at end of sequence with no expression")
+            return False
+
+    result: sl.Result[bool] = sl.use_thread(
+        update_expr, dependencies=[expression, invert.value])
     if result.state == sl.ResultState.FINISHED:
         if result.value:
             errorFound = False
@@ -89,7 +207,7 @@ def ExprEditor(expression, set_expression, error, result):
 
 
 @sl.component()
-def DatasetSelect(dataset, set_dataset):
+def DatasetSelect(dataset, set_dataset) -> ValueElement:
     """Select box for pipeline."""
     return SingleAutocomplete(
         label='Dataset',
@@ -100,100 +218,188 @@ def DatasetSelect(dataset, set_dataset):
 
 
 @sl.component()
-def TargetingFiltersPanel(mapper, set_mapper, carton, set_carton, flags,
-                          set_flags):
-    with rv.ExpansionPanel() as main:
-        rv.ExpansionPanelHeader(children=["Targeting Filters"])
-        with rv.ExpansionPanelContent():
-            if State.mapping.value is None:
-                sl.Warning(
-                    dense=True,
-                    label=
-                    "Mappings file not found! Please contact server admins.",
-                )
-            else:
-                with sl.Column(gap="2px"):
-                    AutocompleteSelect(mapper,
-                                       set_mapper,
-                                       df=State.mapping.value,
-                                       expr='mapper',
-                                       field='Mapper',
-                                       multiple=True)
-                    AutocompleteSelect(carton,
-                                       set_carton,
-                                       df=State.mapping.value,
-                                       expr='alt_name',
-                                       field='Carton',
-                                       multiple=True)
-                    AutocompleteSelect(
-                        flags,
-                        set_flags,
-                        df=[
-                            'SDSS5 only',
-                            'SNR > 50',
-                            'Purely non-flagged',  #'No APO 1m',
-                            'No bad flags',
-                            'Vmag < 13'
-                        ],
-                        expr='foobar',
-                        field='Quick Flags',
-                        multiple=True)
-    return main
-
-
-@sl.component()
-def QuickFilterMenu(name):
-    """
-    Apply Quick Filters
-    """
+def FlagSelect(key: str, invert) -> ValueElement:
+    """Select box with callback for filters."""
     df = State.df.value
-    # TODO: find out how flags work, currently using 1 col as plceholders:
-    flag_cols = ["result_flags"]
-    _filter, set_filter = use_subset(id(df),
-                                     name,
-                                     "quickflags",
-                                     write_only=True)
+    subset = SubsetState.subsets.value[key]
+    _, set_flagfilter = use_subset(id(df), key, "flags", write_only=True)
+    flags, set_flags = subset.flags, lambda arg: SubsetState.update_subset(
+        key, flags=arg)
 
-    # Quick filter states
-    flags, set_flags = sl.use_state(["SNR > 50"])
-
-    def reset_filters():
-        set_flags([])
-
-    def work():
+    def update_flags():
         filters = []
+        # TODO: relocate this somewhere better, like into a lookup dataclass or a file
+        flagList = {
+            'SDSS5 only': "release=='sdss5'",
+            'SNR > 50': "snr>=50",
+            'Purely non-flagged': 'result_flags==0',
+            #'No APO 1m': "telescope!='apo1m'", # WARNING: this one doesn't work for some reason, maybe it's not string; haven't checked
+            'No bad flags': 'flag_bad==0',
+            'Vmag < 13': 'v_jkc_mag<=13'
+        }
+        # get the flag lookup
+        if len(flags) > 0:
+            for flag in flags:
+                filters.append(flagList[flag])
 
-        concat_filter = reduce(operator.and_, filters[1:], filters[0])
-        set_filter(concat_filter)
+            # string join
+            print('FLAG FILTERS', filters)
+            concat_filter = ")&(".join(filters)
+            concat_filter = "((" + concat_filter + "))"
+            concat_filter = df[concat_filter]
+            if invert.value:
+                concat_filter = ~concat_filter
+        else:
+            concat_filter = None
+
+        set_flagfilter(concat_filter)
         return
 
-    # apply thread to filtering logic so it only runs on rerenders
-    sl.use_thread(work, dependencies=[flags])
-    with rv.ExpansionPanel() as main:
-        with rv.ExpansionPanelHeader():
-            rv.Icon(children=["mdi-table-plus"])
-            with rv.CardTitle(children=["Quick Flags"]):
-                pass
-        with rv.ExpansionPanelContent():
-            pass
+    sl.use_thread(update_flags, dependencies=[flags, invert.value])
 
-            #with rv.Card() as main:
-            #    with rv.CardTitle(children=["Quick filters"]):
-            #        rv.Icon(children=["mdi-filter-plus-outline"])
-            #    with rv.CardText():
-            #        sl.Checkbox(
-            #            label="All flags zero",
-            #            value=flag_nonzero,
-            #            on_value=set_flag_nonzero,
-            #        )
-            #        sl.Checkbox(label="SNR > 50",
-            #                    value=flag_snr50,
-            #                    on_value=set_flag_snr50)
+    return AutocompleteSelect(
+        flags,
+        set_flags,
+        df=[
+            'SDSS5 only',
+            'SNR > 50',
+            'Purely non-flagged',  #'No APO 1m',
+            'No bad flags',
+            'Vmag < 13'
+        ],
+        expr='foobar',
+        field='Quick Flags',
+        multiple=True)
+
+
+@sl.component()
+def TargetingFiltersPanel(key: str, invert) -> ValueElement:
+    """Holds expansion panels for complex filtering"""
+    df = State.df.value
+    mapping = State.mapping.value
+    subset = SubsetState.subsets.value[key]
+    _, set_cmfilter = use_subset(id(df), key, "cartonmapper", write_only=True)
+    # handlers for mapper/carton/data/setflags
+    mapper, set_mapper = subset.mapper, lambda arg: SubsetState.update_subset(
+        key, mapper=arg)
+    carton, set_carton = subset.carton, lambda arg: SubsetState.update_subset(
+        key, carton=arg)
+    dataset, set_dataset = subset.dataset, lambda arg: SubsetState.update_subset(
+        key, dataset=arg)
+    combotype = (
+        "AND"  # NOTE: remains for functionality as potential state var (in future)
+    )
+
+    # Carton Mapper thread
+    def update_cm():
+        # fail on no mapping
+        if mapping is None:
+            Alert.update(
+                "Mappings file not found! Please contact server admins.",
+                color="warning",
+            )
+            return
+
+        # convert chosens to bool mask
+        cmp_filter = None
+        if len(mapper) == 0 and len(carton) == 0 and len(dataset) == 0:
+            set_cmfilter(None)
+            return
+
+        # mapper + cartons
+        elif len(mapper) != 0 or len(carton) != 0:
+            c = mapping["alt_name"].isin(carton).values
+            m = mapping["mapper"].isin(mapper).values
+
+            # mask
+            if len(mapper) == 0:
+                mask = c
+            elif len(carton) == 0:
+                mask = m
+            else:
+                mask = operator_map[combotype](m, c)
+
+            bits = np.arange(len(mapping))[mask]
+
+            # get flag_number & offset
+            # NOTE: hardcoded nbits as 8, and nflags as 57
+            # TODO: in future, change to read from mappings parquet
+            num, offset = np.divmod(bits, 8)
+            setbits = 57 > num  # ensure bits in flags
+
+            # construct hashmap for each unique flag
+            filters = np.zeros(57).astype("uint8")
+            for unique in np.unique(num[setbits]):
+                # ANDs all the bitshifted values for the given unique flag
+                offsets = 1 << offset[setbits][np.where(
+                    num[setbits] == unique)]
+                actives = reduce(
+                    operator.or_,
+                    offsets)  # INFO: this is an OR operation PER bit
+                if actives == 0:
+                    continue  # skip
+                filters[unique] = (
+                    actives  # the required active bit(s) ACTIVES for bitmask position "UNIQUE"
+                )
+
+            # generate a filter based on the vaex-defined flag combiner
+            cmp_filter = df.func.check_flags(df["sdss5_target_flags"], filters)
+
+        print("DATASET =", dataset)
+        if dataset is not None:
+            if cmp_filter is not None:
+                cmp_filter = operator_map[combotype](
+                    cmp_filter, df["dataset"].isin([dataset]))
+            else:
+                cmp_filter = df["dataset"].isin([dataset])
+
+        # invert if requested
+        if invert.value:
+            set_cmfilter(~cmp_filter)
+        else:
+            set_cmfilter(cmp_filter)
+
+        return
+
+    sl.use_thread(update_cm,
+                  dependencies=[mapper, carton, dataset, invert.value])
+
+    open, set_open = sl.use_state([])
+    with rv.ExpansionPanels(flat=True,
+                            multiple=True,
+                            v_model=open,
+                            on_v_model=set_open) as main:
+        DatasetSelect(dataset, set_dataset)
+        with rv.ExpansionPanel():
+            rv.ExpansionPanelHeader(children=["Targeting Filters"])
+            with rv.ExpansionPanelContent():
+                if State.mapping.value is None:
+                    sl.Warning(
+                        dense=True,
+                        label=
+                        "Mappings file not found! Please contact server admins.",
+                    )
+                else:
+                    with sl.Column(gap="2px"):
+                        AutocompleteSelect(mapper,
+                                           set_mapper,
+                                           df=State.mapping.value,
+                                           expr='mapper',
+                                           field='Mapper',
+                                           multiple=True)
+                        AutocompleteSelect(carton,
+                                           set_carton,
+                                           df=State.mapping.value,
+                                           expr='alt_name',
+                                           field='Carton',
+                                           multiple=True)
+                        FlagSelect(key, invert)
+
     return main
 
 
 @sl.component()
-def PivotTablePanel():
+def PivotTablePanel() -> ValueElement:
     """Holds solara PivotTable in expansion panel. Deprecated (maybe implement again in future)"""
     df = State.df.value
     with rv.ExpansionPanel() as main:
@@ -207,36 +413,4 @@ def PivotTablePanel():
                 # NOTE: the fix below fixes it, but is weird
                 if type(df) != dict:  # noqa
                     sl.PivotTableCard(df, y=["telescope"], x=["release"])
-    return main
-
-
-@sl.component()
-def DownloadMenu():
-    # df = State.df.value
-    # filter, set_filter = sl.use_cross_filter(id(df), "download")
-    # if filter:
-    #    dff = df[filter]
-    # else:
-    #    dff = df
-
-    def get_data():
-        # TODO: change all of these methods to better valis-integrated methods that dont involve
-        # dropping the entire DB file into memory...
-        # dfp = dff.to_pandas_df()
-        Alert.update(
-            "Download currently unsupported due to memory issues server-side. Coming soon!",
-            color="info",
-        )
-        return  # dfp.to_csv(index=False)
-
-    with sl.Tooltip("Download subset as csv") as main:
-        sl.Button(
-            label="",
-            icon_name="mdi-download",
-            icon=True,
-            text=True,
-            on_click=get_data,
-            # NOTE: temporary disable because the interface is poor
-        )
-
     return main
