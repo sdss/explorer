@@ -80,7 +80,7 @@ def SubsetMenu():
 
 
 @sl.component()
-def SubsetCard(key: str, **kwargs) -> ValueElement:
+def SubsetCard(key: str) -> ValueElement:
     """Holds filter update info, card structure, and calls to options"""
     df = State.df.value
     filter, _set_filter = use_subset(id(df), key, "subset-summary")
@@ -120,6 +120,5 @@ def SubsetCard(key: str, **kwargs) -> ValueElement:
             # filter bar
             with sl.Column(gap='12px'):
                 sl.ProgressLinear(value=progress, color="blue")
-                SubsetOptions(key, lambda: SubsetState.remove_subset(key),
-                              **kwargs)
+                SubsetOptions(key, lambda: SubsetState.remove_subset(key))
     return main

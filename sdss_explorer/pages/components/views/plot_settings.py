@@ -276,12 +276,11 @@ def HeatmapMenu(plotstate):
                 values=plotstate.Lookup["bintypes"],
                 value=plotstate.bintype,
             )
-            if str(plotstate.bintype.value) != "count":
-                SingleAutocomplete(
-                    label="Column to Bin",
-                    values=columns,
-                    value=plotstate.color,
-                )
+            SingleAutocomplete(label="Column to Bin",
+                               values=columns,
+                               value=plotstate.color,
+                               disabled=(str(
+                                   plotstate.bintype.value) == "count"))
             SingleAutocomplete(
                 label="Binning scale",
                 values=plotstate.Lookup["binscales"],

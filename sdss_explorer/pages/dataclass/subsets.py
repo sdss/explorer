@@ -89,14 +89,14 @@ class SubsetState:
                          color="error")
             return False
         else:
-            key = SubsetState.index.value
             subsets = SubsetState.subsets.value.copy()
             subset = SubsetState.subsets.value[key]
             # TODO: name logic
             name = 'copy of ' + subset.name
+            newkey = 's' + str(SubsetState.index.value)
+            SubsetState.index.set(SubsetState.index.value + 1)
 
-            subsets.update(
-                {'s' + str(key): dataclasses.replace(subset, name=name)})
+            subsets.update({newkey: dataclasses.replace(subset, name=name)})
             SubsetState.subsets.set(dict(**subsets))
 
     @staticmethod
