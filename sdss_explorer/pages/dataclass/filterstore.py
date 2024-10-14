@@ -20,16 +20,18 @@ class SubsetStore:
         self.listeners: Dict[Any, List[Callable]] = {}
         # data_key (ID) : subset (str: name) : filter_key (unique str) : filter
         # 3 layer dictionary
-        self.filters: Dict[Any, Dict[str, Any]] = {}
+        self.filters: Dict[Any, Dict[str, Dict[str, Any]]] = {}
 
-    def add(self, subset_key, key, filter):
-        data_subset_filters = self.filters.setdefault(subset_key, {})
+    def add(self, data_key, subset_key, key, filter):
+        data_subset_filters = self.filters.setdefault(data_key, {}).setdefault(
+            subset_key, {})
         data_subset_filters[key] = filter
 
-    def use(self, subset_key, key, write_only: bool, eq=None):
+    def use(self, data_key, subset_key, key, write_only: bool, eq=None):
         # we use this state to trigger update, we could do without
 
-        data_subset_filters = self.filters.setdefault(subset_key, {})
+        data_subset_filters = self.filters.setdefault(data_key, {}).setdefault(
+            subset_key, {})
 
         updater = use_force_update()
 
@@ -59,9 +61,10 @@ class SubsetStore:
 
             return cleanup
 
-        if not write_only:
-            # NOTE: conditional hook
-            solara.use_effect(connect, [subset_key, key])
+        # BUG: removing this hook prevents cleanup BETWEEN virtual kernels (somehow?), so we need this to stay
+        #if not write_only:
+        # NOTE: conditional hook
+        solara.use_effect(connect, [subset_key, key])
 
         def setter(filter):
             data_subset_filters[key] = filter
@@ -120,7 +123,7 @@ def use_subset(
     key = use_unique_key(prefix=f"ss-{name}-")
     subset_store = solara.use_context(subset_context)
     _own_filter, otherfilters, set_filter = subset_store.use(
-        subset_reactive.value, key, write_only=write_only, eq=eq)
+        data_key, subset_reactive.value, key, write_only=write_only, eq=eq)
     if write_only:
         cross_filter = None  # never update
     else:
