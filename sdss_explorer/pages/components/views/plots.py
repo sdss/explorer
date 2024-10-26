@@ -160,7 +160,7 @@ class PlotState:
             pass
 
         # columnar resets for table
-        if 'table' in self.plottype.value:
+        if 'table' in self.plottype:
             for col in self.columns.value:
                 if col not in State.columns.value:
                     # NOTE: i choose to remove quietly on stats table -- its very obvious when it disappears

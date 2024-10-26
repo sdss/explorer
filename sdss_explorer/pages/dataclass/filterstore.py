@@ -45,25 +45,28 @@ class SubsetStore:
             updater()
 
         def connect():
-            self.listeners.setdefault(subset_key, []).append(on_change)
+            # dont save ourself
+            if not write_only:
+                self.listeners.setdefault(subset_key, []).append(on_change)
             # we need to force an extra render after the first render
             # to make sure we have the correct filter, since others components
             # may set a filter after we have rendered, *or* mounted
             on_change()
 
             def cleanup():
-                self.listeners.setdefault(subset_key, []).remove(on_change)
+                # dont save ourself
+                if not write_only:
+                    self.listeners.setdefault(subset_key, []).remove(on_change)
                 # also remove our filter, and notify the rest
                 data_subset_filters.pop(key,
                                         None)  # remove, ignoring key error
+
                 for listener in self.listeners.setdefault(subset_key, []):
                     listener()
 
             return cleanup
 
         # BUG: removing this hook prevents cleanup BETWEEN virtual kernels (somehow?), so we need this to stay
-        #if not write_only:
-        # NOTE: conditional hook
         solara.use_effect(connect, [subset_key, key])
 
         def setter(filter):
