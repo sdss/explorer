@@ -16,13 +16,15 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.graph_objs._figurewidget import FigureWidget
 
-from ...dataclass import Alert, GridState, State, SubsetState, use_subset
+from ...dataclass import Alert, State, SubsetState, use_subset
 from ...util import check_catagorical
 from .plot_settings import show_settings
 
 # index context for grid
 # NOTE: must be initialized here to avoid circular imports
 index_context = sl.create_context(0)
+
+GridState = State.grid_state
 
 # TEMPLATES AND STATE
 # NOTE: all use standard vuetify grey colors
@@ -256,7 +258,7 @@ def show_plot(plottype, del_func):
                         )
 
 
-@sl.component
+@sl.component()
 def ScatterPlot(plotstate):
     """Scattergl rendered scatter plot for single subset"""
     df: vx.DataFrame = State.df.value
@@ -567,7 +569,7 @@ def ScatterPlot(plotstate):
     add_effects(fig_el)
 
 
-@sl.component
+@sl.component()
 def HistogramPlot(plotstate):
     """Histogram plot for single subset"""
     df: vx.DataFrame = State.df.value
@@ -822,7 +824,7 @@ def HistogramPlot(plotstate):
     return fig_el
 
 
-@sl.component
+@sl.component()
 def HeatmapPlot(plotstate):
     """2D Histogram plot (Heatmap) for single subset"""
     df = State.df.value
@@ -1139,7 +1141,7 @@ def HeatmapPlot(plotstate):
     return
 
 
-@sl.component
+@sl.component()
 def SkymapPlot(plotstate):
     """Sky projection plot of stars for a single subset."""
     df = State.df.value
@@ -1434,7 +1436,7 @@ def SkymapPlot(plotstate):
     return fig_el
 
 
-@sl.component
+@sl.component()
 def DeltaHeatmapPlot(plotstate):
     """Heatmap on regular grid for Subset A - Subset B"""
     df = State.df.value

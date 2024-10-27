@@ -22,14 +22,14 @@ from ..sidebar.autocomplete import AutocompleteSelect, SingleAutocomplete
 from .plots import PlotState
 
 
-@sl.component
+@sl.component()
 def Loading() -> None:
     sl.Markdown("## Loading")
     sl.Markdown("Loading your embeddings. Enjoy this fun animation for now")
     sl.ProgressLinear(True, color="purple")
 
 
-@sl.component
+@sl.component()
 def TableView(del_func: Callable):
     """Shows the table view, loading lazily via solara components."""
     df = State.df.value
@@ -175,7 +175,7 @@ class DataTableWidget(v.VuetifyTemplate):
             on_click(header_value, row)
 
 
-@sl.component
+@sl.component()
 def ModdedDataTable(
     df,
     page=0,
@@ -240,7 +240,7 @@ def ModdedDataTable(
     )
 
 
-@sl.component
+@sl.component()
 def StatisticsTable(del_func: Callable):
     """Statistics description view for the dataset."""
     df = State.df.value
@@ -355,7 +355,7 @@ def StatisticsTable(del_func: Callable):
     return main
 
 
-@sl.component
+@sl.component()
 def NoDF() -> None:
     with sl.Columns([1]):
         sl.Info(

@@ -3,11 +3,11 @@
 import solara as sl
 
 
-class GridState:
+class GridData:
     """
     Class holding current state of grid layout.
     """
 
     objects = sl.reactive([])
     grid_layout = sl.reactive([])
-    index = 0
+    index = sl.reactive(0)

@@ -30,10 +30,10 @@ def ExprEditor(key: str, invert) -> ValueElement:
     subset = SubsetState.subsets.value[key]
 
     _, set_expfilter = use_subset(id(df), key, "expr", write_only=True)
+
     expression, set_expression = subset.expression, lambda arg: SubsetState.update_subset(
         key, expression=arg)
 
-    open, set_open = sl.use_state(False)
     error, set_error = sl.use_state(cast(str, None))
 
     # Expression Editor thread
