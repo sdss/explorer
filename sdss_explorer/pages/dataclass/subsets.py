@@ -20,7 +20,7 @@ class Subset:
 
 
 class SubsetData:
-    """Subset storage namespace, with functions for add/remove/etc."""
+    """User-facing subset reactive class, with functions for add/remove/etc."""
 
     def __init__(self):
         self.index = sl.reactive(1)

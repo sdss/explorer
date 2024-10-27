@@ -1,15 +1,13 @@
 """User-facing components for virtual columns"""
 
-from functools import reduce
-import operator
-
 import solara as sl
 import reacton.ipyvuetify as rv
 
-from ...dataclass import State, VCData, Alert
+from ...dataclass import State, Alert, VCData
 from ..dialog import Dialog
 
 
+@sl.component()
 def VirtualColumnList():
     """Renders list of created virtual columns with delete buttons"""
     # NOTE: this should be efficient, but it could also just not be

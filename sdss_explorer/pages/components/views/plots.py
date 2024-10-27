@@ -16,15 +16,13 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.graph_objs._figurewidget import FigureWidget
 
-from ...dataclass import Alert, State, SubsetState, use_subset
+from ...dataclass import Alert, State, SubsetState, use_subset, GridState
 from ...util import check_catagorical
 from .plot_settings import show_settings
 
 # index context for grid
 # NOTE: must be initialized here to avoid circular imports
 index_context = sl.create_context(0)
-
-GridState = State.grid_state
 
 # TEMPLATES AND STATE
 # NOTE: all use standard vuetify grey colors

@@ -8,7 +8,7 @@ import reacton as r
 import ipyvuetify as v
 import ipywidgets as widgets
 
-from ...dataclass import State, SubsetState
+from ...dataclass import SubsetState, GridState
 
 from .plots import show_plot, index_context
 from .dataframe import StatisticsTable
@@ -34,8 +34,6 @@ class GridLayout(v.VuetifyTemplate):
 
 
 GridDraggableToolbar = r.core.ComponentWidget(GridLayout)
-
-GridState = State.grid_state
 
 
 @sl.component()
@@ -72,8 +70,6 @@ def ViewCard(type, i):
 
 @sl.component()
 def ObjectGrid():
-    print(GridState.grid_layout.value)
-    print(GridState.objects.value)
 
     def reset_layout():
         GridState.index.value = 0

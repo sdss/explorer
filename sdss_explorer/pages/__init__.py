@@ -13,8 +13,7 @@ if sl.server.settings.main.mode == 'production':
     )  # force remove handler prior to any imports on production
 vx.cache.on()  # activate caching
 
-from .dataclass import State, AlertSystem  # noqa: E402
-from .dataclass.state import SubsetStore  # noqa: E402
+from .dataclass import State, AlertSystem, VCData, GridState  # noqa: E402
 from .components.sidebar import Sidebar  # noqa: E402
 from .components.sidebar.glossary import HelpBlurb  # noqa: E402
 from .components.views import ObjectGrid  # noqa: E402
@@ -28,7 +27,7 @@ DEV = getenv('EXPLORER_DEV', False)
 def Page():
     df = State.df.value
 
-    # start app state with memoized objects?
+    # start app state with memoized objects
     State.initialize()
 
     # PAGE TITLE

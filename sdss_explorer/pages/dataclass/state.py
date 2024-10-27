@@ -1,17 +1,14 @@
 """Main application state variables"""
 
-from typing import cast, Any, List, Dict, Callable
 import os
 import json
 
+import pandas as pd
 import solara as sl
 import vaex as vx
 import numpy as np
 
-from .gridstate import GridData
-
-from ..util import generate_unique_key
-from solara.hooks.misc import use_force_update
+from .subsetstore import SubsetStore
 
 # disable the vaex built-in logging (clogs on FileNotFounds et al)
 if sl.server.settings.main.mode == 'production':
@@ -50,11 +47,10 @@ def open_file(filename):
         return None
 
 
-def load_datamodel() -> vx.DataFrame | None:
+def load_datamodel() -> pd.DataFrame | None:
     """Loader for datamodel"""
     # TODO: replace with a real datamodel from the real things
     datapath = _datapath()
-    print('LOADING DATAMODEL ASJDIFJIJ')
     # no datapath
     if datapath is None:
         return None
@@ -64,110 +60,38 @@ def load_datamodel() -> vx.DataFrame | None:
         with open(f"{_datapath()}/ipl3_partial.json") as f:
             data = json.load(f).values()
             f.close()
-        return vx.DataFrame(data)
+        return pd.DataFrame(data)
     except Exception:
         return None
-
-
-class SubsetStore:
-
-    def __init__(self) -> None:
-        self.listeners: Dict[Any, List[Callable]] = {}
-        # data_key (ID) : subset (str: name) : filter_key (unique str) : filter
-        # 3 layer dictionary
-        self.filters: Dict[Any, Dict[str, Dict[str, Any]]] = {}
-
-    def add(self, data_key, subset_key, key, filter):
-        data_subset_filters = self.filters.setdefault(data_key, {}).setdefault(
-            subset_key, {})
-        data_subset_filters[key] = filter
-
-    def use(self, data_key, subset_key, key, write_only: bool, eq=None):
-        # we use this state to trigger update, we could do without
-
-        data_subset_filters = self.filters.setdefault(data_key, {}).setdefault(
-            subset_key, {})
-
-        updater = use_force_update()
-
-        # will update the filter if the subset changes
-        filter, set_filter = sl.use_state(data_subset_filters.get(key), eq=eq)
-
-        def on_change():
-            set_filter(data_subset_filters.get(key))
-            # even if we don't change our own filter, the other may change
-            updater()
-
-        def connect():
-            # dont save ourself
-            if not write_only:
-                self.listeners.setdefault(subset_key, []).append(on_change)
-            # we need to force an extra render after the first render
-            # to make sure we have the correct filter, since others components
-            # may set a filter after we have rendered, *or* mounted
-            on_change()
-
-            def cleanup():
-                # dont save ourself
-                if not write_only:
-                    self.listeners.setdefault(subset_key, []).remove(on_change)
-                # also remove our filter, and notify the rest
-                data_subset_filters.pop(key,
-                                        None)  # remove, ignoring key error
-
-                for listener in self.listeners.setdefault(subset_key, []):
-                    listener()
-
-            return cleanup
-
-        # BUG: removing this hook prevents cleanup BETWEEN virtual kernels (somehow?), so we need this to stay
-        sl.use_effect(connect, [subset_key, key])
-
-        def setter(filter):
-            data_subset_filters[key] = filter
-            print(
-                "N listeners for",
-                subset_key,
-                "is",
-                len(self.listeners.setdefault(subset_key, [])),
-            )
-            print(self.listeners.setdefault(subset_key, []))
-            for listener in self.listeners.setdefault(subset_key, []):
-                listener()
-
-        # only return the other filters if required.
-        if not write_only:
-            otherfilters = [
-                filter for key_other, filter in data_subset_filters.items()
-                if key != key_other and filter is not None
-            ]
-        else:
-            otherfilters = None
-        return filter, otherfilters, setter
 
 
 class StateData:
     """Holds app-wide state variables"""
 
     def __init__(self):
+        # global, read-only reactives, dont care
         self.mapping = sl.reactive(open_file('mappings.parquet'))
-        self.datamodel = sl.reactive(cast(vx.DataFrame, None))
+        self.datamodel = sl.reactive(load_datamodel())
+        self.dataset = sl.reactive(
+            'ipl3_partial')  # TODO: set to read from cookie on first load
 
-        # NOTE: this forces UUID + subsetstore to be read-only
-        self._uuid = sl.reactive(sl.get_session_id())
-        self._subset_store = sl.reactive(SubsetStore())
-        self._grid_state = sl.reactive(GridData())
-
-        # TODO: set to read from cookie on first load
-        self.dataset = sl.reactive('ipl3_partial')
+        # adaptively rerendered
         self.df = sl.reactive(StateData.load_dataset(self.dataset.value))
         self.columns = sl.reactive(self.df.value.get_column_names() if self.df.
                                    value is not None else None)
 
-        # initializing app with a simple default to demonstrate functionality
+        # user-binded instances
+        # NOTE: this approach allows UUID + subsetstore to be read-only
+        self._uuid = sl.reactive(sl.get_session_id())
+        self._subset_store = sl.reactive(SubsetStore())
 
     def __repr__(self) -> str:
-        return str('state')
+        return str({
+            'uuid': self.uuid,
+            'df': hex(id(self.df.value)),
+            'dataset': self.dataset.value,
+            'subset_backend': self.subset_store,
+        })
 
     @property
     def uuid(self):
@@ -176,10 +100,6 @@ class StateData:
     @property
     def subset_store(self):
         return self._subset_store.value
-
-    @property
-    def grid_state(self):
-        return self._grid_state.value
 
     @staticmethod
     def load_dataset(dataset):
@@ -209,14 +129,21 @@ class StateData:
         return df
 
     def initialize(self):
-        """Initializes with session-locked parameters"""
+        """Initializes with session-lockgrid_stateed parameters"""
+        # memoize it all
+        df = sl.use_memo(
+            lambda *args: StateData.load_dataset(self.dataset.value),
+            dependencies=[self.dataset.value])
         uuid = sl.use_memo(sl.get_session_id, [])
         subset_store = sl.use_memo(SubsetStore, [])
-        grid_state = sl.use_memo(GridData, [])
-        State._uuid.value = uuid
-        State._subset_store.value = subset_store
-        State._grid_state.value = grid_state
-        return (uuid, subset_store, grid_state)
+
+        # set values to memoized results
+        self._uuid.value = uuid
+        self._subset_store.value = subset_store
+        self.df.value = df
+
+        # return memoized values to component so they exist
+        return (uuid, subset_store, df)
 
     class Lookup:
         views = ["histogram", "histogram2d", "scatter", "skyplot"]
