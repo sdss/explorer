@@ -2,17 +2,23 @@
 
 from typing import Callable
 
+import os
 import reacton.ipyvuetify as rv
 import solara as sl
+from timeit import default_timer as timer
 from reacton.core import ValueElement
-from solara.lab import ConfirmationDialog
+from solara.lab import ConfirmationDialog, task
 
-from ...dataclass import Alert, SubsetState
+from ...util import generate_unique_key
+
+from ...dataclass import Alert, SubsetState, State, use_subset
 from ..dialog import Dialog
 from .subset_filters import ExprEditor, TargetingFiltersPanel
 
 # context for updater and renamer
 updater_context = sl.create_context(print)  # context for forcing updates
+
+SCRATCH = os.getenv('EXPLORER_SCRATCH', default=None)
 
 
 @sl.component()
@@ -146,25 +152,70 @@ def DeleteSubsetDialog(deleter: Callable) -> ValueElement:
 
 @sl.component()
 def DownloadMenu(key: str) -> ValueElement:
+    """
+    Download Menu for subset
+    """
+    df = State.df.value
+    subset = SubsetState.subsets.value[key]
+    filter, _ = use_subset(id(df), key, name='download')
+    if filter:
+        dff = df[filter]
+    else:
+        dff = df
 
+    @task(prefer_threaded=True)
     def get_data():
-        # TODO: change all of these methods to better valis-integrated methods that dont involve
-        # dropping the entire DB file into memory...
-        # dfp = dff.to_pandas_df()
-        Alert.update(
-            "Download currently unsupported due to memory issues server-side. Coming soon!",
-            color="info",
-        )
-        return  # dfp.to_csv(index=False)
+        # export data
+        # NOTE: chunk size is 1/8th normal export rate
+        try:
+            assert SCRATCH is not None, 'EXPLORER_SCRATCH was not set! Please fix.'
+            path = os.path.join(SCRATCH, f"{State.uuid}/")
+            filename = f'{subset.name}-{generate_unique_key()}.csv'
+            os.makedirs(path, exist_ok=True)
+            route = os.path.join(path, filename)
+            dffx = dff.drop(
+                'sdss5_target_flags',
+                check=True)  # NOTE: does this drop from everywhere else?
+            print(f'saving to {route}')
+            start = timer()
+            dffx.export_csv(route,
+                            progress=True,
+                            parallel=True,
+                            backend='arrow')
 
-    with sl.Tooltip("Download subset as csv") as main:
-        sl.Button(
-            label="",
-            icon_name="mdi-download",
-            icon=True,
-            text=True,
-            on_click=get_data,
-            # NOTE: temporary disable because the interface is poor
-        )
+            print('finished!', timer() - start)
 
-    return main
+            Alert.update(f'Subset {subset.name} is ready for download!',
+                         color='success')
+            print('returning...')
+            return route
+        except Exception as e:
+            print(f"Error on {State.uuid}", get_data.exception)
+            Alert.update(
+                f'Subset {subset.name} failed to export for download!',
+                color='error')
+            assert False
+
+    with sl.Tooltip("Download subset as csv"):
+        if (get_data.not_called) or (get_data.error):
+            sl.Button(
+                label="",
+                icon_name="mdi-download",
+                icon=True,
+                text=True,
+                on_click=get_data,
+            )
+        elif (get_data.finished) and (not get_data.error):
+            sl.Button(
+                label="",
+                icon_name="mdi-download",
+                attributes={'href': 'file://' + str(get_data.value)},
+                color='green',
+                icon=True,
+                text=True,
+            )
+
+        elif get_data.pending:
+            rv.ProgressCircular(indeterminate=True)
+
+    return
