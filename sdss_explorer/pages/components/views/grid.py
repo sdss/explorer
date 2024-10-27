@@ -8,7 +8,7 @@ import reacton as r
 import ipyvuetify as v
 import ipywidgets as widgets
 
-from ...dataclass import GridState, SubsetState
+from ...dataclass import SubsetState, GridState
 
 from .plots import show_plot, index_context
 from .dataframe import StatisticsTable
@@ -36,7 +36,7 @@ class GridLayout(v.VuetifyTemplate):
 GridDraggableToolbar = r.core.ComponentWidget(GridLayout)
 
 
-@sl.component
+@sl.component()
 def ViewCard(type, i):
 
     def remove(i):
@@ -68,13 +68,11 @@ def ViewCard(type, i):
     return
 
 
-@sl.component
+@sl.component()
 def ObjectGrid():
-    print(GridState.grid_layout.value)
-    print(GridState.objects.value)
 
     def reset_layout():
-        GridState.index = 0
+        GridState.index.value = 0
         GridState.grid_layout.value = []
         GridState.objects.value = []
 
@@ -101,7 +99,7 @@ def ObjectGrid():
             # the row below
             x = 0
             y = prev["y"] + prev["h"] + 4
-        i = GridState.index
+        i = GridState.index.value
         GridState.grid_layout.value.append({
             "x": x,
             "y": y,
@@ -110,7 +108,7 @@ def ObjectGrid():
             "i": i,
             "moved": False,
         })
-        GridState.index += 1
+        GridState.index.value += 1
 
         GridState.objects.value = GridState.objects.value + [ViewCard(type, i)]
 
@@ -128,7 +126,7 @@ def ObjectGrid():
             while len(GridState.grid_layout.value) > len(
                     GridState.objects.value):
                 GridState.grid_layout.value.pop(-1)
-            GridState.index = len(GridState.objects.value)
+            GridState.index.value = len(GridState.objects.value)
 
     sl.use_thread(
         monitor_grid,

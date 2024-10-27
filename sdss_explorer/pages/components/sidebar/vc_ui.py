@@ -1,34 +1,37 @@
 """User-facing components for virtual columns"""
 
-from functools import reduce
-import operator
-
 import solara as sl
 import reacton.ipyvuetify as rv
 
-from ...dataclass import State, VCData, Alert
+from ...dataclass import State, Alert, VCData
 from ..dialog import Dialog
 
 
+@sl.component()
+def VirtualColumnCard(name: str, expression: str):
+    """Card for individual virtual columns."""
+    with rv.Card() as main:
+        rv.CardTitle(children=[name])
+        rv.CardSubtitle(children=[expression])
+        with rv.CardActions(class_="justify-center"):
+            sl.Button(
+                label="",
+                icon_name="mdi-delete-outline",
+                text=True,
+                icon=True,
+                color="red",
+                on_click=lambda: VCData.delete_column(name, expression),
+            )
+    return main
+
+
+@sl.component()
 def VirtualColumnList():
     """Renders list of created virtual columns with delete buttons"""
-    # NOTE: this should be efficient, but it could also just not be
-    # NOTE: doesn't need header -- for some reason adding the decorator makes it not update properly
     with sl.Column(gap="0px") as main:
         for name, expression in VCData.columns.value:
-            with rv.Card():
-                rv.CardTitle(children=[name])
-                rv.CardSubtitle(children=[expression])
-                with rv.CardActions(class_="justify-center"):
-                    sl.Button(
-                        label="",
-                        icon_name="mdi-delete-outline",
-                        text=True,
-                        icon=True,
-                        color="red",
-                        on_click=lambda: VCData.delete_column(
-                            name, expression),
-                    )
+            VirtualColumnCard(name, expression).key(name)
+
     return main
 
 

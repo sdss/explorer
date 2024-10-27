@@ -4,21 +4,28 @@ import solara as sl
 from .state import State
 
 
-class VCData:
+class VCList:
     """Virtual column data class"""
 
-    columns = sl.reactive(list())
+    # TODO: refactor this to dictionary at some point
 
-    @staticmethod
-    def add_column(name, expression):
-        VCData.columns.value.append((name, expression))
+    def __init__(self) -> None:
+        self.columns = sl.reactive([])
 
-    @staticmethod
-    def delete_column(name, expression):
-        for n, (colname, _expr) in enumerate(VCData.columns.value):
+    def add_column(self, name, expression):
+        self.columns.value = self.columns.value + [(name, expression)]
+
+    def delete_column(self, name, expression):
+        for n, (colname, _expr) in enumerate(self.columns.value):
             if colname == name:
                 q = n
                 break
         State.df.value.delete_virtual_column(name)
-        VCData.columns.value = VCData.columns.value[:q] + VCData.columns.value[
-            q + 1:]
+        self.columns.value = self.columns.value[:q] + self.columns.value[q +
+                                                                         1:]
+
+    def __repr__(self) -> str:
+        return str(dict(self.columns.value))
+
+
+VCData = VCList()
