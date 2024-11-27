@@ -73,7 +73,7 @@ class StateData:
         self.mapping = sl.reactive(open_file('mappings.parquet'))
         self.datamodel = sl.reactive(load_datamodel())
         self.dataset = sl.reactive(
-            'ipl3_partial')  # TODO: set to read from cookie on first load
+            'astra-0.6.0')  # TODO: set to read from cookie on first load
 
         # adaptively rerendered
         self.df = sl.reactive(StateData.load_dataset(self.dataset.value))
@@ -104,16 +104,16 @@ class StateData:
     @staticmethod
     def load_dataset(dataset):
         # start with standard open operation
-        df = open_file(f'{dataset}.parquet')
+        df = open_file(f'{dataset}.hdf5')
 
         if df is None:
             print('no dataset loaded')
             return
 
         # force cast flags as a numpy array via my method bypassing pyarrow
-        flags = np.array(list(
-            df["sdss5_target_flags"].values.to_numpy())).astype("uint8")
-        df["sdss5_target_flags"] = flags
+        #flags = np.array(list(
+        #    df["sdss5_target_flags"].values.to_numpy())).astype("uint8")
+        #df["sdss5_target_flags"] = flags
 
         # shuffle to ensure skyplot looks nice, constant seed for reproducibility
         df = df.shuffle(random_state=42)
@@ -124,7 +124,7 @@ class StateData:
         # TODO: to minimize this, we could add --preload option to solara or FastAPI runner, so that it forks the workers from the base instance.
         # NOTE: vaex has an add_column method, but as stated above, it will overload our worker process.
         #  for more info, see: https://vaex.io/docs/guides/performance.html
-        df = df.materialize()
+        df = df.materialize('sdss5_target_flags')
 
         return df
 
