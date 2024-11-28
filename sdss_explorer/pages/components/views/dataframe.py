@@ -29,76 +29,6 @@ def Loading() -> None:
     sl.ProgressLinear(True, color="purple")
 
 
-@sl.component()
-def TableView(del_func: Callable):
-    """Shows the table view, loading lazily via solara components."""
-    df = State.df.value
-    filter, set_filter = sl.use_cross_filter(id(df), name="filter-tableview")
-    column, set_column = sl.use_state(cast(Optional[str], None))
-    order, set_order = sl.use_state(cast(bool, None))
-    dark = use_dark_effective()
-    dff = df
-    print('')
-
-    def on_ascend(column):
-        set_order(True)
-        set_column(column)
-
-    def on_descend(column):
-        set_order(False)
-        set_column(column)
-
-    column_actions = [
-        sl.ColumnAction(icon="mdi-sort-ascending",
-                        name="Sort ascending",
-                        on_click=on_ascend),
-        sl.ColumnAction(icon="mdi-sort-descending",
-                        name="Sort descending",
-                        on_click=on_descend),
-    ]
-
-    if filter:
-        dff = dff[filter]
-    dff = dff[[
-        "sdss_id",
-        "gaia_dr3_source_id",
-        "telescope",
-        "release",
-        "teff",
-        "logg",
-        "fe_h",
-    ]]
-    if column is not None and order is not None:
-        dff = dff.sort(dff[column], ascending=order)
-
-    # TODO: add column add/remove functionality
-    with rv.Card(class_="grey darken-3" if dark else "grey lighten-3",
-                 style_="width: 100%; height: 100%"):
-        with rv.CardText():
-            with sl.Column(
-                    classes=["grey darken-3" if dark else "grey lighten-3"]):
-                sl.DataTable(
-                    dff,
-                    items_per_page=10,  # tablestate.height.value,
-                    scrollable=True,
-                    column_actions=column_actions,
-                )
-                btn = sl.Button(
-                    icon_name="mdi-settings",
-                    outlined=False,
-                    classes=["grey darken-3" if dark else 'grey lighten-3'],
-                )
-                with Menu(activator=btn, close_on_content_click=False):
-                    with sl.Card(margin=0):
-                        sl.Button(
-                            icon_name="mdi-delete",
-                            color="red",
-                            block=True,
-                            on_click=del_func,
-                        )
-    return
-
-
 def format_default(df, column, row_index, value):
     """Format strings properly"""
     if isinstance(value, float) and math.isnan(value):
@@ -243,22 +173,23 @@ def ModdedDataTable(
 @sl.component()
 def StatisticsTable(del_func: Callable):
     """Statistics description view for the dataset."""
-    df = State.df.value
+
     init_key = sl.use_memo(lambda: list(SubsetState.subsets.value.keys())[-1],
                            dependencies=[])  # inits with last subset
     state = PlotState('table', current_key=init_key)
-    filter, set_filter = use_subset(id(df), state.subset, name="statsview")
-    columns, set_columns = state.columns.value, state.columns.set
-    dark = use_dark_effective()
-
     sl.use_thread(
         state.reset_values,
         dependencies=[
             len(SubsetState.subsets.value),
             SubsetState.subsets.value,
-            State.columns.value,
         ],
     )
+    subset = SubsetState.subsets.value[state.subset.value]
+    df = subset.df
+    dfcolumns = df.get_column_names() + subset.virtual_columns
+    filter, set_filter = use_subset(id(df), state.subset, name="statsview")
+    columns, set_columns = state.columns.value, state.columns.set
+    dark = use_dark_effective()
 
     name, names = SubsetState.subsets.value.get(
         state.subset.value, Subset(name='temp')).name, [
@@ -335,7 +266,7 @@ def StatisticsTable(del_func: Callable):
                         with sl.Columns([2, 1]):
                             AutocompleteSelect(columns,
                                                set_columns,
-                                               df=State.columns.value,
+                                               df=dfcolumns,
                                                expr='column',
                                                field='Column',
                                                multiple=True)

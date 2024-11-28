@@ -1,9 +1,41 @@
 """Subsets and SubsetState dataclasses, including all relevant add/remove/rename/clone callbacks."""
 
+import os
 import dataclasses
 import solara as sl
+import vaex as vx
 
 from .alert import Alert
+from .state import State
+from ..util import open_file
+
+# disable the vaex built-in logging (clogs on FileNotFounds et al)
+if sl.server.settings.main.mode == 'production':
+    vx.logging.remove_handler()  # force remove handler on production instance
+
+
+def load_dataset(dataset: str, release: str, datatype: str = 'star'):
+    """Load a given dataset for a subset"""
+    ASTRAVERSION = os.getenv('ASTRAVERSION', default='0.6.0')  # TODO
+
+    # convert key to filename
+    filename = f"astraAll{datatype.capitalize()}{dataset}-{ASTRAVERSION}"
+
+    # start with standard open operation
+    df = open_file(f'{release}/{filename}.hdf5')
+
+    if df is None:
+        print('no dataset loaded')
+        return
+
+    # shuffle to ensure skyplot looks nice, constant seed for reproducibility
+    df = df.shuffle(random_state=42)
+
+    # force materialization of target_flags column to maximize the performance
+    # for more info, see: https://vaex.io/docs/guides/performance.html
+    df = df.materialize()
+
+    return df
 
 
 # frozen means it yells at us if we do assignment instead of replace
@@ -11,8 +43,11 @@ from .alert import Alert
 class Subset:
     """Subset dataclass."""
     name: str = 'A'
+    datatype: str = 'star'  # TODO
+    dataset: str = 'Best'
+    df: vx.DataFrame | None = load_dataset('Best', State.release.value)
     expression: str = ''
-    dataset: str = 'aspcap'  # TODO: change to astra best when Andy makes it
+    virtual_columns: list[str] = dataclasses.field(default_factory=list)
     flags: list[str] = dataclasses.field(
         default_factory=lambda: ['Purely non-flagged'])
     mapper: list[str] = dataclasses.field(default_factory=list)
@@ -25,6 +60,65 @@ class SubsetData:
     def __init__(self):
         self.index = sl.reactive(1)
         self.subsets = sl.reactive({'s0': Subset()})
+
+    def change_dataset(self, key: str) -> bool:
+        """Change the loaded dataframe"""
+        if key not in self.subsets.value.keys():
+            Alert.update(
+                f"BUG: subset update failed! Key {key} not in hashmap.",
+                color="error")
+            return False
+
+        subsets = self.subsets.value.copy()
+        subset = self.subsets.value[key]
+
+        try:
+            df = load_dataset(dataset=subset.dataset,
+                              release=State.release.value,
+                              datatype=subset.datatype)
+        except Exception as e:
+            print(e)
+            return False
+
+        subsets[key] = dataclasses.replace(subset, df=df)
+        self.subsets.set(dict(**subsets))
+        return True
+
+    def add_virtual_column(self, key: str, name: str) -> bool:
+        """Add a virtual column."""
+        if key not in self.subsets.value.keys():
+            Alert.update(
+                f"BUG: subset update failed! Key {key} not in hashmap.",
+                color="error")
+            return False
+        subsets = self.subsets.value.copy()
+        subset = self.subsets.value[key]
+        columns = subset.virtual_columns
+        subsets[key] = dataclasses.replace(subset,
+                                           virtual_columns=[name, *columns])
+        self.subsets.set(dict(**subsets))
+        return True
+
+    def remove_virtual_column(self, key: str, name: str) -> bool:
+        """Remove a virtual column."""
+        if key not in self.subsets.value.keys():
+            Alert.update(
+                f"BUG: subset update failed! Key {key} not in hashmap.",
+                color="error")
+            return False
+        subsets = self.subsets.value.copy()
+        subset = self.subsets.value[key]
+        columns = subset.virtual_columns
+
+        for n, colname in enumerate(columns):
+            if colname == name:
+                q = n
+                break
+        columns = columns[:q] + columns[q + 1:]
+
+        subsets[key] = dataclasses.replace(subset, virtual_columns=[*columns])
+        self.subsets.set(dict(**subsets))
+        return True
 
     def add_subset(self, name: str, **kwargs) -> bool:
         """Adds subset and subsetcard, generating new unique key for subset. Boolean return for success."""

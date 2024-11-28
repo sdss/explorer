@@ -9,6 +9,8 @@ from timeit import default_timer as timer
 from reacton.core import ValueElement
 from solara.lab import ConfirmationDialog, task
 
+from sdss_explorer.pages.components.sidebar.vc_ui import VirtualColumnsPanel
+
 from ...util import generate_unique_key
 
 from ...dataclass import Alert, SubsetState, State, use_subset
@@ -155,8 +157,8 @@ def DownloadMenu(key: str) -> ValueElement:
     """
     Download Menu for subset
     """
-    df = State.df.value
     subset = SubsetState.subsets.value[key]
+    df = subset.df
     filter, _ = use_subset(id(df), key, name='download')
     if filter:
         dff = df[filter]

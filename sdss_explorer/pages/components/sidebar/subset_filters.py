@@ -1,6 +1,8 @@
 """Holds specific filter components"""
 
 import operator
+import os
+import glob
 import re
 from functools import reduce
 from typing import cast
@@ -12,8 +14,10 @@ from reacton.core import ValueElement
 
 from ...dataclass import Alert, State, SubsetState, use_subset
 from ..textfield import InputTextExposed
+from ...util import _datapath
 from .autocomplete import AutocompleteSelect, SingleAutocomplete
 from .glossary import Help
+from .vc_ui import VirtualColumnsPanel
 
 __all__ = [
     "ExprEditor", "TargetingFiltersPanel", "PivotTablePanel", "DatasetSelect"
@@ -26,8 +30,8 @@ operator_map = {"AND": operator.and_, "OR": operator.or_, "XOR": operator.xor}
 def ExprEditor(key: str, invert) -> ValueElement:
     """Expression editor."""
     # state for expreditor
-    df = State.df.value
     subset = SubsetState.subsets.value[key]
+    df = subset.df
 
     _, set_expfilter = use_subset(id(df), key, "expr", write_only=True)
 
@@ -42,7 +46,7 @@ def ExprEditor(key: str, invert) -> ValueElement:
         Validates if the expression is valid, and returns
         a precise error message for any issues in the expression.
         """
-        columns = State.columns.value
+        columns = subset.df.get_column_names()
         try:
             if expression is None or expression == "" or expression == 'None':
                 set_expfilter(None)
@@ -207,27 +211,36 @@ def ExprEditor(key: str, invert) -> ValueElement:
 
 
 @sl.component()
-def DatasetSelect(dataset, set_dataset) -> ValueElement:
+def DatasetSelect(key, dataset, set_dataset) -> ValueElement:
     """Select box for pipeline."""
-    df = State.df.value
+    subset = SubsetState.subsets.value[key]
+    df = subset.df
+    datapath = sl.use_memo(_datapath, dependencies=[])
 
-    def fetch():
-        return df.pipeline.unique()
+    def fetch_names():
+        regex = re.compile(
+            fr"astraAll{subset.datatype.capitalize()}([A-Za-z]+)-")
+        names = [
+            regex.match(os.path.basename(filename)).group(1) for filename in
+            glob.glob(f"{datapath}/{State.release.value}/*.hdf5")
+        ]
+        return names
 
-    values = sl.use_memo(fetch, dependencies=[])
-    return SingleAutocomplete(
-        label='Dataset',
-        # TODO: fetch via valis or via df.row.unique()
-        values=values,
-        value=dataset,
-        on_value=set_dataset)
+    names = sl.use_memo(fetch_names, dependencies=[])
+
+    #TODO: effect here to change loaded df?
+
+    return SingleAutocomplete(label='Dataset',
+                              values=names,
+                              value=dataset,
+                              on_value=set_dataset)
 
 
 @sl.component()
 def FlagSelect(key: str, invert) -> ValueElement:
     """Select box with callback for filters."""
-    df = State.df.value
     subset = SubsetState.subsets.value[key]
+    df = subset.df
     _, set_flagfilter = use_subset(id(df), key, "flags", write_only=True)
     flags, set_flags = subset.flags, lambda arg: SubsetState.update_subset(
         key, flags=arg)
@@ -246,15 +259,21 @@ def FlagSelect(key: str, invert) -> ValueElement:
         # get the flag lookup
         if len(flags) > 0:
             for flag in flags:
+                # WARNING: terrible bypass of bug; astraBest does not contain 'result_flags'
+                if (subset.dataset.lower()
+                        == 'best') & (flag == 'Purely non-flagged'):
+                    continue
                 filters.append(flagList[flag])
-
-            # string join
-            print('FLAG FILTERS', filters)
-            concat_filter = ")&(".join(filters)
-            concat_filter = "((" + concat_filter + "))"
-            concat_filter = df[concat_filter]
-            if invert.value:
-                concat_filter = ~concat_filter
+            if len(filters) > 0:
+                # string join
+                print('FLAG FILTERS', filters)
+                concat_filter = ")&(".join(filters)
+                concat_filter = "((" + concat_filter + "))"
+                concat_filter = df[concat_filter]
+                if invert.value:
+                    concat_filter = ~concat_filter
+            else:
+                concat_filter = None
         else:
             concat_filter = None
 
@@ -281,9 +300,9 @@ def FlagSelect(key: str, invert) -> ValueElement:
 @sl.component()
 def TargetingFiltersPanel(key: str, invert) -> ValueElement:
     """Holds expansion panels for complex filtering"""
-    df = State.df.value
     mapping = State.mapping.value
     subset = SubsetState.subsets.value[key]
+    df = subset.df
     _, set_cmfilter = use_subset(id(df), key, "cartonmapper", write_only=True)
     # handlers for mapper/carton/data/setflags
     mapper, set_mapper = subset.mapper, lambda arg: SubsetState.update_subset(
@@ -308,7 +327,7 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
 
         # convert chosens to bool mask
         cmp_filter = None
-        if len(mapper) == 0 and len(carton) == 0 and len(dataset) == 0:
+        if len(mapper) == 0 and len(carton) == 0:
             set_cmfilter(None)
             return
 
@@ -351,14 +370,6 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
             # generate a filter based on the vaex-defined flag combiner
             cmp_filter = df.func.check_flags(df["sdss5_target_flags"], filters)
 
-        print("DATASET =", dataset)
-        if dataset is not None:
-            if cmp_filter is not None:
-                cmp_filter = operator_map[combotype](
-                    cmp_filter, df["pipeline"].isin([dataset]))
-            else:
-                cmp_filter = df["pipeline"].isin([dataset])
-
         # invert if requested
         if invert.value:
             set_cmfilter(~cmp_filter)
@@ -375,7 +386,8 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
                             multiple=True,
                             v_model=open,
                             on_v_model=set_open) as main:
-        DatasetSelect(dataset, set_dataset)
+        DatasetSelect(key, dataset, set_dataset)
+        VirtualColumnsPanel(key)
         with rv.ExpansionPanel():
             rv.ExpansionPanelHeader(children=["Targeting Filters"])
             with rv.ExpansionPanelContent():
@@ -407,7 +419,8 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
 @sl.component()
 def PivotTablePanel() -> ValueElement:
     """Holds solara PivotTable in expansion panel. Deprecated (maybe implement again in future)"""
-    df = State.df.value
+
+    df = None  #State.df.value
     with rv.ExpansionPanel() as main:
         with rv.ExpansionPanelHeader():
             rv.Icon(children=["mdi-table-plus"])

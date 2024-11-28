@@ -9,7 +9,7 @@ from reacton.core import ValueElement
 
 from ..dialog import Dialog
 
-from ...dataclass import SubsetState, State, use_subset
+from ...dataclass import SubsetState, use_subset
 from .subset_options import updater_context, SubsetOptions
 
 
@@ -82,12 +82,11 @@ def SubsetMenu():
 @sl.component()
 def SubsetCard(key: str) -> ValueElement:
     """Holds filter update info, card structure, and calls to options"""
-    df = State.df.value
+    subset = SubsetState.subsets.value[key]
+    df = subset.df
     filter, _set_filter = use_subset(id(df), key, "subset-summary")
-    name = SubsetState.subsets.value[key].name
-    dataset = SubsetState.subsets.value[key].dataset
-
-    dfp = df[df[f"(pipeline == '{dataset}')"]]
+    name = subset.name
+    dataset = subset.dataset  #TODO: show current dataset in progressbarthing/header
 
     # progress bar logic
     if filter:
@@ -98,7 +97,9 @@ def SubsetCard(key: str) -> ValueElement:
         # not filtered at all
         filtered = False
         dff = df
-    progress = len(dff) / len(dfp) * 100
+    progress = len(dff) / len(df) * 100
+    print('dff len', len(dff))
+    print('df len', len(df))
     summary = f"{len(dff):,}"
     with rv.ExpansionPanel() as main:
         with rv.ExpansionPanelHeader():

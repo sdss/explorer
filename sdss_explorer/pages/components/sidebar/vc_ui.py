@@ -3,12 +3,21 @@
 import solara as sl
 import reacton.ipyvuetify as rv
 
-from ...dataclass import State, Alert, VCData
+from ...dataclass import Alert, VCList, SubsetState
 from ..dialog import Dialog
 
 
+def delete_column(key, VCData, df, name):
+    """Deletes a virtual column from all 3 state objects"""
+    #NOTE: order is important
+    VCData.delete_column(name)
+    df.delete_virtual_column(name)  # remove from df
+    SubsetState.remove_virtual_column(
+        key, name)  #  remove from column list, triggering updates in views
+
+
 @sl.component()
-def VirtualColumnCard(name: str, expression: str):
+def VirtualColumnCard(key, VCData, df, name: str, expression: str):
     """Card for individual virtual columns."""
     with rv.Card() as main:
         rv.CardTitle(children=[name])
@@ -20,24 +29,28 @@ def VirtualColumnCard(name: str, expression: str):
                 text=True,
                 icon=True,
                 color="red",
-                on_click=lambda: VCData.delete_column(name, expression),
+                on_click=lambda: delete_column(key, VCData, df, name),
             )
     return main
 
 
 @sl.component()
-def VirtualColumnList():
+def VirtualColumnList(key, VCData, df):
     """Renders list of created virtual columns with delete buttons"""
     with sl.Column(gap="0px") as main:
         for name, expression in VCData.columns.value:
-            VirtualColumnCard(name, expression).key(name)
+            VirtualColumnCard(key, VCData, df, name,
+                              expression).key(key + name)
 
     return main
 
 
 @sl.component()
-def VirtualColumnsPanel():
-    df = State.df.value
+def VirtualColumnsPanel(key: str):
+    subset = SubsetState.subsets.value[key]
+    VCData = sl.use_memo(lambda: VCList(subset),
+                         dependencies=[])  # start new memoized instance
+    df = subset.df
     open, set_open = sl.use_state(False)
     name, set_name = sl.use_state("snr_var_teff")
     expression, set_expression = sl.use_state("snr / e_teff**2")
@@ -45,7 +58,7 @@ def VirtualColumnsPanel():
     active = sl.use_reactive(False)
 
     def validate():
-        "Ensure syntax is correct"
+        """Function to ensure VC expression syntax is correct"""
         try:
             if expression == "" and name == "":
                 return None
@@ -80,24 +93,19 @@ def VirtualColumnsPanel():
         """Adds virtual column"""
         df.add_virtual_column(name, expression)
         VCData.add_column(name, expression)
+        SubsetState.add_virtual_column(key, name)
         close()
 
     result: sl.Result = sl.use_thread(validate,
                                       dependencies=[expression, name])
 
-    def update_columns():
-        """Thread to update master column list on VCData update"""
-        df = State.df.value
-        columns = df.get_column_names(virtual=False)
-        virtuals = list()
-        for name, _expr in VCData.columns.value:
-            virtuals.append(name)
-        State.columns.value = virtuals + columns
+    def readd_virtual_columns():
+        """On change of dataframe, readd all virtual columns."""
+        for name, expression in VCData.columns.value:
+            df.add_virtual_column(name, expression)
+        return
 
-    sl.use_thread(
-        update_columns,
-        dependencies=[len(VCData.columns.value)],
-    )
+    sl.use_thread(readd_virtual_columns, dependencies=[df])
 
     def close():
         """Clears state variables and closes dialog."""
@@ -109,7 +117,7 @@ def VirtualColumnsPanel():
     with rv.ExpansionPanel() as main:
         rv.ExpansionPanelHeader(children=["Virtual Calculations"])
         with rv.ExpansionPanelContent():
-            VirtualColumnList()
+            VirtualColumnList(key, VCData, df)
             with sl.Tooltip("Create custom columns based on the dataset"):
                 sl.Button(
                     label="Add virtual column",

@@ -159,10 +159,14 @@ class PlotState:
         except:
             pass
 
+        # need to get columns of df
+        columns = SubsetState.subsets.value[
+            self.subset.value].df.get_column_names()
+
         # columnar resets for table
         if 'table' in self.plottype:
             for col in self.columns.value:
-                if col not in State.columns.value:
+                if col not in columns:
                     # NOTE: i choose to remove quietly on stats table -- its very obvious when it disappears
                     self.columns.set(
                         list([q for q in self.columns.value if q != col]))
@@ -170,16 +174,16 @@ class PlotState:
 
         # columnar resets for plots
         else:
-            if self.x.value not in State.columns.value:
+            if self.x.value not in columns:
                 Alert.update("VC removed! Column reset to 'teff'",
                              color="info")
                 self.x.value = "teff"
             if self.plottype != "histogram":
-                if self.y.value not in State.columns.value:
+                if self.y.value not in columns:
                     Alert.update("VC removed! Column reset to 'logg'",
                                  color="info")
                     self.y.value = "logg"
-                if self.color.value not in State.columns.value:
+                if self.color.value not in columns:
                     Alert.update("VC removed! Column reset to 'fe_h'",
                                  color="info")
                     self.color.value = "fe_h"
@@ -259,7 +263,8 @@ def show_plot(plottype, del_func):
 @sl.component()
 def ScatterPlot(plotstate):
     """Scattergl rendered scatter plot for single subset"""
-    df: vx.DataFrame = State.df.value
+    subset = SubsetState.subsets.value[plotstate.subset.value]
+    df: vx.DataFrame = subset.df
     dark = use_dark_effective()
     filter, set_filter = use_subset(id(df), plotstate.subset, "scatter")
     relayout, set_relayout = sl.use_state({})
@@ -570,7 +575,9 @@ def ScatterPlot(plotstate):
 @sl.component()
 def HistogramPlot(plotstate):
     """Histogram plot for single subset"""
-    df: vx.DataFrame = State.df.value
+    subset = SubsetState.subsets.value[plotstate.subset.value]
+    print('histogram rerender')
+    df: vx.DataFrame = subset.df
     xcol = plotstate.x.value
     nbins = plotstate.nbins.value
     filter, set_filter = use_subset(id(df), plotstate.subset, "histogram")
@@ -586,13 +593,23 @@ def HistogramPlot(plotstate):
                 break
 
     sl.use_thread(update_grid, dependencies=[GridState.grid_layout.value])
+    sl.use_thread(
+        plotstate.reset_values,
+        dependencies=[
+            len(SubsetState.subsets.value),
+            SubsetState.subsets.value,
+            subset,
+            len(subset.virtual_columns),
+            subset.dataset,
+        ],
+    )
 
     dff = df
     if filter:
         dff = df[filter]
-    expr: vx.Expression = dff[xcol]
 
     def perform_binning():
+        expr: vx.Expression = dff[xcol]
         if check_catagorical(expr):
             # NOTE: under the hood, vaex uses pandas for this
             series = expr.value_counts()  # value_counts as in Pandas
@@ -695,13 +712,13 @@ def HistogramPlot(plotstate):
             df.execute()
             return x, y.get()
 
-    if check_catagorical(expr):
-        logx = False
-    else:
-        logx = plotstate.logx.value
-
     def create_fig():
         x, y = perform_binning()
+        expr: vx.Expression = dff[xcol]
+        if check_catagorical(expr):
+            logx = False
+        else:
+            logx = plotstate.logx.value
         fig = px.histogram(
             x=x,
             y=y,
@@ -825,7 +842,8 @@ def HistogramPlot(plotstate):
 @sl.component()
 def HeatmapPlot(plotstate):
     """2D Histogram plot (Heatmap) for single subset"""
-    df = State.df.value
+    subset = SubsetState.subsets.value[plotstate.subset.value]
+    df: vx.DataFrame = subset.df
     filter, set_filter = use_subset(id(df), plotstate.subset,
                                     "filter-aggregated")
     dark = use_dark_effective()
@@ -1142,7 +1160,8 @@ def HeatmapPlot(plotstate):
 @sl.component()
 def SkymapPlot(plotstate):
     """Sky projection plot of stars for a single subset."""
-    df = State.df.value
+    subset = SubsetState.subsets.value[plotstate.subset.value]
+    df = subset.df
     filter, set_filter = use_subset(id(df), plotstate.subset, "filter-skyplot")
     dark = use_dark_effective()
     relayout, set_relayout = sl.use_state({})
@@ -1437,7 +1456,8 @@ def SkymapPlot(plotstate):
 @sl.component()
 def DeltaHeatmapPlot(plotstate):
     """Heatmap on regular grid for Subset A - Subset B"""
-    df = State.df.value
+    subset = SubsetState.subsets.value[plotstate.subset.value]
+    df: vx.DataFrame = subset.df
     filterA, set_filterA = use_subset(id(df), plotstate.subset, "delta2d")
     filterB, set_filterB = use_subset(id(df), plotstate.subset_b, "delta2d")
     dark = use_dark_effective()
