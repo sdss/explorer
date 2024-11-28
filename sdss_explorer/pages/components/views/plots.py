@@ -593,16 +593,6 @@ def HistogramPlot(plotstate):
                 break
 
     sl.use_thread(update_grid, dependencies=[GridState.grid_layout.value])
-    sl.use_thread(
-        plotstate.reset_values,
-        dependencies=[
-            len(SubsetState.subsets.value),
-            SubsetState.subsets.value,
-            subset,
-            len(subset.virtual_columns),
-            subset.dataset,
-        ],
-    )
 
     dff = df
     if filter:
