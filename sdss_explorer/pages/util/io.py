@@ -9,15 +9,22 @@ from ..dataclass.gridstate import GridData
 from ..dataclass import Subset
 
 
+def import_subset(subset_json: str) -> Subset:
+    """Convert imported subset JSON to Subset"""
+
+
+def import_grid_layout(layout_json: str) -> GridData:
+    """Convert imported layout JSON to GridData"""
+
+
 def export_subset(subset: Subset) -> str:
     """Exports a given subset as JSON."""
     return json.dumps(asdict(subset))
 
 
-#def export_layout(gridstate: GridData) -> str:
-#    objects = [
-#        x for x in gridstate.objects.value if not isinstance(x, rv.Card)
-#    ]
-#
-#
-#    return
+def export_layout(gridstate: GridData) -> str:
+    objects = [
+        x for x in gridstate.objects.value if not isinstance(x, rv.Card)
+    ]
+
+    return

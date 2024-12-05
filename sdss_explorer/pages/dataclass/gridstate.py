@@ -10,10 +10,11 @@ class GridData:
     Class holding current state of grid layout.
     """
 
-    def __init__(self) -> None:
-        self.objects = sl.reactive([])
-        self.grid_layout = sl.reactive([])
-        self.index = sl.reactive(0)
+    def __init__(self, objects=[], layout=[], states=[]) -> None:
+        self.grid_layout = sl.reactive(layout)
+        self.objects = sl.reactive(objects)
+        self.states = sl.reactive(states)
+        self.index = sl.reactive(len(objects))
 
     def __repr__(self) -> str:
         return str({

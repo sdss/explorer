@@ -241,29 +241,11 @@ def ModdedDataTable(
 
 
 @sl.component()
-def StatisticsTable(del_func: Callable):
+def StatisticsTable(state):
     """Statistics description view for the dataset."""
     df = State.df.value
-    init_key = sl.use_memo(lambda: list(SubsetState.subsets.value.keys())[-1],
-                           dependencies=[])  # inits with last subset
-    state = PlotState('table', current_key=init_key)
     filter, set_filter = use_subset(id(df), state.subset, name="statsview")
     columns, set_columns = state.columns.value, state.columns.set
-    dark = use_dark_effective()
-
-    sl.use_thread(
-        state.reset_values,
-        dependencies=[
-            len(SubsetState.subsets.value),
-            SubsetState.subsets.value,
-            State.columns.value,
-        ],
-    )
-
-    name, names = SubsetState.subsets.value.get(
-        state.subset.value, Subset(name='temp')).name, [
-            ss.name for ss in SubsetState.subsets.value.values()
-        ]
 
     if filter:
         dff = df[filter]
@@ -310,49 +292,49 @@ def StatisticsTable(del_func: Callable):
                         on_click=remove_column),
     ]
 
-    with rv.Card(class_="grey darken-3" if dark else "grey lighten-3",
-                 style_="width: 100%; height: 100%") as main:
-        with rv.CardText():
-            with sl.Column(
-                    classes=["grey darken-3" if dark else "grey lighten-3"]):
-                sl.ProgressLinear(result.pending)
-                if ~result.not_called and result.latest is not None:
-                    ModdedDataTable(
-                        result.latest,
-                        items_per_page=7,
-                        column_actions=column_actions,
-                    )
-                else:
-                    sl.Info("Loading...")
-                btn = sl.Button(
-                    icon_name="mdi-settings",
-                    outlined=False,
-                    classes=["grey darken-3" if dark else "grey lighten-3"],
-                )
-                # settings menu
-                with Menu(activator=btn, close_on_content_click=False):
-                    with sl.Card(margin=0):
-                        with sl.Columns([2, 1]):
-                            AutocompleteSelect(columns,
-                                               set_columns,
-                                               df=State.columns.value,
-                                               expr='column',
-                                               field='Column',
-                                               multiple=True)
+    sl.ProgressLinear(result.pending)
+    if ~result.not_called and result.latest is not None:
+        ModdedDataTable(
+            result.latest,
+            items_per_page=7,
+            column_actions=column_actions,
+        )
+    else:
+        sl.Info("Loading...")
+    return
 
-                            SingleAutocomplete(
-                                label="Subset",
-                                values=names,
-                                value=name,
-                                on_value=state.update_subset,
-                            )
-                        sl.Button(
-                            icon_name="mdi-delete",
-                            color="red",
-                            block=True,
-                            on_click=del_func,
-                        )
-    return main
+
+@sl.component
+def StatisticsTableMenu(state):
+    """Settings menu for Statistics Table view."""
+    sl.use_thread(
+        state.reset_values,
+        dependencies=[
+            len(SubsetState.subsets.value),
+            SubsetState.subsets.value,
+            State.columns.value,
+        ],
+    )
+
+    name, names = SubsetState.subsets.value.get(
+        state.subset.value, Subset(name='temp')).name, [
+            ss.name for ss in SubsetState.subsets.value.values()
+        ]
+    with sl.Columns([2, 1]):
+        AutocompleteSelect(columns,
+                           set_columns,
+                           df=State.columns.value,
+                           expr='column',
+                           field='Column',
+                           multiple=True)
+
+        SingleAutocomplete(
+            label="Subset",
+            values=names,
+            value=name,
+            on_value=state.update_subset,
+        )
+    return
 
 
 @sl.component()

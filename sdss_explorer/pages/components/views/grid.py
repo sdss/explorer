@@ -50,9 +50,11 @@ def ViewCard(type, i):
                 q = n
                 break
 
-        # cut layout at that spot
+        # cut layout and states at that spot
         GridState.grid_layout.value = (GridState.grid_layout.value[:q] +
                                        GridState.grid_layout.value[q + 1:])
+        GridState.states.value = (GridState.states.value[:q] +
+                                  GridState.states.value[q + 1:])
 
         # replace the object in object list with a dummy renderable
         # INFO: cannot be deleted because it breaks all renders
@@ -164,11 +166,13 @@ def ObjectGrid():
                                   on_click=lambda: add_view("scatter")),
                         sl.Button(label="skyplot",
                                   on_click=lambda: add_view("skyplot")),
-                        sl.Button(
-                            label="delta2d",
-                            on_click=lambda: add_view("delta2d"),
-                            disabled=True if n_subsets <= 1 else False,
-                        ),
+                        # TODO: fix delta2d
+                        # BUG: delta2d is currently broken in many ways i need to fix
+                        #sl.Button(
+                        #    label="delta2d",
+                        #    on_click=lambda: add_view("delta2d"),
+                        #    disabled=True if n_subsets <= 1 else False,
+                        #),
                     ]
             rv.Spacer()
             # sl.Button(

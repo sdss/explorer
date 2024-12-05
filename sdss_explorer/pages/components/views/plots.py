@@ -18,6 +18,7 @@ from plotly.graph_objs._figurewidget import FigureWidget
 
 from ...dataclass import Alert, State, SubsetState, use_subset, GridState
 from ...util import check_catagorical
+from .dataframe import StatisticsTable
 from .plot_settings import show_settings
 
 # index context for grid
@@ -227,6 +228,14 @@ def show_plot(plottype, del_func):
             dependencies=[])
         print("SHOWPLOT KEY", current_key)
         plotstate = PlotState(plottype, current_key)
+
+        def add_to_grid():
+            """Adds a pointer/reference to PlotState instance in GridState for I/O."""
+            GridState.states.set(list(GridState.states.value + [plotstate]))
+            return None
+
+        sl.use_memo(add_to_grid, dependencies=[])  # runs once
+
         with rv.CardText():
             with sl.Column(
                     classes=["grey darken-3" if dark else "grey lighten-3"]):
@@ -240,6 +249,8 @@ def show_plot(plottype, del_func):
                     SkymapPlot(plotstate)
                 elif plottype == "delta2d":
                     DeltaHeatmapPlot(plotstate)
+                elif plottype == 'stats':
+                    StatisticsTable(plotstate)
                 btn = sl.Button(
                     icon_name="mdi-settings",
                     outlined=False,

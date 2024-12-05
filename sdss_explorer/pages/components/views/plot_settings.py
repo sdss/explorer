@@ -4,6 +4,8 @@ import solara as sl
 from solara.components.card import Card
 from solara.components.columns import Columns
 
+from .dataframe import StatisticsTableMenu
+
 from ...dataclass import State, SubsetState, Subset
 from ..sidebar.autocomplete import SingleAutocomplete
 
@@ -21,6 +23,8 @@ def show_settings(type, state):
         return SkymapMenu(state)
     elif type == "delta2d":
         return DeltaHeatmapMenu(state)
+    elif type == 'stats':
+        return StatisticsTableMenu(state)
 
 
 @sl.component()
