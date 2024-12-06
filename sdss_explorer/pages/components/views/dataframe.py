@@ -1,3 +1,4 @@
+"""Functions for processing dataframes for the Table views."""
 import dataclasses
 import math
 import os
@@ -6,20 +7,17 @@ from typing import Any, Callable, List, Optional, cast
 
 import ipyvuetify as v
 import ipywidgets
-import pandas as pd
 import reacton.ipyvuetify as rv
-import solara
 import solara as sl
 import solara.hooks.dataframe
 import solara.lab
 import traitlets
 from solara.components.datatable import CellAction, ColumnAction
-from solara.lab import Menu, Task, use_dark_effective, use_task
+from solara.lab import Menu, use_dark_effective
 from solara.lab.hooks.dataframe import use_df_column_names
 
-from ...dataclass import Alert, State, Subset, SubsetState, use_subset
+from ...dataclass import State, Subset, SubsetState
 from ..sidebar.autocomplete import AutocompleteSelect, SingleAutocomplete
-from .plots import PlotState
 
 
 @sl.component()
@@ -238,103 +236,6 @@ def ModdedDataTable(
         on_column_header_hover=on_column_header_hover,
         column_header_widget=column_header_info,
     )
-
-
-@sl.component()
-def StatisticsTable(state):
-    """Statistics description view for the dataset."""
-    df = State.df.value
-    filter, set_filter = use_subset(id(df), state.subset, name="statsview")
-    columns, set_columns = state.columns.value, state.columns.set
-
-    if filter:
-        dff = df[filter]
-    else:
-        dff = df
-
-    # the summary table is its own DF (for render purposes)
-    # NOTE: worker process concerns if this takes more than 10MB.
-
-    def generate_describe() -> pd.DataFrame:
-        """Generates the description table only on column/filter updates"""
-        # INFO: vaex returns a pandas df.describe()
-        try:
-            dfd = dff[columns].describe(strings=False)
-        except:
-            Alert.update(
-                "Statistics describe routine encountered stride bug, excepting...",
-                color="warning",
-            )
-            dfd = pd.DataFrame({"error": ["frame"], "no": ["data"]})
-        return dfd
-
-    result: Task[pd.DataFrame] = use_task(
-        generate_describe, dependencies=[filter, columns,
-                                         len(columns)])
-
-    def remove_column(name):
-        """Removes column from column list"""
-        # perform removal via slice (cannot modify inplace)
-        # TODO: check if slicing is actually necessary
-
-        q = None
-        for i, col in enumerate(columns):
-            if col == name:
-                q = i
-                break
-
-        set_columns(columns[:q] + columns[q + 1:])
-
-    column_actions = [
-        # TODO: a more complex action in here?
-        sl.ColumnAction(icon="mdi-delete",
-                        name="Remove column",
-                        on_click=remove_column),
-    ]
-
-    sl.ProgressLinear(result.pending)
-    if ~result.not_called and result.latest is not None:
-        ModdedDataTable(
-            result.latest,
-            items_per_page=7,
-            column_actions=column_actions,
-        )
-    else:
-        sl.Info("Loading...")
-    return
-
-
-@sl.component
-def StatisticsTableMenu(state):
-    """Settings menu for Statistics Table view."""
-    sl.use_thread(
-        state.reset_values,
-        dependencies=[
-            len(SubsetState.subsets.value),
-            SubsetState.subsets.value,
-            State.columns.value,
-        ],
-    )
-
-    name, names = SubsetState.subsets.value.get(
-        state.subset.value, Subset(name='temp')).name, [
-            ss.name for ss in SubsetState.subsets.value.values()
-        ]
-    with sl.Columns([2, 1]):
-        AutocompleteSelect(columns,
-                           set_columns,
-                           df=State.columns.value,
-                           expr='column',
-                           field='Column',
-                           multiple=True)
-
-        SingleAutocomplete(
-            label="Subset",
-            values=names,
-            value=name,
-            on_value=state.update_subset,
-        )
-    return
 
 
 @sl.component()

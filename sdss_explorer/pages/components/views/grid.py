@@ -1,5 +1,6 @@
 import traitlets as t
 import os
+from urllib.parse import parse_qs
 
 import solara as sl
 from solara.lab import Menu
@@ -8,10 +9,9 @@ import reacton as r
 import ipyvuetify as v
 import ipywidgets as widgets
 
-from ...dataclass import SubsetState, GridState
+from ...dataclass import SubsetState, GridState, Alert
 
 from .plots import show_plot, index_context
-from .dataframe import StatisticsTable
 
 
 class GridLayout(v.VuetifyTemplate):
@@ -37,7 +37,7 @@ GridDraggableToolbar = r.core.ComponentWidget(GridLayout)
 
 
 @sl.component()
-def ViewCard(type, i):
+def ViewCard(type, i, **kwargs):
 
     def remove(i):
         """
@@ -60,14 +60,46 @@ def ViewCard(type, i):
         # INFO: cannot be deleted because it breaks all renders
         GridState.objects.value[i] = rv.Card()
 
-    if type != "stats":
-        index_context.provide(
-            i)  # for use in accessing height data for dynamic resize
-        show_plot(type, lambda: remove(i))
-    else:
-        StatisticsTable(lambda: remove(i))
+    index_context.provide(i)  # used to access height data for dynamic resize
+    show_plot(type, lambda: remove(i), **kwargs)  # plot shower
 
     return
+
+
+def add_view(type, **kwargs):
+    # TODO: better height logic
+    if len(GridState.grid_layout.value) == 0:
+        prev = {"x": 0, "y": -12, "h": 12, "w": 12, "moved": False}
+    else:
+        prev = GridState.grid_layout.value[-1]
+    if type == "stats":
+        height = 7
+    else:
+        height = 10
+
+    # horizontal or vertical offset depending on width
+    if 12 - prev["w"] - prev["x"] >= 6:
+        # beside
+        x = prev["x"] + 6
+        y = prev["y"]
+    else:
+        # the row below
+        x = 0
+        y = prev["y"] + prev["h"] + 4
+    i = GridState.index.value
+    GridState.grid_layout.value.append({
+        "x": x,
+        "y": y,
+        "w": 6,
+        "h": height,
+        "i": i,
+        "moved": False,
+    })
+    GridState.index.value += 1
+
+    GridState.objects.value = GridState.objects.value + [
+        ViewCard(type, i, **kwargs)
+    ]
 
 
 @sl.component()
@@ -80,39 +112,6 @@ def ObjectGrid():
 
     def set_grid_layout(data):
         GridState.grid_layout.value = data
-
-    def add_view(type):
-        # TODO: better height logic
-        if len(GridState.grid_layout.value) == 0:
-            prev = {"x": 0, "y": -12, "h": 12, "w": 12, "moved": False}
-        else:
-            prev = GridState.grid_layout.value[-1]
-        if type == "stats":
-            height = 7
-        else:
-            height = 10
-
-        # horizontal or vertical offset depending on width
-        if 12 - prev["w"] - prev["x"] >= 6:
-            # beside
-            x = prev["x"] + 6
-            y = prev["y"]
-        else:
-            # the row below
-            x = 0
-            y = prev["y"] + prev["h"] + 4
-        i = GridState.index.value
-        GridState.grid_layout.value.append({
-            "x": x,
-            "y": y,
-            "w": 6,
-            "h": height,
-            "i": i,
-            "moved": False,
-        })
-        GridState.index.value += 1
-
-        GridState.objects.value = GridState.objects.value + [ViewCard(type, i)]
 
     # WARNING: this is a janky workaround to a solara bug where
     # this will likely have to be changed in future.

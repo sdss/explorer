@@ -6,11 +6,12 @@ from functools import reduce
 from typing import cast
 
 import numpy as np
+import pandas as pd
 import reacton.ipyvuetify as rv
 import solara as sl
 import vaex as vx
 import xarray
-from solara.lab import Menu, use_dark_effective, use_task
+from solara.lab import Menu, use_dark_effective, use_task, Task
 
 import plotly.express as px
 import plotly.graph_objects as go
@@ -18,7 +19,7 @@ from plotly.graph_objs._figurewidget import FigureWidget
 
 from ...dataclass import Alert, State, SubsetState, use_subset, GridState
 from ...util import check_catagorical
-from .dataframe import StatisticsTable
+from .dataframe import ModdedDataTable
 from .plot_settings import show_settings
 
 # index context for grid
@@ -61,31 +62,37 @@ LIGHT_TEMPLATE = dict(layout=go.Layout(
 
 class PlotState:
     """
-    Combination of reactive states which instantiate a specific plot's settings/properties
+    Combination of reactive states which instantiate a specific plot's settings/properties. 
+    Initializes based on keyword arguments.
     """
 
-    def __init__(self, plottype, current_key):
+    def __init__(self, plottype, current_key, **kwargs):
         # subset and type states
         self.plottype = str(plottype)
         # NOTE: this prevents a reactive update to override the initialization prop
         self.subset = sl.use_reactive(current_key)
 
-        if 'table' in plottype:
+        if 'stats' in plottype:
             self.columns = sl.use_reactive(['g_mag', 'teff'])
         else:
             # common plot settings
-            self.x = sl.use_reactive("teff")
-            self.flipx = sl.use_reactive(False)
-            self.flipy = sl.use_reactive(False)
+            self.x = sl.use_reactive(kwargs.get('x', "teff"))
+            self.flipx = sl.use_reactive(
+                kwargs.get('flipx', '').lower() == 'true')
+            self.flipy = sl.use_reactive(
+                kwargs.get('flipy', '').lower() == 'true')
 
             # moderately unique plot parameters/settings
             if plottype != "histogram":
-                self.y = sl.use_reactive("logg")
-                self.color = sl.use_reactive("fe_h")
-                self.colorscale = sl.use_reactive("cividis")
+                self.y = sl.use_reactive(kwargs.get('y', 'logg'))
+                self.color = sl.use_reactive(kwargs.get('color', 'fe_h'))
+                self.colorscale = sl.use_reactive(
+                    kwargs.get('colorscale', 'cividis'))
             if plottype != "aggregated" and plottype != "skyplot":
-                self.logx = sl.use_reactive(False)
-                self.logy = sl.use_reactive(False)
+                self.logx = sl.use_reactive(
+                    kwargs.get('logx', '').lower() == 'true')
+                self.logy = sl.use_reactive(
+                    kwargs.get('logy', '').lower() == 'true')
             if plottype in ["scatter", "skyplot"]:
                 self.colorlog = sl.use_reactive(cast(str, None))
 
@@ -101,8 +108,10 @@ class PlotState:
 
             # skyplot settings
             if plottype == "skyplot":
-                self.geo_coords = sl.use_reactive("celestial")
-                self.projection = sl.use_reactive("hammer")
+                self.geo_coords = sl.use_reactive(
+                    kwargs.get('coords', "celestial"))
+                self.projection = sl.use_reactive(
+                    kwargs.get('projection', "hammer"))
 
             # delta view settings
             if "delta" in plottype:
@@ -161,7 +170,7 @@ class PlotState:
             pass
 
         # columnar resets for table
-        if 'table' in self.plottype:
+        if 'stats' in self.plottype:
             for col in self.columns.value:
                 if col not in State.columns.value:
                     # NOTE: i choose to remove quietly on stats table -- its very obvious when it disappears
@@ -215,7 +224,7 @@ def check_cat_color(color: vx.Expression) -> bool:
 
 
 # SHOW PLOT
-def show_plot(plottype, del_func):
+def show_plot(plottype, del_func, **kwargs):
     # NOTE: force set to grey darken-3 colour for visibility of card against grey darken-4 background
     dark = use_dark_effective()
     with rv.Card(
@@ -227,7 +236,7 @@ def show_plot(plottype, del_func):
             lambda: list(SubsetState.subsets.value.keys())[-1],
             dependencies=[])
         print("SHOWPLOT KEY", current_key)
-        plotstate = PlotState(plottype, current_key)
+        plotstate = PlotState(plottype, current_key, **kwargs)
 
         def add_to_grid():
             """Adds a pointer/reference to PlotState instance in GridState for I/O."""
@@ -368,6 +377,16 @@ def ScatterPlot(plotstate):
                 ),
             ),
         )
+        #except Exception as e:
+        #    print('init figure err', e)
+        #    figure = go.Figure(
+        #        go.Layout(xaxis_title=plotstate.x.value,
+        #                  yaxis_title=plotstate.y.value,
+        #                  template=DARK_TEMPLATE if dark else LIGHT_TEMPLATE,
+        #                  coloraxis=dict(
+        #                      cmin=dff.min(plotstate.color.value)[()],
+        #                      cmax=dff.max(plotstate.color.value)[()],
+        #                  )))
         return figure
 
     # only instantiate the figure once
@@ -396,8 +415,6 @@ def ScatterPlot(plotstate):
             fig_widget: FigureWidget = sl.get_widget(fig_element)
             points = fig_widget.data[0]
             points.on_click(on_click)
-
-        sl.use_effect(add_context_menu, dependencies=[relayout])
 
         def set_xflip():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
@@ -535,6 +552,8 @@ def ScatterPlot(plotstate):
                 plotstate.colorlog.value,
             ],
         )
+
+        sl.use_effect(add_context_menu, dependencies=[relayout])
         sl.use_effect(update_xy,
                       dependencies=[plotstate.x.value, plotstate.y.value])
         sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
@@ -542,6 +561,7 @@ def ScatterPlot(plotstate):
         sl.use_effect(update_theme, dependencies=[dark])
         sl.use_effect(
             set_log, dependencies=[plotstate.logx.value, plotstate.logy.value])
+        return
 
     # Plotly-side callbacks (relayout, select, and deselect)
     def on_relayout(data):
@@ -576,6 +596,8 @@ def ScatterPlot(plotstate):
     )
 
     add_effects(fig_el)
+
+    return fig_el
 
 
 @sl.component()
@@ -1443,6 +1465,70 @@ def SkymapPlot(plotstate):
     )
     add_effects(fig_el)
     return fig_el
+
+
+@sl.component()
+def StatisticsTable(state):
+    """Statistics description view for the dataset."""
+    df = State.df.value
+    filter, set_filter = use_subset(id(df), state.subset, name="statsview")
+    columns, set_columns = state.columns.value, state.columns.set
+
+    if filter:
+        dff = df[filter]
+    else:
+        dff = df
+
+    # the summary table is its own DF (for render purposes)
+    # NOTE: worker process concerns if this takes more than 10MB.
+
+    def generate_describe() -> pd.DataFrame:
+        """Generates the description table only on column/filter updates"""
+        # INFO: vaex returns a pandas df.describe()
+        try:
+            dfd = dff[columns].describe(strings=False)
+        except:
+            Alert.update(
+                "Statistics describe routine encountered stride bug, excepting...",
+                color="warning",
+            )
+            dfd = pd.DataFrame({"error": ["no"], "encountered": ["data"]})
+        return dfd
+
+    result = use_task(generate_describe,
+                      dependencies=[filter, columns,
+                                    len(columns)])
+
+    def remove_column(name):
+        """Removes column from column list"""
+        # perform removal via slice (cannot modify inplace)
+        # TODO: check if slicing is actually necessary
+
+        q = None
+        for i, col in enumerate(columns):
+            if col == name:
+                q = i
+                break
+
+        set_columns(columns[:q] + columns[q + 1:])
+
+    column_actions = [
+        # TODO: a more complex action in here?
+        sl.ColumnAction(icon="mdi-delete",
+                        name="Remove column",
+                        on_click=remove_column),
+    ]
+
+    sl.ProgressLinear(result.pending)
+    if ~result.not_called and result.latest is not None:
+        ModdedDataTable(
+            result.latest,
+            items_per_page=7,
+            column_actions=column_actions,
+        )
+    else:
+        sl.Info("Loading...")
+    return
 
 
 @sl.component()

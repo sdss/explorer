@@ -2,6 +2,7 @@
 
 import solara as sl
 from solara.hooks.misc import use_unique_key
+from urllib.parse import parse_qs
 import vaex as vx
 from solara.lab import ThemeToggle
 from os import getenv
@@ -16,7 +17,7 @@ vx.cache.on()  # activate caching
 from .dataclass import State, AlertSystem  # noqa: E402
 from .components.sidebar import Sidebar  # noqa: E402
 from .components.sidebar.glossary import HelpBlurb  # noqa: E402
-from .components.views import ObjectGrid  # noqa: E402
+from .components.views import ObjectGrid, add_view  # noqa: E402
 from .components.views.dataframe import NoDF  # noqa: E402
 
 # development envvar
@@ -29,6 +30,41 @@ def Page():
 
     # start app state with memoized objects
     State.initialize()
+
+    # check query params
+    router = sl.use_router()
+
+    def initialize():
+        """Run once at launch (memo), reading query parameters and instantiating app as needed."""
+        """
+        Expected format is:
+            - plottype: scatter,histogram,heatmap,skyplot,stats
+            - x: main x data, any column in given dataset
+            - y: main y data, any column in given dataset
+            - color: main color data, any column in given dataset
+            - colorscale: colorscale
+            - coords: galactic, celestial; used in skyplot
+            - projection: type of projection for skyplot (i.e. hammer, mollweide, aitoff)
+        """
+        query_params = parse_qs(router.search, keep_blank_values=True)
+        if len(query_params) > 0:
+            print(query_params)
+            # unwrap query_params
+            query_params = {k: v[0] for k, v in query_params.items()}
+
+            # add relevant plots
+            try:
+                plottype = query_params.pop('plottype')
+                add_view(plottype, **query_params)
+            except Exception as e:
+                print('gridstate initialize err:', e)
+                Alert.update(
+                    'Invalid query parameters specified. Did not initialize.',
+                    color='warning')
+
+        return
+
+    sl.use_memo(initialize, [])
 
     # PAGE TITLE
     # TODO: Will this properly

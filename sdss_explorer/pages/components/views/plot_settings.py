@@ -4,10 +4,8 @@ import solara as sl
 from solara.components.card import Card
 from solara.components.columns import Columns
 
-from .dataframe import StatisticsTableMenu
-
 from ...dataclass import State, SubsetState, Subset
-from ..sidebar.autocomplete import SingleAutocomplete
+from ..sidebar.autocomplete import SingleAutocomplete, AutocompleteSelect
 
 
 def show_settings(type, state):
@@ -290,6 +288,39 @@ def HeatmapMenu(plotstate):
                 values=plotstate.Lookup["binscales"],
                 value=plotstate.binscale,
             )
+
+
+@sl.component()
+def StatisticsTableMenu(state):
+    """Settings menu for Statistics Table view."""
+    sl.use_thread(
+        state.reset_values,
+        dependencies=[
+            len(SubsetState.subsets.value),
+            SubsetState.subsets.value,
+            State.columns.value,
+        ],
+    )
+
+    name, names = SubsetState.subsets.value.get(
+        state.subset.value, Subset(name='temp')).name, [
+            ss.name for ss in SubsetState.subsets.value.values()
+        ]
+    with sl.Columns([2, 1]):
+        AutocompleteSelect(state.columns.value,
+                           state.columns.set,
+                           df=State.columns.value,
+                           expr='column',
+                           field='Column',
+                           multiple=True)
+
+        SingleAutocomplete(
+            label="Subset",
+            values=names,
+            value=name,
+            on_value=state.update_subset,
+        )
+    return
 
 
 @sl.component()
