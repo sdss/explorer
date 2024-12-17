@@ -1,3 +1,4 @@
+from solara.components.file_drop import FileInfo
 import traitlets as t
 import os
 import json
@@ -43,7 +44,7 @@ GridDraggableToolbar = r.core.ComponentWidget(GridLayout)
 
 
 @sl.component()
-def ViewCard(type, i, **kwargs):
+def ViewCard(plottype, i, **kwargs):
 
     def remove(i):
         """
@@ -67,12 +68,12 @@ def ViewCard(type, i, **kwargs):
         GridState.objects.value[i] = rv.Card()
 
     index_context.provide(i)  # used to access height data for dynamic resize
-    show_plot(type, lambda: remove(i), **kwargs)  # plot shower
+    show_plot(plottype, lambda: remove(i), **kwargs)  # plot shower
 
     return
 
 
-def add_view(type, layout: Optional[dict] = None, **kwargs):
+def add_view(plottype, layout: Optional[dict] = None, **kwargs):
     """Add a view to the grid. Layout can be parsed as a pre-made dict"""
     if layout is None:
         if len(GridState.grid_layout.value) == 0:
@@ -80,7 +81,7 @@ def add_view(type, layout: Optional[dict] = None, **kwargs):
         else:
             prev = GridState.grid_layout.value[-1]
         # TODO: better height logic
-        if type == "stats":
+        if plottype == "stats":
             height = 7
         else:
             height = 10
@@ -110,7 +111,7 @@ def add_view(type, layout: Optional[dict] = None, **kwargs):
     GridState.index.value += 1
 
     GridState.objects.value = GridState.objects.value + [
-        ViewCard(type, i, **kwargs)
+        ViewCard(plottype, i, **kwargs)
     ]
 
 
@@ -201,15 +202,16 @@ def ObjectGrid():
                     on_cancel=lambda *_: set_impmenu(False),
             ):
 
-                def parse_json(data) -> bool:
+                def parse_json(fileobj: FileInfo) -> None:
                     """Converts JSON to app state and updates accordingly."""
                     # convert from json to dicts
                     try:
-                        data = json.loads(data.data)
-                    except Exception:
-                        Alert.update(f"JSON load of {data.name} failed!",
+                        data = json.load(fileobj['file_obj'])
+                    except Exception as e:
+                        Alert.update(f"JSON load of {fileobj['name']} failed!",
                                      color="error")
-                        return False
+                        print(e)
+                        return
 
                     # wipe current layout
                     reset_layout()
@@ -228,12 +230,12 @@ def ObjectGrid():
                     SubsetState.subsets.set(subsets_spawned)
 
                     # finally, create/add all plots with states and their according layout
-                    layouts = data["layout"]
-                    states = data["states"]
+                    layouts = data['views']["layout"]
+                    states = data['views']["states"]
                     for layout, state in zip(layouts, states):
-                        add_view(state["plottype"], layout=layout, **state)
+                        add_view(layout=layout, **state)
 
-                    return True
+                    return
 
                 sl.FileDrop(label="Drop file here", on_file=parse_json)
 

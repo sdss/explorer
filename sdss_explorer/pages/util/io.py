@@ -42,9 +42,12 @@ def export_layout(gridstate: GridData) -> dict[str, Any]:
     for state in plotstates:
         newstate = dict()
         for k, v in vars(state).items():
-            if (k == 'plottype') or (k == 'Lookup'):
+            if (k == 'Lookup'):
                 continue
-            newstate[k] = v.value
+            elif (k == 'plottype'):
+                newstate[k] = v
+            else:
+                newstate[k] = v.value
         states.append(newstate)
 
     return {'layout': layouts, 'states': states}

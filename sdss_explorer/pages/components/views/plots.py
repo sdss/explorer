@@ -83,10 +83,8 @@ class PlotState:
         else:
             # common plot settings
             self.x = sl.use_reactive(kwargs.get('x', "teff"))
-            self.flipx = sl.use_reactive(
-                kwargs.get('flipx', '').lower() == 'true')
-            self.flipy = sl.use_reactive(
-                kwargs.get('flipy', '').lower() == 'true')
+            self.flipx = sl.use_reactive(kwargs.get('flipx', ''))
+            self.flipy = sl.use_reactive(kwargs.get('flipy', ''))
 
             # moderately unique plot parameters/settings
             if plottype != "histogram":
@@ -95,10 +93,8 @@ class PlotState:
                 self.colorscale = sl.use_reactive(
                     kwargs.get('colorscale', 'cividis'))
             if plottype != "aggregated" and plottype != "skyplot":
-                self.logx = sl.use_reactive(
-                    kwargs.get('logx', '').lower() == 'true')
-                self.logy = sl.use_reactive(
-                    kwargs.get('logy', '').lower() == 'true')
+                self.logx = sl.use_reactive(kwargs.get('logx', ''))
+                self.logy = sl.use_reactive(kwargs.get('logy', ''))
             if plottype in ["scatter", "skyplot"]:
                 self.colorlog = sl.use_reactive(cast(str, None))
 
@@ -212,15 +208,6 @@ class PlotState:
                 break
         return
 
-    #def __dict__(self) -> dict[str, str]:
-    #    """Dictionary magic function"""
-    #    repr = dict()
-    #    for i in inspect.getmembers(self):
-    #        if not i[0].startswith('_'):
-    #            if not inspect.ismethod(i[1]):
-    #                repr[i[0]] = str(i[1].value)  # always a reactive, index it
-    #    return repr
-
 
 def range_loop(start, offset):
     return (start + (offset % 360) + 360) % 360
@@ -250,10 +237,7 @@ def show_plot(plottype, del_func, **kwargs):
         current_key = sl.use_memo(
             lambda: list(SubsetState.subsets.value.keys())[-1],
             dependencies=[])
-        print("SHOWPLOT KEY", current_key)
         plotstate = PlotState(plottype, current_key, **kwargs)
-        #print(str(plotstate.__dict__()))
-        print('vars', vars(plotstate))
 
         def add_to_grid():
             """Adds a pointer/reference to PlotState instance in GridState for I/O."""

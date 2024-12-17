@@ -52,6 +52,13 @@ def Page():
             # unwrap query_params
             query_params = {k: v[0] for k, v in query_params.items()}
 
+            # change to bool if should be bool
+            toggles = ['flipx', 'flipy', 'logx', 'logy']
+            query_params = {
+                k: v.lower() == 'true' if k in toggles else str(v)
+                for k, v in query_params.items()
+            }
+
             # set release/datatype and load according dataset
             # underscored variables force read-only access; no reactive binding.
             State._release.set(query_params.get('release', 'dr19'))
