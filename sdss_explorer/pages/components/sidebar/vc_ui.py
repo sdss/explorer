@@ -29,9 +29,8 @@ def VirtualColumnCard(name: str, expression: str):
 def VirtualColumnList():
     """Renders list of created virtual columns with delete buttons"""
     with sl.Column(gap="0px") as main:
-        for name, expression in VCData.columns.value:
+        for name, expression in VCData.columns.value.items():
             VirtualColumnCard(name, expression).key(name)
-
     return main
 
 
@@ -47,24 +46,21 @@ def VirtualColumnsPanel():
     def validate():
         "Ensure syntax is correct"
         try:
+            # none cases
             if expression == "" and name == "":
                 return None
-            # none cases
             assert name != "", "no name given"
-            # check name
             assert name not in df.get_column_names(), "name already exists"
-
-            # validate via AST
             assert expression != "", "no expression set"
-            df.validate_expression(expression)
 
+            df.validate_expression(expression)  # ast validation
             assert df[
                 expression].dtype != bool, "do not enter comparative expression"
 
             # alert user about powers
             if r"^" in expression:
                 Alert.update(
-                    "'^' is a bit operator. If you're looking to use powers, use '**' (Python syntax) instead.",
+                    "'^' is the Pythonic bit operator. If you're looking to use powers, use '**' (Python syntax) instead.",
                     color="warning",
                 )
 
@@ -78,7 +74,6 @@ def VirtualColumnsPanel():
 
     def add_column():
         """Adds virtual column"""
-        df.add_virtual_column(name, expression)
         VCData.add_column(name, expression)
         close()
 
@@ -90,7 +85,7 @@ def VirtualColumnsPanel():
         df = State.df.value
         columns = df.get_column_names(virtual=False)
         virtuals = list()
-        for name, _expr in VCData.columns.value:
+        for name, _ in VCData.columns.value.items():
             virtuals.append(name)
         State.columns.value = virtuals + columns
 
