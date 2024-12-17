@@ -14,7 +14,7 @@ import ipywidgets as widgets
 from sdss_explorer.pages.dataclass.state import State
 from sdss_explorer.pages.util.io import export_layout, export_subset
 
-from ...dataclass import SubsetState, GridState, Alert
+from ...dataclass import SubsetState, GridState, Alert, Subset
 
 from .plots import show_plot, index_context
 from ..dialog import Dialog
@@ -103,7 +103,7 @@ def add_view(type, layout: Optional[dict] = None, **kwargs):
 
     # always update with current index
     i = GridState.index.value
-    layout.update({'i': i})
+    layout.update({"i": i})
 
     # add and update state vars
     GridState.grid_layout.value.append(layout)
@@ -116,6 +116,7 @@ def add_view(type, layout: Optional[dict] = None, **kwargs):
 
 @sl.component()
 def ObjectGrid():
+    df = State.df.value
 
     def reset_layout():
         GridState.index.value = 0
@@ -179,80 +180,118 @@ def ObjectGrid():
                                   on_click=lambda: add_view("skyplot")),
                         # TODO: fix delta2d
                         # BUG: delta2d is currently broken in many ways i need to fix
-                        #sl.Button(
+                        # sl.Button(
                         #    label="delta2d",
                         #    on_click=lambda: add_view("delta2d"),
                         #    disabled=True if n_subsets <= 1 else False,
-                        #),
+                        # ),
                     ]
             rv.Spacer()
 
             # import/export app state UI
             impmenu, set_impmenu = sl.use_state(False)
             expmenu, set_expmenu = sl.use_state(False)
-            with Dialog(open=impmenu,
-                        ok=None,
-                        ok_enable=False,
-                        title='Import a layout JSON',
-                        cancel='close',
-                        max_width=960,
-                        on_cancel=lambda *_: set_impmenu(False)):
+            with Dialog(
+                    open=impmenu,
+                    ok=None,
+                    ok_enable=False,
+                    title="Import a layout JSON",
+                    cancel="close",
+                    max_width=960,
+                    on_cancel=lambda *_: set_impmenu(False),
+            ):
 
-                def parse_json():
+                def parse_json(data) -> bool:
+                    """Converts JSON to app state and updates accordingly."""
+                    # convert from json to dicts
+                    try:
+                        data = json.loads(data.data)
+                    except Exception:
+                        Alert.update(f"JSON load of {data.name} failed!",
+                                     color="error")
+                        return False
+
+                    # wipe current layout
+                    reset_layout()
+
                     # first, readd all virtual columns
-                    # TODO
 
-                    # second, create/add all plots with states and their according layout
+                    # TODO:
 
-                    return
+                    # second, readd all subsets
+                    subsets = data["subsets"]
+                    subsets_spawned = {
+                        k: Subset(**v)
+                        for k, v in subsets.items()
+                    }
+                    SubsetState.index.set(len(subsets))
+                    SubsetState.subsets.set(subsets_spawned)
 
-                sl.FileDrop(label='Drop file here', on_file=parse_json)
+                    # finally, create/add all plots with states and their according layout
+                    layouts = data["layout"]
+                    states = data["states"]
+                    for layout, state in zip(layouts, states):
+                        add_view(state["plottype"], layout=layout, **state)
 
-            with Dialog(open=expmenu,
-                        ok=None,
-                        ok_enable=False,
-                        cancel='close',
-                        max_width=960,
-                        on_cancel=lambda *_: set_expmenu(False)):
+                    return True
+
+                sl.FileDrop(label="Drop file here", on_file=parse_json)
+
+            # TODO: remove this dialog, just make the export dump to file and pass to user
+            with Dialog(
+                    open=expmenu,
+                    ok=None,
+                    title="export",
+                    ok_enable=False,
+                    cancel="close",
+                    max_width=960,
+                    on_cancel=lambda *_: set_expmenu(False),
+            ):
 
                 def make_json() -> str:
                     """Creates JSON for file export."""
                     applayout = dict(subsets=dict())
                     for name, subset in SubsetState.subsets.value.items():
-                        applayout['subsets'][name] = export_subset(subset)
-                    applayout['views'] = export_layout(GridState)
+                        applayout["subsets"][name] = export_subset(subset)
+                    applayout["views"] = export_layout(GridState)
 
                     return json.dumps(applayout)
 
                 # TODO: should we add UTC time to make it more unique?
-                with sl.FileDownload(make_json, f'layout-{State.uuid}.json'):
-                    sl.Button('click me',
-                              icon_name='mdi-cloud-download-outline',
-                              outlined=False)
+                with sl.FileDownload(make_json, f"layout-{State.uuid}.json"):
+                    sl.Button(
+                        "click me",
+                        icon_name="mdi-cloud-download-outline",
+                        outlined=False,
+                    )
 
             btn2 = sl.Button(
-                'Layout settings',
+                "Layout settings",
                 outlined=False,
-                icon_name='mdi-database-settings',
+                icon_name="mdi-database-settings",
             )
             with Menu(activator=btn2):
                 with rv.List(dense=True, ):
                     with rv.ListItem():
                         with rv.ListItemContent():
-                            sl.Button('Import',
-                                      outlined=False,
-                                      on_click=lambda *_: set_impmenu(True),
-                                      icon_name='mdi-application-import')
-                    with rv.ListItem():
-                        with rv.ListItemContent():
-                            sl.Button('Export',
-                                      outlined=False,
-                                      on_click=lambda *_: set_expmenu(True),
-                                      icon_name='mdi-application-export')
+                            sl.Button(
+                                "Import",
+                                outlined=False,
+                                on_click=lambda *_: set_impmenu(True),
+                                icon_name="mdi-application-import",
+                            )
                     with rv.ListItem():
                         with rv.ListItemContent():
                             sl.Button(
-                                'Reset',
+                                "Export",
+                                outlined=False,
+                                on_click=lambda *_: set_expmenu(True),
+                                icon_name="mdi-application-export",
+                            )
+                    with rv.ListItem():
+                        with rv.ListItemContent():
+                            sl.Button(
+                                "Reset",
                                 color="yellow",
                                 icon_name="mdi-refresh",
                                 classes=["black--text"],
