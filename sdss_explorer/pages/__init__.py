@@ -14,7 +14,7 @@ if sl.server.settings.main.mode == 'production':
     )  # force remove handler prior to any imports on production
 vx.cache.on()  # activate caching
 
-from .dataclass import State, AlertSystem  # noqa: E402
+from .dataclass import State, AlertSystem, Alert  # noqa: E402
 from .components.sidebar import Sidebar  # noqa: E402
 from .components.sidebar.glossary import HelpBlurb  # noqa: E402
 from .components.views import ObjectGrid, add_view  # noqa: E402
@@ -51,6 +51,12 @@ def Page():
             print(query_params)
             # unwrap query_params
             query_params = {k: v[0] for k, v in query_params.items()}
+
+            # set release/datatype and load according dataset
+            # underscored variables force read-only access; no reactive binding.
+            State._release.set(query_params.get('release', 'dr19'))
+            State._datatype.set(query_params.get('datatype', 'star'))
+            State.load_dataset(State.release, State.datatype)
 
             # add relevant plots
             try:

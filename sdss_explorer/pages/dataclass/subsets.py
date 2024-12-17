@@ -12,7 +12,7 @@ class Subset:
     """Subset dataclass."""
     name: str = 'A'
     expression: str = ''
-    dataset: str = 'aspcap'  # TODO: change to astra best when Andy makes it
+    dataset: str = 'best'
     flags: list[str] = dataclasses.field(
         default_factory=lambda: ['Purely non-flagged'])
     mapper: list[str] = dataclasses.field(default_factory=list)

@@ -87,7 +87,7 @@ def SubsetCard(key: str) -> ValueElement:
     name = SubsetState.subsets.value[key].name
     dataset = SubsetState.subsets.value[key].dataset
 
-    dfp = df[df[f"(dataset == '{dataset}')"]]
+    dfp = df[df[f"(pipeline == '{dataset}')"]]
 
     # progress bar logic
     if filter:

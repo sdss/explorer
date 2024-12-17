@@ -19,11 +19,13 @@ def gen_fuzzy_regex(input_string: str) -> str:
     :param input_string: the input string to generate the pattern from
     :return: the generated pattern as a string
     """
-    words = input_string.split()
-    words = filter(lambda x: len(x) > 0, words)
+    # escape special characters and filter the words for 0 length
+    words = [re.escape(word) for word in input_string.split() if word]
+    words.sort(key=len)  # sort for short matches first
+
+    # search all permuatations
     word_permutations = permutations(words)
     patterns = []
-
     for perm in word_permutations:
         pattern_part = ".*".join(f"(?i)({word})" for word in perm)
         patterns.append(f"({pattern_part})")

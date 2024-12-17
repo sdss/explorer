@@ -1,6 +1,8 @@
 import traitlets as t
 import os
+import json
 from urllib.parse import parse_qs
+from typing import Optional
 
 import solara as sl
 from solara.lab import Menu
@@ -9,9 +11,13 @@ import reacton as r
 import ipyvuetify as v
 import ipywidgets as widgets
 
+from sdss_explorer.pages.dataclass.state import State
+from sdss_explorer.pages.util.io import export_layout, export_subset
+
 from ...dataclass import SubsetState, GridState, Alert
 
 from .plots import show_plot, index_context
+from ..dialog import Dialog
 
 
 class GridLayout(v.VuetifyTemplate):
@@ -66,35 +72,41 @@ def ViewCard(type, i, **kwargs):
     return
 
 
-def add_view(type, **kwargs):
-    # TODO: better height logic
-    if len(GridState.grid_layout.value) == 0:
-        prev = {"x": 0, "y": -12, "h": 12, "w": 12, "moved": False}
-    else:
-        prev = GridState.grid_layout.value[-1]
-    if type == "stats":
-        height = 7
-    else:
-        height = 10
+def add_view(type, layout: Optional[dict] = None, **kwargs):
+    """Add a view to the grid. Layout can be parsed as a pre-made dict"""
+    if layout is None:
+        if len(GridState.grid_layout.value) == 0:
+            prev = {"x": 0, "y": -12, "h": 12, "w": 12, "moved": False}
+        else:
+            prev = GridState.grid_layout.value[-1]
+        # TODO: better height logic
+        if type == "stats":
+            height = 7
+        else:
+            height = 10
+        # horizontal or vertical offset depending on width
+        if 12 - prev["w"] - prev["x"] >= 6:
+            # beside
+            x = prev["x"] + 6
+            y = prev["y"]
+        else:
+            # the row below
+            x = 0
+            y = prev["y"] + prev["h"] + 4
+        layout = {
+            "x": x,
+            "y": y,
+            "w": 6,
+            "h": height,
+            "moved": False,
+        }
 
-    # horizontal or vertical offset depending on width
-    if 12 - prev["w"] - prev["x"] >= 6:
-        # beside
-        x = prev["x"] + 6
-        y = prev["y"]
-    else:
-        # the row below
-        x = 0
-        y = prev["y"] + prev["h"] + 4
+    # always update with current index
     i = GridState.index.value
-    GridState.grid_layout.value.append({
-        "x": x,
-        "y": y,
-        "w": 6,
-        "h": height,
-        "i": i,
-        "moved": False,
-    })
+    layout.update({'i': i})
+
+    # add and update state vars
+    GridState.grid_layout.value.append(layout)
     GridState.index.value += 1
 
     GridState.objects.value = GridState.objects.value + [
@@ -174,12 +186,78 @@ def ObjectGrid():
                         #),
                     ]
             rv.Spacer()
-            # sl.Button(
-            #    color="yellow",
-            #    icon_name="mdi-refresh",
-            #    classes=["black--text"],
-            #    on_click=reset_layout,
-            # )
+
+            # import/export app state UI
+            impmenu, set_impmenu = sl.use_state(False)
+            expmenu, set_expmenu = sl.use_state(False)
+            with Dialog(open=impmenu,
+                        ok=None,
+                        ok_enable=False,
+                        title='Import a layout JSON',
+                        cancel='close',
+                        max_width=960,
+                        on_cancel=lambda *_: set_impmenu(False)):
+
+                def parse_json():
+                    # first, readd all virtual columns
+                    # TODO
+
+                    # second, create/add all plots with states and their according layout
+
+                    return
+
+                sl.FileDrop(label='Drop file here', on_file=parse_json)
+
+            with Dialog(open=expmenu,
+                        ok=None,
+                        ok_enable=False,
+                        cancel='close',
+                        max_width=960,
+                        on_cancel=lambda *_: set_expmenu(False)):
+
+                def make_json() -> str:
+                    """Creates JSON for file export."""
+                    applayout = dict(subsets=dict())
+                    for name, subset in SubsetState.subsets.value.items():
+                        applayout['subsets'][name] = export_subset(subset)
+                    applayout['views'] = export_layout(GridState)
+
+                    return json.dumps(applayout)
+
+                # TODO: should we add UTC time to make it more unique?
+                with sl.FileDownload(make_json, f'layout-{State.uuid}.json'):
+                    sl.Button('click me',
+                              icon_name='mdi-cloud-download-outline',
+                              outlined=False)
+
+            btn2 = sl.Button(
+                'Layout settings',
+                outlined=False,
+                icon_name='mdi-database-settings',
+            )
+            with Menu(activator=btn2):
+                with rv.List(dense=True, ):
+                    with rv.ListItem():
+                        with rv.ListItemContent():
+                            sl.Button('Import',
+                                      outlined=False,
+                                      on_click=lambda *_: set_impmenu(True),
+                                      icon_name='mdi-application-import')
+                    with rv.ListItem():
+                        with rv.ListItemContent():
+                            sl.Button('Export',
+                                      outlined=False,
+                                      on_click=lambda *_: set_expmenu(True),
+                                      icon_name='mdi-application-export')
+                    with rv.ListItem():
+                        with rv.ListItemContent():
+                            sl.Button(
+                                'Reset',
+                                color="yellow",
+                                icon_name="mdi-refresh",
+                                classes=["black--text"],
+                                on_click=reset_layout,
+                            )
         GridDraggableToolbar(
             items=GridState.objects.value,
             grid_layout=GridState.grid_layout.value,

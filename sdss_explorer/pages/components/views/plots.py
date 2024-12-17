@@ -1,6 +1,7 @@
 """All interactive plot elements, complete with widget effects and action callback threads. Also contains plot settings PlotState class."""
 
 import operator
+import inspect
 import webbrowser as wb
 from functools import reduce
 from typing import cast
@@ -58,6 +59,11 @@ LIGHT_TEMPLATE = dict(layout=go.Layout(
         "r": 80
     },
 ))
+
+
+def get_user_attributes(cls):
+    boring = dir(type('dummy', (object, ), {}))
+    return [item for item in inspect.getmembers(cls) if item[0] not in boring]
 
 
 class PlotState:
@@ -206,6 +212,15 @@ class PlotState:
                 break
         return
 
+    #def __dict__(self) -> dict[str, str]:
+    #    """Dictionary magic function"""
+    #    repr = dict()
+    #    for i in inspect.getmembers(self):
+    #        if not i[0].startswith('_'):
+    #            if not inspect.ismethod(i[1]):
+    #                repr[i[0]] = str(i[1].value)  # always a reactive, index it
+    #    return repr
+
 
 def range_loop(start, offset):
     return (start + (offset % 360) + 360) % 360
@@ -237,6 +252,8 @@ def show_plot(plottype, del_func, **kwargs):
             dependencies=[])
         print("SHOWPLOT KEY", current_key)
         plotstate = PlotState(plottype, current_key, **kwargs)
+        #print(str(plotstate.__dict__()))
+        print('vars', vars(plotstate))
 
         def add_to_grid():
             """Adds a pointer/reference to PlotState instance in GridState for I/O."""

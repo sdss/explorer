@@ -93,6 +93,7 @@ def ColumnGlossary():
         dmf = dm[filter]
 
     def update_columns():
+        # always need to cut
         if query:
             # union of regex across name and desc
             alpha = filter_regex(dm, query=query, col='name')

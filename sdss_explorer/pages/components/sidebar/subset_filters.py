@@ -209,10 +209,17 @@ def ExprEditor(key: str, invert) -> ValueElement:
 @sl.component()
 def DatasetSelect(dataset, set_dataset) -> ValueElement:
     """Select box for pipeline."""
+    df = State.df.value
+
+    def fetch():
+        return df['pipeline'].unique()
+
+    pipelines = sl.use_memo(fetch, dependencies=[df])
+
     return SingleAutocomplete(
         label='Dataset',
         # TODO: fetch via valis or via df.row.unique()
-        values=['apogeenet', 'thecannon', 'aspcap'],
+        values=pipelines,
         value=dataset,
         on_value=set_dataset)
 
@@ -349,9 +356,9 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
         if dataset is not None:
             if cmp_filter is not None:
                 cmp_filter = operator_map[combotype](
-                    cmp_filter, df["dataset"].isin([dataset]))
+                    cmp_filter, df["pipeline"].isin([dataset]))
             else:
-                cmp_filter = df["dataset"].isin([dataset])
+                cmp_filter = df["pipeline"].isin([dataset])
 
         # invert if requested
         if invert.value:

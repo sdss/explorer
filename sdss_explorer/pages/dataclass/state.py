@@ -6,7 +6,6 @@ import json
 import pandas as pd
 import solara as sl
 import vaex as vx
-import numpy as np
 
 from .subsetstore import SubsetStore
 
@@ -72,11 +71,15 @@ class StateData:
         # global, read-only reactives, dont care
         self.mapping = sl.reactive(open_file('mappings.parquet'))
         self.datamodel = sl.reactive(load_datamodel())
-        self.dataset = sl.reactive(
-            'ipl3_partial')  # TODO: set to read from cookie on first load
+
+        # these force load
+        self._release = sl.reactive('dr19')
+        self._datatype = sl.reactive('star')
 
         # adaptively rerendered
-        self.df = sl.reactive(StateData.load_dataset(self.dataset.value))
+        self.df = sl.reactive(
+            StateData.load_dataset(self._release.value,
+                                   self._datatype.value.capitalize()))
         self.columns = sl.reactive(self.df.value.get_column_names() if self.df.
                                    value is not None else None)
 
@@ -89,9 +92,18 @@ class StateData:
         return str({
             'uuid': self.uuid,
             'df': hex(id(self.df.value)),
-            'dataset': self.dataset.value,
+            'release': self.release,
+            'datatype': self.datatype,
             'subset_backend': self.subset_store,
         })
+
+    @property
+    def release(self):
+        return str(self._release.value)
+
+    @property
+    def datatype(self):
+        return str(self._datatype.value.capitalize())
 
     @property
     def uuid(self):
@@ -102,18 +114,13 @@ class StateData:
         return self._subset_store.value
 
     @staticmethod
-    def load_dataset(dataset):
+    def load_dataset(release, datatype):
         # start with standard open operation
-        df = open_file(f'{dataset}.parquet')
+        df = open_file(f'{release}/explorerAll{datatype}-0.6.0.hdf5')
 
         if df is None:
             print('no dataset loaded')
             return
-
-        # force cast flags as a numpy array via my method bypassing pyarrow
-        flags = np.array(list(
-            df["sdss5_target_flags"].values.to_numpy())).astype("uint8")
-        df["sdss5_target_flags"] = flags
 
         # shuffle to ensure skyplot looks nice, constant seed for reproducibility
         df = df.shuffle(random_state=42)
@@ -129,11 +136,11 @@ class StateData:
         return df
 
     def initialize(self):
-        """Initializes with session-lockgrid_stateed parameters"""
+        """Initializes with session-locked parameters"""
         # memoize it all
         df = sl.use_memo(
-            lambda *args: StateData.load_dataset(self.dataset.value),
-            dependencies=[self.dataset.value])
+            lambda *args: StateData.load_dataset(self.release, self.datatype),
+            dependencies=[self._release.value, self._datatype.value])
         uuid = sl.use_memo(sl.get_session_id, [])
         subset_store = sl.use_memo(SubsetStore, [])
 
