@@ -1,24 +1,21 @@
-from solara.components.file_drop import FileInfo
-import traitlets as t
-import os
 import json
-from urllib.parse import parse_qs
+import os
+from datetime import datetime
 from typing import Optional
 
-import solara as sl
-from solara.lab import Menu
-import reacton.ipyvuetify as rv
-import reacton as r
 import ipyvuetify as v
 import ipywidgets as widgets
+import reacton as r
+import reacton.ipyvuetify as rv
+import solara as sl
+import traitlets as t
+from solara.components.file_drop import FileInfo
+from solara.lab import Menu
 
-from sdss_explorer.pages.dataclass.state import State
-from sdss_explorer.pages.util.io import export_layout, export_subset
-
-from ...dataclass import SubsetState, GridState, Alert, Subset
-
-from .plots import show_plot, index_context
+from ...dataclass import Alert, GridState, State, Subset, SubsetState, VCData
+from ...util.io import export_layout, export_subset, export_vcdata
 from ..dialog import Dialog
+from .plots import index_context, show_plot
 
 
 class GridLayout(v.VuetifyTemplate):
@@ -118,6 +115,9 @@ def add_view(plottype, layout: Optional[dict] = None, **kwargs):
 @sl.component()
 def ObjectGrid():
     df = State.df.value
+    impmenu, set_impmenu = sl.use_state(False)
+    lockout, set_lockout = sl.use_state(False)
+    expmenu, set_expmenu = sl.use_state(False)
 
     def reset_layout():
         GridState.index.value = 0
@@ -190,8 +190,6 @@ def ObjectGrid():
             rv.Spacer()
 
             # import/export app state UI
-            impmenu, set_impmenu = sl.use_state(False)
-            expmenu, set_expmenu = sl.use_state(False)
             with Dialog(
                     open=impmenu,
                     ok=None,
@@ -203,22 +201,27 @@ def ObjectGrid():
             ):
 
                 def parse_json(fileobj: FileInfo) -> None:
-                    """Converts JSON to app state and updates accordingly."""
+                    """Converts JSON to app state and updates accordingly. Function has to be here to serve state updates properly."""
                     # convert from json to dicts
+                    set_lockout(True)
                     try:
                         data = json.load(fileobj['file_obj'])
                     except Exception as e:
                         Alert.update(f"JSON load of {fileobj['name']} failed!",
                                      color="error")
                         print(e)
+                        set_lockout(False)
+                        set_impmenu(False)
                         return
 
-                    # wipe current layout
+                    # wipe current layout & delete all virtual columns
                     reset_layout()
+                    for name in VCData.columns.value.keys():
+                        VCData.delete_column(name)
 
-                    # first, readd all virtual columns
-
-                    # TODO:
+                    # now, readd all virtual columns
+                    for name, expr in data['virtual_columns'].items():
+                        VCData.add_column(name, expr)
 
                     # second, readd all subsets
                     subsets = data["subsets"]
@@ -235,9 +238,21 @@ def ObjectGrid():
                     for layout, state in zip(layouts, states):
                         add_view(layout=layout, **state)
 
+                    Alert.update('Layout imported successfully!',
+                                 color='success')
+
+                    # unlock
+                    set_lockout(False)
+                    set_impmenu(False)
+
                     return
 
                 sl.FileDrop(label="Drop file here", on_file=parse_json)
+
+                # lockout via indeterminate loading circle and overlay (ui is uninteractable)
+                if lockout:
+                    with rv.Overlay():
+                        rv.ProgressCircular(indeterminate=True)
 
             # TODO: remove this dialog, just make the export dump to file and pass to user
             with Dialog(
@@ -256,11 +271,15 @@ def ObjectGrid():
                     for name, subset in SubsetState.subsets.value.items():
                         applayout["subsets"][name] = export_subset(subset)
                     applayout["views"] = export_layout(GridState)
+                    applayout['virtual_columns'] = export_vcdata(VCData)
 
                     return json.dumps(applayout)
 
-                # TODO: should we add UTC time to make it more unique?
-                with sl.FileDownload(make_json, f"layout-{State.uuid}.json"):
+                # serve to USER with UUID + UTC time
+                with sl.FileDownload(
+                        make_json,
+                        f"zoraLayout-{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}-{State.uuid}.json"
+                ):
                     sl.Button(
                         "click me",
                         icon_name="mdi-cloud-download-outline",

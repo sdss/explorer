@@ -7,30 +7,18 @@ from dataclasses import asdict
 
 from ..dataclass.gridstate import GridData
 from ..dataclass import Subset
+from ..dataclass.vcdata import VCList
 
-__all__ = [
-    'import_grid_layout', 'import_subset', 'export_subset', 'export_layout'
-]
-
-
-def import_subset(subset_json: str) -> dict:
-    """Convert imported subset JSON to Subset keyword arguments"""
-    # convert json to dict for kwargs
-    return json.loads(subset_json)
+__all__ = ['export_subset', 'export_layout', 'export_vcdata']
 
 
-def import_grid_layout(layout_json: str) -> GridData:
-    """Convert imported layout JSON to GridData"""
-    pass
-
-
-def export_subset(subset: Subset) -> str:
-    """Exports a given subset to JSON str."""
+def export_subset(subset: Subset) -> dict[str, str]:
+    """Exports a given subset to JSON dict."""
     return asdict(subset)
 
 
 def export_layout(gridstate: GridData) -> dict[str, Any]:
-    """Exports current grid layout to JSON str."""
+    """Exports current grid layout to JSON dict."""
     # fetch layout and states
     layouts = deepcopy(gridstate.grid_layout.value)
     plotstates = gridstate.states.value
@@ -51,3 +39,8 @@ def export_layout(gridstate: GridData) -> dict[str, Any]:
         states.append(newstate)
 
     return {'layout': layouts, 'states': states}
+
+
+def export_vcdata(vcdata: VCList) -> dict[str, str]:
+    """Export the active Virtual Columns to a JSON dict."""
+    return dict(vcdata.columns.value)

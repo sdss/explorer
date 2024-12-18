@@ -20,7 +20,7 @@ def VirtualColumnCard(name: str, expression: str):
                 text=True,
                 icon=True,
                 color="red",
-                on_click=lambda: VCData.delete_column(name, expression),
+                on_click=lambda: VCData.delete_column(name),
             )
     return main
 

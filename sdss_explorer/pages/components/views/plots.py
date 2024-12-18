@@ -12,7 +12,7 @@ import reacton.ipyvuetify as rv
 import solara as sl
 import vaex as vx
 import xarray
-from solara.lab import Menu, use_dark_effective, use_task, Task
+from solara.lab import Menu, use_dark_effective, use_task
 
 import plotly.express as px
 import plotly.graph_objects as go
@@ -29,36 +29,38 @@ index_context = sl.create_context(0)
 
 # TEMPLATES AND STATE
 # NOTE: all use standard vuetify grey colors
-DARK_TEMPLATE = dict(layout=go.Layout(
-    font=dict(color="white", size=16),
-    showlegend=False,
-    paper_bgcolor="#424242",  # darken-3
-    autosize=True,
-    plot_bgcolor="#212121",  # darken-4
-    xaxis_gridcolor="#616161",  # darken-2
-    yaxis_gridcolor="#616161",  # darken-2
-    margin={
-        "t": 30,
-        "b": 80,
-        "l": 80,
-        "r": 80
-    },
-))
-LIGHT_TEMPLATE = dict(layout=go.Layout(
-    font=dict(color="black", size=16),
-    showlegend=False,
-    paper_bgcolor="#EEEEEE",  # lighten-3
-    autosize=True,
-    plot_bgcolor="#FAFAFA",  # lighten-5
-    xaxis_gridcolor="#BDBDBD",  # lighten-1
-    yaxis_gridcolor="#BDBDBD",  # lighten-1
-    margin={
-        "t": 30,
-        "b": 80,
-        "l": 80,
-        "r": 80
-    },
-))
+DARK_TEMPLATE = go.layout.Template(
+    dict(layout=go.Layout(
+        font=dict(color="white", size=16),
+        showlegend=False,
+        paper_bgcolor="#424242",  # darken-3
+        autosize=True,
+        plot_bgcolor="#212121",  # darken-4
+        xaxis_gridcolor="#616161",  # darken-2
+        yaxis_gridcolor="#616161",  # darken-2
+        margin={
+            "t": 30,
+            "b": 80,
+            "l": 80,
+            "r": 80
+        },
+    )))
+LIGHT_TEMPLATE = go.layout.Template(
+    dict(layout=go.Layout(
+        font=dict(color="black", size=16),
+        showlegend=False,
+        paper_bgcolor="#EEEEEE",  # lighten-3
+        autosize=True,
+        plot_bgcolor="#FAFAFA",  # lighten-5
+        xaxis_gridcolor="#BDBDBD",  # lighten-1
+        yaxis_gridcolor="#BDBDBD",  # lighten-1
+        margin={
+            "t": 30,
+            "b": 80,
+            "l": 80,
+            "r": 80
+        },
+    )))
 
 
 def get_user_attributes(cls):
