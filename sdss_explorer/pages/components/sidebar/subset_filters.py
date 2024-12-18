@@ -245,17 +245,23 @@ def FlagSelect(key: str, invert) -> ValueElement:
             'Vmag < 13': 'v_jkc_mag<=13'
         }
         # get the flag lookup
-        if len(flags) > 0:
+        if flags:
             for flag in flags:
+                # Skip iteration if the subset's dataset is 'best' and the flag is 'Purely non-flagged'
+                if (subset.dataset == 'best') and (flag
+                                                   == 'Purely non-flagged'):
+                    continue
                 filters.append(flagList[flag])
 
-            # string join
-            print('FLAG FILTERS', filters)
-            concat_filter = ")&(".join(filters)
-            concat_filter = "((" + concat_filter + "))"
-            concat_filter = df[concat_filter]
-            if invert.value:
-                concat_filter = ~concat_filter
+            # Determine the final concatenated filter
+            if filters:
+                # Join the filters with ")&(" and wrap them in outer parentheses
+                concat_filter = f"(({'&)('.join(filters)}))"
+                concat_filter = df[concat_filter]
+                if invert.value:
+                    concat_filter = ~concat_filter
+            else:
+                concat_filter = None
         else:
             concat_filter = None
 
