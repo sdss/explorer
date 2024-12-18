@@ -285,33 +285,40 @@ def ObjectGrid():
                 with rv.List(dense=True, ):
                     with rv.ListItem():
                         with rv.ListItemContent():
-                            sl.Button(
-                                "Import",
-                                outlined=False,
-                                on_click=lambda *_: set_impmenu(True),
-                                icon_name="mdi-application-import",
-                            )
+                            with sl.Tooltip(
+                                    'Import a previously exported layout.'):
+                                sl.Button(
+                                    "Import",
+                                    outlined=False,
+                                    on_click=lambda *_: set_impmenu(True),
+                                    icon_name="mdi-application-import",
+                                )
                     with rv.ListItem():
                         with rv.ListItemContent():
                             with sl.FileDownload(
                                     export_applayout,
                                     f"zoraLayout-{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}-{State.uuid}.json",
                             ):
-                                sl.Button(
-                                    "Export",
-                                    outlined=False,
-                                    icon_name="mdi-application-export",
-                                    style={'width': '100%'},
-                                )
+                                with sl.Tooltip(
+                                        'Export the current layout to a file.'
+                                ):
+                                    sl.Button(
+                                        "Export",
+                                        outlined=False,
+                                        icon_name="mdi-application-export",
+                                        style={'width': '100%'},
+                                    )
                     with rv.ListItem():
                         with rv.ListItemContent():
-                            sl.Button(
-                                "Reset",
-                                color="yellow",
-                                icon_name="mdi-refresh",
-                                classes=["black--text"],
-                                on_click=lambda *_: set_areyousure(True),
-                            )
+                            with sl.Tooltip(
+                                    'Reset and delete all open views.'):
+                                sl.Button(
+                                    "Reset",
+                                    color="yellow",
+                                    icon_name="mdi-refresh",
+                                    classes=["black--text"],
+                                    on_click=lambda *_: set_areyousure(True),
+                                )
         GridDraggableToolbar(
             items=GridState.objects.value,
             grid_layout=GridState.grid_layout.value,
