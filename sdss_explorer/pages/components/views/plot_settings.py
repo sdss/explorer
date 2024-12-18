@@ -74,6 +74,7 @@ def SkymapMenu(plotstate):
                     label="Color log",
                     values=plotstate.Lookup["binscales"],
                     value=plotstate.colorlog,
+                    allow_none=True,
                 )
         with Card(margin=0):
             with Columns([1, 1]):
@@ -145,6 +146,7 @@ def ScatterMenu(plotstate):
                             label="Color log",
                             values=plotstate.Lookup["binscales"],
                             value=plotstate.colorlog,
+                            allow_none=True,
                         )
             with Columns([1, 1]):
                 with sl.Column():
@@ -287,6 +289,7 @@ def HeatmapMenu(plotstate):
                 label="Binning scale",
                 values=plotstate.Lookup["binscales"],
                 value=plotstate.binscale,
+                allow_none=True,
             )
 
 
@@ -416,4 +419,5 @@ def DeltaHeatmapMenu(plotstate):
                 label="Binning scale",
                 values=plotstate.Lookup["binscales"],
                 value=plotstate.binscale,
+                allow_none=True,
             )
