@@ -122,6 +122,7 @@ def ObjectGrid():
         GridState.index.value = 0
         GridState.grid_layout.value = []
         GridState.objects.value = []
+        GridState.index.value = 0
 
     def set_grid_layout(data):
         GridState.grid_layout.value = data
@@ -265,14 +266,18 @@ def ObjectGrid():
                         rv.ProgressCircular(indeterminate=True)
 
             # TODO: remove this dialog, just make the export dump to file and pass to user
+            def close_areyousure(*ignore_args):
+                reset_layout()
+                set_areyousure(False)
+
             Dialog(
                 open=areyousure,
                 title="Are you sure you want to reset the layout?",
                 max_width=480,
                 ok='Yes',
                 cancel="No",
-                close_on_ok=True,
-                on_ok=lambda *_: reset_layout(),
+                close_on_ok=False,
+                on_ok=close_areyousure,
                 on_cancel=lambda *_: set_areyousure(False),
             )
 
