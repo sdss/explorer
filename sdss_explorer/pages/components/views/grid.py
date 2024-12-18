@@ -114,10 +114,9 @@ def add_view(plottype, layout: Optional[dict] = None, **kwargs):
 
 @sl.component()
 def ObjectGrid():
-    df = State.df.value
     impmenu, set_impmenu = sl.use_state(False)
     lockout, set_lockout = sl.use_state(False)
-    expmenu, set_expmenu = sl.use_state(False)
+    areyousure, set_areyousure = sl.use_state(False)
 
     def reset_layout():
         GridState.index.value = 0
@@ -158,6 +157,16 @@ def ObjectGrid():
             SubsetState.subsets.value,
         ],
     )
+
+    def export_applayout() -> str:
+        """Creates JSON for file export."""
+        applayout = dict(subsets=dict())
+        for name, subset in SubsetState.subsets.value.items():
+            applayout["subsets"][name] = export_subset(subset)
+        applayout["views"] = export_layout(GridState)
+        applayout['virtual_columns'] = export_vcdata(VCData)
+
+        return json.dumps(applayout)
 
     with sl.Column(style={"width": "100%"}) as main:
         with sl.Row():
@@ -200,8 +209,9 @@ def ObjectGrid():
                     on_cancel=lambda *_: set_impmenu(False),
             ):
 
-                def parse_json(fileobj: FileInfo) -> None:
-                    """Converts JSON to app state and updates accordingly. Function has to be here to serve state updates properly."""
+                def import_applayout(fileobj: FileInfo) -> None:
+                    """Converts JSON to app state and updates accordingly. 
+                    Function has to be here to serve state updates properly."""
                     # convert from json to dicts
                     set_lockout(True)
                     try:
@@ -247,7 +257,7 @@ def ObjectGrid():
 
                     return
 
-                sl.FileDrop(label="Drop file here", on_file=parse_json)
+                sl.FileDrop(label="Drop file here", on_file=import_applayout)
 
                 # lockout via indeterminate loading circle and overlay (ui is uninteractable)
                 if lockout:
@@ -255,36 +265,16 @@ def ObjectGrid():
                         rv.ProgressCircular(indeterminate=True)
 
             # TODO: remove this dialog, just make the export dump to file and pass to user
-            with Dialog(
-                    open=expmenu,
-                    ok=None,
-                    title="export",
-                    ok_enable=False,
-                    cancel="close",
-                    max_width=960,
-                    on_cancel=lambda *_: set_expmenu(False),
-            ):
-
-                def make_json() -> str:
-                    """Creates JSON for file export."""
-                    applayout = dict(subsets=dict())
-                    for name, subset in SubsetState.subsets.value.items():
-                        applayout["subsets"][name] = export_subset(subset)
-                    applayout["views"] = export_layout(GridState)
-                    applayout['virtual_columns'] = export_vcdata(VCData)
-
-                    return json.dumps(applayout)
-
-                # serve to USER with UUID + UTC time
-                with sl.FileDownload(
-                        make_json,
-                        f"zoraLayout-{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}-{State.uuid}.json"
-                ):
-                    sl.Button(
-                        "click me",
-                        icon_name="mdi-cloud-download-outline",
-                        outlined=False,
-                    )
+            Dialog(
+                open=areyousure,
+                title="Are you sure you want to reset the layout?",
+                max_width=480,
+                ok='Yes',
+                cancel="No",
+                close_on_ok=True,
+                on_ok=lambda *_: reset_layout(),
+                on_cancel=lambda *_: set_areyousure(False),
+            )
 
             btn2 = sl.Button(
                 "Layout settings",
@@ -303,12 +293,16 @@ def ObjectGrid():
                             )
                     with rv.ListItem():
                         with rv.ListItemContent():
-                            sl.Button(
-                                "Export",
-                                outlined=False,
-                                on_click=lambda *_: set_expmenu(True),
-                                icon_name="mdi-application-export",
-                            )
+                            with sl.FileDownload(
+                                    export_applayout,
+                                    f"zoraLayout-{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}-{State.uuid}.json",
+                            ):
+                                sl.Button(
+                                    "Export",
+                                    outlined=False,
+                                    icon_name="mdi-application-export",
+                                    style={'width': '100%'},
+                                )
                     with rv.ListItem():
                         with rv.ListItemContent():
                             sl.Button(
@@ -316,7 +310,7 @@ def ObjectGrid():
                                 color="yellow",
                                 icon_name="mdi-refresh",
                                 classes=["black--text"],
-                                on_click=reset_layout,
+                                on_click=lambda *_: set_areyousure(True),
                             )
         GridDraggableToolbar(
             items=GridState.objects.value,
