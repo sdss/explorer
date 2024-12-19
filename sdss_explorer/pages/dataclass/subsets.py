@@ -4,6 +4,7 @@ import dataclasses
 import solara as sl
 
 from .alert import Alert
+from .state import State
 
 
 # frozen means it yells at us if we do assignment instead of replace
@@ -12,7 +13,7 @@ class Subset:
     """Subset dataclass."""
     name: str = 'A'
     expression: str = ''
-    dataset: str = 'best'
+    dataset: str = 'best' if State._datatype.value == 'star' else 'apogeenet'
     flags: list[str] = dataclasses.field(
         default_factory=lambda: ['Purely non-flagged'])
     mapper: list[str] = dataclasses.field(default_factory=list)
@@ -89,7 +90,7 @@ class SubsetData:
         else:
             subsets = self.subsets.value.copy()
             subset = self.subsets.value[key]
-            # TODO: name logic
+            # TODO: better name logic
             name = 'copy of ' + subset.name
             newkey = 's' + str(self.index.value)
             self.index.set(self.index.value + 1)

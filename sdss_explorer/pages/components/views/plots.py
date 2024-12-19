@@ -63,11 +63,6 @@ LIGHT_TEMPLATE = go.layout.Template(
     )))
 
 
-def get_user_attributes(cls):
-    boring = dir(type('dummy', (object, ), {}))
-    return [item for item in inspect.getmembers(cls) if item[0] not in boring]
-
-
 class PlotState:
     """
     Combination of reactive states which instantiate a specific plot's settings/properties. 
@@ -81,17 +76,17 @@ class PlotState:
         self.subset = sl.use_reactive(current_key)
 
         if 'stats' in plottype:
-            self.columns = sl.use_reactive(['g_mag', 'teff'])
+            self.columns = sl.use_reactive(['g_mag', 'bp_mag'])
         else:
             # common plot settings
-            self.x = sl.use_reactive(kwargs.get('x', "teff"))
+            self.x = sl.use_reactive(kwargs.get('x', "snr"))
             self.flipx = sl.use_reactive(kwargs.get('flipx', ''))
             self.flipy = sl.use_reactive(kwargs.get('flipy', ''))
 
             # moderately unique plot parameters/settings
             if plottype != "histogram":
-                self.y = sl.use_reactive(kwargs.get('y', 'logg'))
-                self.color = sl.use_reactive(kwargs.get('color', 'fe_h'))
+                self.y = sl.use_reactive(kwargs.get('y', 'g_mag'))
+                self.color = sl.use_reactive(kwargs.get('color', 'g_mag'))
                 self.colorscale = sl.use_reactive(
                     kwargs.get('colorscale', 'cividis'))
             if plottype != "aggregated" and plottype != "skyplot":
