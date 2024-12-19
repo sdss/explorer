@@ -1,7 +1,6 @@
 """All interactive plot elements, complete with widget effects and action callback threads. Also contains plot settings PlotState class."""
 
 import operator
-import inspect
 import webbrowser as wb
 from functools import reduce
 from typing import cast
@@ -375,16 +374,6 @@ def ScatterPlot(plotstate):
                 ),
             ),
         )
-        #except Exception as e:
-        #    print('init figure err', e)
-        #    figure = go.Figure(
-        #        go.Layout(xaxis_title=plotstate.x.value,
-        #                  yaxis_title=plotstate.y.value,
-        #                  template=DARK_TEMPLATE if dark else LIGHT_TEMPLATE,
-        #                  coloraxis=dict(
-        #                      cmin=dff.min(plotstate.color.value)[()],
-        #                      cmax=dff.max(plotstate.color.value)[()],
-        #                  )))
         return figure
 
     # only instantiate the figure once
