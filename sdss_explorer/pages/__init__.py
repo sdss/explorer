@@ -1,7 +1,6 @@
 """Main page component. Contains cache settings, memoized context intializers, AlertSystem instance, and general layout."""
 
 import solara as sl
-from solara.hooks.misc import use_unique_key
 from urllib.parse import parse_qs
 import vaex as vx
 from solara.lab import ThemeToggle
@@ -14,7 +13,7 @@ if sl.server.settings.main.mode == 'production':
     )  # force remove handler prior to any imports on production
 vx.cache.on()  # activate caching
 
-from .dataclass import State, AlertSystem, Alert  # noqa: E402
+from .dataclass import State, AlertSystem, Alert, SubsetState  # noqa: E402
 from .components.sidebar import Sidebar  # noqa: E402
 from .components.sidebar.glossary import HelpBlurb  # noqa: E402
 from .components.views import ObjectGrid, add_view  # noqa: E402
@@ -48,7 +47,6 @@ def Page():
         """
         query_params = parse_qs(router.search, keep_blank_values=True)
         if len(query_params) > 0:
-            print(query_params)
             # unwrap query_params
             query_params = {k: v[0] for k, v in query_params.items()}
 
@@ -65,23 +63,31 @@ def Page():
             State._datatype.set(query_params.get('datatype', 'star'))
             State.load_dataset(State.release, State.datatype)
 
+            # update the first (s0) subset based on query params
+            # NOTE: this may be breaking if we save user sessions to cookies/server and try to restore
+            subset_keys = ['dataset', 'expression']
+            list_subset_keys = ['mapper', 'carton', 'flags']
+
+            # dict comprehension to get relevant kwargs and convert to list if necessary
+            SubsetState.update_subset(
+                's0', **{
+                    k: v.split(',') if k in list_subset_keys else v
+                    for k, v in query_params.items()
+                    if k in subset_keys + list_subset_keys
+                })
+
             # add relevant plots
             try:
                 plottype = query_params.pop('plottype')
                 add_view(plottype, **query_params)
-            except Exception as e:
-                print('gridstate initialize err:', e)
-                Alert.update(
-                    'Invalid query parameters specified. Did not initialize.',
-                    color='warning')
+            except Exception:
+                pass
 
         return
 
     sl.use_memo(initialize, [])
 
     # PAGE TITLE
-    # TODO: Will this properly
-    # TODO: update the title with release from query parameter
     sl.Title("SDSS Parameter Explorer")
     with sl.AppBar():
         # main title object
@@ -94,7 +100,6 @@ def Page():
         if DEV:
             ThemeToggle()
 
-    print(type(df))
     if df is not None:
         # SIDEBAR
         Sidebar()
