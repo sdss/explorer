@@ -92,17 +92,20 @@ class PlotState:
                 self.logx = sl.use_reactive(kwargs.get('logx', ''))
                 self.logy = sl.use_reactive(kwargs.get('logy', ''))
             if plottype in ["scatter", "skyplot"]:
-                self.colorlog = sl.use_reactive(cast(str, None))
+                self.colorlog = sl.use_reactive(
+                    kwargs.get('colorlog', cast(str, None)))
 
             # statistics settings
             if plottype == "heatmap" or plottype == "histogram" or "delta" in plottype:
                 self.nbins = sl.use_reactive(200)
                 if plottype == "heatmap" or plottype == "delta2d":
-                    self.bintype = sl.use_reactive("mean")
-                    self.binscale = sl.use_reactive(None)
+                    self.bintype = sl.use_reactive(
+                        kwargs.get('bintype', "mean"))
+                    self.binscale = sl.use_reactive(
+                        kwargs.get('binscale', None))
                 else:
-                    self.bintype = sl.use_reactive("count")
-                    self.norm = sl.use_reactive(cast(str, None))
+                    self.bintype = sl.use_reactive(
+                        kwargs.get('bintype', "count"))
 
             # skyplot settings
             if plottype == "skyplot":
@@ -728,7 +731,6 @@ def HistogramPlot(plotstate):
             nbins=nbins,
             log_x=logx,
             log_y=plotstate.logy.value,
-            histnorm=plotstate.norm.value,
             labels={
                 "x": xcol,
                 "y": f"{plotstate.bintype.value}({xcol})",
