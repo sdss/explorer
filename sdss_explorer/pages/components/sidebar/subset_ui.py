@@ -86,6 +86,7 @@ def SubsetCard(key: str) -> ValueElement:
     filter, _set_filter = use_subset(id(df), key, "subset-summary")
     name = SubsetState.subsets.value[key].name
     dataset = SubsetState.subsets.value[key].dataset
+    print(dataset)
 
     dfp = df[df[f"(pipeline == '{dataset}')"]]
 
@@ -98,7 +99,8 @@ def SubsetCard(key: str) -> ValueElement:
         # not filtered at all
         filtered = False
         dff = df
-    progress = len(dff) / len(dfp) * 100
+    denom = max(len(dfp), 1)
+    progress = len(dff) / denom * 100
     summary = f"{len(dff):,}"
     with rv.ExpansionPanel() as main:
         with rv.ExpansionPanelHeader():

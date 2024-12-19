@@ -27,9 +27,6 @@ DEV = getenv('EXPLORER_DEV', False)
 def Page():
     df = State.df.value
 
-    # start app state with memoized objects
-    State.initialize()
-
     # check query params
     router = sl.use_router()
 
@@ -57,11 +54,12 @@ def Page():
                 for k, v in query_params.items()
             }
 
-            # set release/datatype and load according dataset
-            # underscored variables force read-only access; no reactive binding.
-            State._release.set(query_params.get('release', 'dr19'))
-            State._datatype.set(query_params.get('datatype', 'star'))
-            State.load_dataset(State.release, State.datatype)
+            # bugfix: forcefully set pipeline when not set properly with visit spec
+            if (query_params.get('datatype', 'star')
+                    == 'visit') & ('dataset' not in query_params.keys()):
+                query_params.update({'dataset': 'apogeenet'})
+
+            #State.load_dataset(State.release, State.datatype)
 
             # update the first (s0) subset based on query params
             # NOTE: this may be breaking if we save user sessions to cookies/server and try to restore
@@ -76,6 +74,11 @@ def Page():
                     if k in subset_keys + list_subset_keys
                 })
 
+            # set release/datatype and load according dataset via memo
+            # underscored variables force read-only access; no reactive binding.
+            State._release.set(query_params.get('release', 'dr19'))
+            State._datatype.set(query_params.get('datatype', 'star'))
+
             # add relevant plots
             try:
                 plottype = query_params.pop('plottype')
@@ -86,6 +89,9 @@ def Page():
         return
 
     sl.use_memo(initialize, [])
+
+    # start app state with memoized objects
+    State.initialize()
 
     # PAGE TITLE
     sl.Title("SDSS Parameter Explorer")
