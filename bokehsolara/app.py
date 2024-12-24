@@ -444,7 +444,8 @@ def Scatter():
                           })
 
         # create hovertool, bound to figure object
-        TOOLTIPS = [(plotstate.x.value, '$x'), (plotstate.y.value, '$y'),
+        TOOLTIPS = [(plotstate.x.value, '$snap_x'),
+                    (plotstate.y.value, '$snap_y'),
                     (plotstate.color.value, '@z'), ('sdss_id', '@sdss_id')]
         hover = HoverTool(tooltips=TOOLTIPS, renderers=[glyph], visible=False)
         p.add_tools(hover)
