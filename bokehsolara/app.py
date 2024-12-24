@@ -1,6 +1,6 @@
 import datashader as ds
 import os
-from typing import Callable, Optional
+from typing import Callable, Optional, cast
 
 import ipyvuetify as v
 import ipywidgets as widgets
@@ -48,6 +48,7 @@ class plotstate:
     color = sl.reactive('FeH')
     colormap = sl.reactive('Inferno256')
     nbins = sl.reactive(101)
+    last_hovered_id = sl.reactive(cast(int, None))
 
 
 @sl.component_vue('bokeh_loaded.vue')
@@ -293,8 +294,6 @@ def Heatmap():
 
     source.selected.on_change('indices', on_select)
 
-    # TODO: hovertool callback
-
     def add_effects(pfig):
 
         def change_heatmap_data():
@@ -373,14 +372,16 @@ def Scatter():
         menu = BokehMenu()
         menu.styles = {"color": "black", "font-size": "16px"}
 
-        # generate source object
+        # generate source objects
         source = ColumnDataSource(
             data={
                 'x': df[plotstate.x.value].values,
                 'y': df[plotstate.y.value].values,
                 'z': z,
-                'sdss_id': df['vx'].values,  # temp
+                'sdss_id': df['L'].values,  # temp
             })
+        hover_source = ColumnDataSource(
+            data={'ind': [1, None]})  # 2 length arr to not break bokeh
 
         # generate main figure
         p = figure(
@@ -398,13 +399,15 @@ def Scatter():
 
         # setup menu items
         items = [
-            ActionItem(
-                label='Go to Target Page',  # this isnt visible, how fix?
-                action=CustomJS(
-                    code=
-                    """window.open('https://www.google.com', '_blank').focus()"""
-                )  # TODO: bound to reactive of last hovered points
-            ),
+            ActionItem(label='Go to Target Page',
+                       action=CustomJS(args=dict(source=source,
+                                                 hover_source=hover_source),
+                                       code="""
+                    if (hover_source.data.ind[1] !== null) {
+                        console.log('loading page');
+                        window.open(`https://data.sdss.org/zora/target/${source.data.sdss_id[hover_source.data.ind[1]]}`, '_blank').focus();
+                    }
+                    """)),
             ActionItem(label='Propagate selection to subset'),  # TODO
             ActionItem(label='Reset plot',
                        action=CustomJS(args=dict(p=p),
@@ -412,7 +415,19 @@ def Scatter():
         ]
         menu.update(items=items)
 
+        # add hover callback
+        cb = CustomJS(args=dict(source=source, hover_source=hover_source),
+                      code="""
+                      if (source.inspected.indices.length>0){
+                          console.log('cb triggered');
+                          hover_source.data.ind[1] = source.inspected.indices[0];
+                          }
+                      """)
+        p.js_on_event('mousemove', cb)
+
         # setup colormap
+        # TODO: use factor_cmap for catagorical data
+        # TODO: use log_cmap when log is requested
         mapper = LinearColorMapper(
             palette=plotstate.colormap.value,
             low=z.min(),
@@ -453,8 +468,6 @@ def Scatter():
 
     source.selected.on_change('indices', on_select)
 
-    # TODO: hovertool callback
-
     def add_effects(pfig):
 
         def change_heatmap_data():
@@ -473,10 +486,6 @@ def Scatter():
                 mapper.low = z.min().item()
                 mapper.high = z.max().item()
 
-                if False:
-                    newfig = create_figure()  # recreate figure
-                    fig_element.update_from_model(
-                        newfig)  # replace the main model
                 return
 
         def change_xy_data():
