@@ -71,7 +71,6 @@ def FigureBokeh(
     fig,
     dependencies=None,
 ):
-    fig_element = BokehModel.element(model=fig)
     loaded = sl.use_reactive(False)
     output_notebook(hide_banner=True)
     BokehLoaded(loaded=loaded.value, on_loaded=loaded.set)
