@@ -24,28 +24,25 @@ from solara.lab import Menu
 
 df = vx.example()[:100_000]
 
-TOOLS = 'pan,wheel_zoom,box_zoom,reset,save'
-
-colormaps = [x for x in colormaps if '256' in x]
-
 
 def gen_tooltips(state):
     """Helper function to generate tooltips"""
     tooltips = []
-    tooltips.append((state.x.value, '$x'))
-    tooltips.append((state.y.value, '$y'))
-    if plotstate.type.value == 'heatmap':
-        tooltips.append((state.bintype.value, '@z'))
+    tooltips.append((state.x.value, "$x"))
+    tooltips.append((state.y.value, "$y"))
+    if plotstate.type.value == "heatmap":
+        tooltips.append((state.bintype.value, "@z"))
 
     return tooltips
 
 
 class plotstate:
-    type = sl.reactive('heatmap')
-    x = sl.reactive('x')
-    y = sl.reactive('y')
-    bintype = sl.reactive('mean')
-    color = sl.reactive('FeH')
-    colormap = sl.reactive('Inferno256')
+    type = sl.reactive("heatmap")
+    x = sl.reactive("x")
+    y = sl.reactive("y")
+    bintype = sl.reactive("mean")
+    color = sl.reactive("FeH")
+    colormap = sl.reactive("Inferno256")
     nbins = sl.reactive(101)
+    menu_item_id = sl.reactive(cast(str, None))
     last_hovered_id = sl.reactive(cast(int, None))

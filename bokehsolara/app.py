@@ -22,8 +22,8 @@ from jupyter_bokeh import BokehModel
 from solara.components.file_drop import FileInfo
 from solara.lab import Menu
 
-from .grid import ObjectGrid
-from .state import df
+from objectgrid import ObjectGrid
+from state import df
 
 
 @sl.component
@@ -31,4 +31,4 @@ def Page():
     if df is not None:
         ObjectGrid()
     else:
-        sl.Info('help')
+        sl.Info("help")

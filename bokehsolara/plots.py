@@ -22,8 +22,12 @@ from jupyter_bokeh import BokehModel
 from solara.components.file_drop import FileInfo
 from solara.lab import Menu
 
-from .state import plotstate, df
-from .bokeh import FigureBokeh
+from state import plotstate, df
+from figurebokeh import FigureBokeh
+
+TOOLS = "pan,wheel_zoom,box_zoom,reset,save"
+
+colormaps = [x for x in colormaps if "256" in x]
 
 
 def get_data():
@@ -133,7 +137,7 @@ def get_data():
         )
 
     # change 0 to nan for coloring purposes
-    if bintype == 'count':
+    if bintype == "count":
         z = z.where(np.abs(z) != 0, np.nan)
 
     x_edges = z.coords[plotstate.x.value].values
@@ -152,11 +156,11 @@ def Heatmap():
         # create menu
         menu = BokehMenu(items=[
             ActionItem(
-                label='test',  # this isnt visible, how fix?
+                label="test",  # this isnt visible, how fix?
                 action=CustomJS(
                     code=
                     """window.open('https://www.google.com', '_blank').focus()"""
-                )  # bound to reactive of last hovered points
+                ),  # bound to reactive of last hovered points
             ),
         ])
         menu.styles = {"color": "black", "font-size": "16px"}
@@ -164,9 +168,9 @@ def Heatmap():
         # generate source object
         source = ColumnDataSource(
             data={
-                'x': np.repeat(x_centers, len(y_centers)),
-                'y': np.tile(y_centers, len(x_centers)),
-                'z': z.values.flatten(),
+                "x": np.repeat(x_centers, len(y_centers)),
+                "y": np.tile(y_centers, len(x_centers)),
+                "z": z.values.flatten(),
             })
 
         # generate main figure
@@ -175,12 +179,12 @@ def Heatmap():
             y_axis_label=plotstate.y.value,
             tools=TOOLS,
             context_menu=menu,
-            toolbar_location='above',
-            #height_policy='max',
-            width_policy='max',
-            active_scroll='wheel_zoom',  # default to scroll wheel for zoom
+            toolbar_location="above",
+            # height_policy='max',
+            width_policy="max",
+            active_scroll="wheel_zoom",  # default to scroll wheel for zoom
             output_backend=
-            'webgl',  # for performance, will fallback to HTML5 if unsupported
+            "webgl",  # for performance, will fallback to HTML5 if unsupported
         )
 
         # setup colormap
@@ -197,13 +201,17 @@ def Heatmap():
             source=source,
             line_color=None,
             fill_color={
-                'field': 'z',
-                'transform': mapper
-            })
+                "field": "z",
+                "transform": mapper
+            },
+        )
 
         # create hovertool, bound to figure object
-        TOOLTIPS = [(plotstate.x.value, '$x'), (plotstate.y.value, '$y'),
-                    (plotstate.bintype.value, '@z')]
+        TOOLTIPS = [
+            (plotstate.x.value, "$x"),
+            (plotstate.y.value, "$y"),
+            (plotstate.bintype.value, "@z"),
+        ]
         hover = HoverTool(tooltips=TOOLTIPS, renderers=[glyph], visible=False)
         p.add_tools(hover)
 
@@ -223,7 +231,7 @@ def Heatmap():
         print(new)
         print(source.selected.indices)
 
-    source.selected.on_change('indices', on_select)
+    source.selected.on_change("indices", on_select)
 
     def add_effects(pfig):
 
@@ -234,9 +242,9 @@ def Heatmap():
 
                 # directly update data
                 source.data = {
-                    'x': np.repeat(x_centers, len(y_centers)),
-                    'y': np.tile(y_centers, len(x_centers)),
-                    'z': z.values.flatten(),
+                    "x": np.repeat(x_centers, len(y_centers)),
+                    "y": np.tile(y_centers, len(x_centers)),
+                    "z": z.values.flatten(),
                 }
 
                 # update colorbar
@@ -256,9 +264,9 @@ def Heatmap():
 
                 # directly update data
                 source.data = {
-                    'x': np.repeat(x_centers, len(y_centers)),
-                    'y': np.tile(y_centers, len(x_centers)),
-                    'z': z.values.flatten(),
+                    "x": np.repeat(x_centers, len(y_centers)),
+                    "y": np.tile(y_centers, len(x_centers)),
+                    "z": z.values.flatten(),
                 }
 
                 # update x/y labels
@@ -278,11 +286,13 @@ def Heatmap():
 
         sl.use_effect(change_xy_data,
                       dependencies=[plotstate.x.value, plotstate.y.value])
-        sl.use_effect(change_heatmap_data,
-                      dependencies=[
-                          plotstate.color.value,
-                          plotstate.bintype.value,
-                      ])
+        sl.use_effect(
+            change_heatmap_data,
+            dependencies=[
+                plotstate.color.value,
+                plotstate.bintype.value,
+            ],
+        )
         sl.use_effect(change_colormap, dependencies=[plotstate.colormap.value])
 
     pfig = FigureBokeh(p)
@@ -306,13 +316,13 @@ def Scatter():
         # generate source objects
         source = ColumnDataSource(
             data={
-                'x': df[plotstate.x.value].values,
-                'y': df[plotstate.y.value].values,
-                'z': z,
-                'sdss_id': df['L'].values,  # temp
+                "x": df[plotstate.x.value].values,
+                "y": df[plotstate.y.value].values,
+                "z": z,
+                "sdss_id": df["L"].values,  # temp
             })
         hover_source = ColumnDataSource(
-            data={'ind': [1, None]})  # 2 length arr to not break bokeh
+            data={"ind": [1, None]})  # 2 length arr to not break bokeh
 
         # generate main figure
         p = figure(
@@ -320,41 +330,62 @@ def Scatter():
             y_axis_label=plotstate.y.value,
             tools=TOOLS,
             context_menu=menu,
-            toolbar_location='above',
-            #height_policy='max',
-            width_policy='max',
-            active_scroll='wheel_zoom',  # default to scroll wheel for zoom
+            toolbar_location="above",
+            # height_policy='max',
+            width_policy="max",
+            active_scroll="wheel_zoom",  # default to scroll wheel for zoom
             output_backend=
-            'webgl',  # for performance, will fallback to HTML5 if unsupported
+            "webgl",  # for performance, will fallback to HTML5 if unsupported
+            lod_factor=2000,
+            lod_interval=300,
+            lod_threshold=1000,
+            lod_timeout=2000,
         )
 
         # setup menu items
+        name = "menu-propogate"
         items = [
-            ActionItem(label='Go to Target Page',
-                       action=CustomJS(args=dict(source=source,
-                                                 hover_source=hover_source),
-                                       code="""
+            ActionItem(
+                label="Go to Target Page",
+                action=CustomJS(
+                    args=dict(source=source, hover_source=hover_source),
+                    code="""
                     if (hover_source.data.ind[1] !== null) {
                         console.log('loading page');
                         window.open(`https://data.sdss.org/zora/target/${source.data.sdss_id[hover_source.data.ind[1]]}`, '_blank').focus();
                     }
-                    """)),
-            ActionItem(label='Propagate selection to subset'),  # TODO
-            ActionItem(label='Reset plot',
-                       action=CustomJS(args=dict(p=p),
-                                       code="""p.reset.emit()""")),
+                    """,
+                ),
+            ),
+            ActionItem(label="Propagate selection to subset",
+                       disabled=True,
+                       name=name),  # TODO
+            ActionItem(
+                label="Reset plot",
+                action=CustomJS(args=dict(p=p), code="""p.reset.emit()"""),
+            ),
         ]
+        plotstate.menu_item_id.set(name)
         menu.update(items=items)
 
         # add hover callback
-        cb = CustomJS(args=dict(source=source, hover_source=hover_source),
-                      code="""
-                      if (source.inspected.indices.length>0){
-                          console.log('cb triggered');
-                          hover_source.data.ind[1] = source.inspected.indices[0];
-                          }
-                      """)
-        p.js_on_event('mousemove', cb)
+        cb = CustomJS(
+            args=dict(p=p, source=source, hover_source=hover_source),
+            code="""let timeout;
+                    p.on_event('mousemove', function(event) {
+                        clearTimeout(timeout);
+                        timeout = setTimeout(function() {
+                        if (source.inspected.indices.length>0){
+                            console.log('cb triggered');
+                            hover_source.data.ind[1] = source.inspected.indices[0];
+                            };
+                            },300);
+                        });
+                      """,
+        )
+        p.js_on_event("mousemove", cb)
+
+        # add selection callback
 
         # setup colormap
         # TODO: use factor_cmap for catagorical data
@@ -366,19 +397,24 @@ def Scatter():
         )
 
         # generate scatter points
-        glyph = p.scatter(x="x",
-                          y="y",
-                          source=source,
-                          size=8,
-                          fill_color={
-                              'field': 'z',
-                              'transform': mapper
-                          })
+        glyph = p.scatter(
+            x="x",
+            y="y",
+            source=source,
+            size=8,
+            fill_color={
+                "field": "z",
+                "transform": mapper
+            },
+        )
 
         # create hovertool, bound to figure object
-        TOOLTIPS = [(plotstate.x.value, '$snap_x'),
-                    (plotstate.y.value, '$snap_y'),
-                    (plotstate.color.value, '@z'), ('sdss_id', '@sdss_id')]
+        TOOLTIPS = [
+            (plotstate.x.value, "$snap_x"),
+            (plotstate.y.value, "$snap_y"),
+            (plotstate.color.value, "@z"),
+            ("sdss_id", "@sdss_id"),
+        ]
         hover = HoverTool(tooltips=TOOLTIPS, renderers=[glyph], visible=False)
         p.add_tools(hover)
 
@@ -393,12 +429,19 @@ def Scatter():
 
     # source on selection effect
     def on_select(attr, old, new):
-        print(attr)
-        print(old)
-        print(new)
-        print(source.selected.indices)
+        print(type(attr), attr)
+        # print(old)
+        # print(new)
+        # print(source.selected.indices) # this is equal to new
+        item = p.select(name=plotstate.menu_item_id.value)[0]
+        print(item)
+        if len(new) == 0:
+            # disable buitton
+            item.update(disabled=True)
+        else:
+            item.update(disabled=False)
 
-    source.selected.on_change('indices', on_select)
+    source.selected.on_change("indices", on_select)
 
     def add_effects(pfig):
 
@@ -409,9 +452,9 @@ def Scatter():
 
                 # directly update data
                 source.data = {
-                    'x': np.repeat(x_centers, len(y_centers)),
-                    'y': np.tile(y_centers, len(x_centers)),
-                    'z': z.values.flatten(),
+                    "x": np.repeat(x_centers, len(y_centers)),
+                    "y": np.tile(y_centers, len(x_centers)),
+                    "z": z.values.flatten(),
                 }
 
                 # update colorbar
@@ -427,9 +470,9 @@ def Scatter():
 
                 # directly update data
                 source.data = {
-                    'x': np.repeat(x_centers, len(y_centers)),
-                    'y': np.tile(y_centers, len(x_centers)),
-                    'z': z.values.flatten(),
+                    "x": np.repeat(x_centers, len(y_centers)),
+                    "y": np.tile(y_centers, len(x_centers)),
+                    "z": z.values.flatten(),
                 }
 
                 # update x/y labels
@@ -449,11 +492,13 @@ def Scatter():
 
         sl.use_effect(change_xy_data,
                       dependencies=[plotstate.x.value, plotstate.y.value])
-        sl.use_effect(change_heatmap_data,
-                      dependencies=[
-                          plotstate.color.value,
-                          plotstate.bintype.value,
-                      ])
+        sl.use_effect(
+            change_heatmap_data,
+            dependencies=[
+                plotstate.color.value,
+                plotstate.bintype.value,
+            ],
+        )
         sl.use_effect(change_colormap, dependencies=[plotstate.colormap.value])
 
     pfig = FigureBokeh(p)

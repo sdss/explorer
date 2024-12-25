@@ -22,6 +22,11 @@ from jupyter_bokeh import BokehModel
 from solara.components.file_drop import FileInfo
 from solara.lab import Menu
 
+from state import plotstate, df
+from plots import Scatter, Heatmap
+
+dark = True
+
 
 class GridLayout(v.VuetifyTemplate):
     """
@@ -52,9 +57,6 @@ class GridState:
     states = sl.reactive([])
 
 
-dark = True
-
-
 def show_plot(plottype, *args, **kwargs):
     with rv.Card(
             class_="grey darken-3" if dark else "grey lighten-3",
@@ -63,7 +65,7 @@ def show_plot(plottype, *args, **kwargs):
         with rv.CardText():
             with sl.Column(
                     classes=["grey darken-3" if dark else "grey lighten-3"]):
-                if plottype == 'heatmap':
+                if plottype == "heatmap":
                     Heatmap()
                 else:
                     Scatter()
@@ -75,24 +77,31 @@ def show_plot(plottype, *args, **kwargs):
                 with Menu(activator=btn, close_on_content_click=False):
                     with sl.Card(margin=0):
                         with sl.Columns([1, 1]):
-                            sl.Select(label='x',
-                                      value=plotstate.x,
-                                      values=df.get_column_names())
-                            sl.Select(label='x',
-                                      value=plotstate.y,
-                                      values=df.get_column_names())
+                            sl.Select(
+                                label="x",
+                                value=plotstate.x,
+                                values=df.get_column_names(),
+                            )
+                            sl.Select(
+                                label="x",
+                                value=plotstate.y,
+                                values=df.get_column_names(),
+                            )
                         with sl.Columns([1, 1]):
-                            sl.Select(label='color',
-                                      value=plotstate.color,
-                                      values=df.get_column_names())
-                            sl.Select(label='bintype',
-                                      value=plotstate.bintype,
-                                      values=[
-                                          'count', 'mean', 'min', 'max',
-                                          'median'
-                                      ])
+                            sl.Select(
+                                label="color",
+                                value=plotstate.color,
+                                values=df.get_column_names(),
+                            )
+                            sl.Select(
+                                label="bintype",
+                                value=plotstate.bintype,
+                                values=[
+                                    "count", "mean", "min", "max", "median"
+                                ],
+                            )
                         sl.Select(
-                            label='bintype',
+                            label="bintype",
                             value=plotstate.colormap,
                             values=colormaps,
                         )
