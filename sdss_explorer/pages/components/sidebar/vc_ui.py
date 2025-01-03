@@ -80,20 +80,6 @@ def VirtualColumnsPanel():
     result: sl.Result = sl.use_thread(validate,
                                       dependencies=[expression, name])
 
-    def update_columns():
-        """Thread to update master column list on VCData update"""
-        df = State.df.value
-        columns = df.get_column_names(virtual=False)
-        virtuals = list()
-        for name, _ in VCData.columns.value.items():
-            virtuals.append(name)
-        State.columns.value = virtuals + columns
-
-    sl.use_thread(
-        update_columns,
-        dependencies=[len(VCData.columns.value)],
-    )
-
     def close():
         """Clears state variables and closes dialog."""
         set_open(False)

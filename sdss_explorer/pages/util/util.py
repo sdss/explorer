@@ -29,11 +29,8 @@ def generate_unique_key(key: str = "") -> str:
 def validate_release(path, release) -> bool:
     """Validates whether release is valid."""
     if path:
-        print("scanning releases")
         for it in os.scandir(path):
-            print(it.name)
             if it.is_dir() and (it.name == release):
-                print("hit valid release!")
                 return True
     return False
 
@@ -42,9 +39,5 @@ def validate_pipeline(df, pipeline) -> bool:
     """Validates whether pipeline is valid."""
     if df:
         if any(pipeline == c for c in df["pipeline"].unique()):
-            print("valid pipeline found!")
             return True
-        print("valid pipeline not found D=")
-    if not df:
-        print("df is none on pipeline check")
     return False

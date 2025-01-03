@@ -4,6 +4,8 @@ import solara as sl
 from solara.components.card import Card
 from solara.components.columns import Columns
 
+from sdss_explorer.pages.dataclass.vcdata import VCData
+
 from ...dataclass import State, SubsetState, Subset
 from ..sidebar.autocomplete import SingleAutocomplete, AutocompleteSelect
 
@@ -21,27 +23,28 @@ def show_settings(type, state):
         return SkymapMenu(state)
     elif type == "delta2d":
         return DeltaHeatmapMenu(state)
-    elif type == 'stats':
+    elif type == "stats":
         return StatisticsTableMenu(state)
 
 
 @sl.component()
 def SkymapMenu(plotstate):
     """Settings for SkymapPlot"""
-    columns = State.columns.value
+    columns = SubsetState.subsets.value[plotstate.subset.value].columns + list(
+        VCData.columns.value.keys())
     sl.use_thread(
         plotstate.reset_values,
         dependencies=[
             len(SubsetState.subsets.value),
             SubsetState.subsets.value,
-            State.columns.value,
         ],
     )
 
-    name, names = SubsetState.subsets.value.get(
-        plotstate.subset.value, Subset(name='temp')).name, [
-            ss.name for ss in SubsetState.subsets.value.values()
-        ]
+    name, names = (
+        SubsetState.subsets.value.get(plotstate.subset.value,
+                                      Subset(name="temp")).name,
+        [ss.name for ss in SubsetState.subsets.value.values()],
+    )
 
     with sl.Columns([1, 1]):
         with Card(margin=0):
@@ -87,20 +90,21 @@ def SkymapMenu(plotstate):
 @sl.component()
 def ScatterMenu(plotstate):
     """Settings for ScatterPlot"""
-    columns = State.columns.value
+    columns = SubsetState.subsets.value[plotstate.subset.value].columns + list(
+        VCData.columns.value.keys())
     sl.use_thread(
         plotstate.reset_values,
         dependencies=[
             len(SubsetState.subsets.value),
             SubsetState.subsets.value,
-            State.columns.value,
         ],
     )
 
-    name, names = SubsetState.subsets.value.get(
-        plotstate.subset.value, Subset(name='temp')).name, [
-            ss.name for ss in SubsetState.subsets.value.values()
-        ]
+    name, names = (
+        SubsetState.subsets.value.get(plotstate.subset.value,
+                                      Subset(name="temp")).name,
+        [ss.name for ss in SubsetState.subsets.value.values()],
+    )
     with sl.Card():
         SingleAutocomplete(
             label="Subset",
@@ -160,20 +164,21 @@ def ScatterMenu(plotstate):
 @sl.component()
 def HistogramMenu(plotstate):
     """Settings for HistogramPlot"""
-    columns = State.columns.value
+    columns = SubsetState.subsets.value[plotstate.subset.value].columns + list(
+        VCData.columns.value.keys())
     sl.use_thread(
         plotstate.reset_values,
         dependencies=[
             len(SubsetState.subsets.value),
             SubsetState.subsets.value,
-            State.columns.value,
         ],
     )
 
-    name, names = SubsetState.subsets.value.get(
-        plotstate.subset.value, Subset(name='temp')).name, [
-            ss.name for ss in SubsetState.subsets.value.values()
-        ]
+    name, names = (
+        SubsetState.subsets.value.get(plotstate.subset.value,
+                                      Subset(name="temp")).name,
+        [ss.name for ss in SubsetState.subsets.value.values()],
+    )
 
     with sl.Card():
         SingleAutocomplete(
@@ -213,19 +218,20 @@ def HistogramMenu(plotstate):
 @sl.component()
 def HeatmapMenu(plotstate):
     """Settings for HeatmapPlot"""
-    columns = State.columns.value
+    columns = SubsetState.subsets.value[plotstate.subset.value].columns + list(
+        VCData.columns.value.keys())
     sl.use_thread(
         plotstate.reset_values,
         dependencies=[
             len(SubsetState.subsets.value),
             SubsetState.subsets.value,
-            State.columns.value,
         ],
     )
-    name, names = SubsetState.subsets.value.get(
-        plotstate.subset.value, Subset(name='temp')).name, [
-            ss.name for ss in SubsetState.subsets.value.values()
-        ]
+    name, names = (
+        SubsetState.subsets.value.get(plotstate.subset.value,
+                                      Subset(name="temp")).name,
+        [ss.name for ss in SubsetState.subsets.value.values()],
+    )
 
     with sl.Columns([1, 1]):
         with sl.Card():
@@ -280,11 +286,12 @@ def HeatmapMenu(plotstate):
                 values=plotstate.Lookup["bintypes"],
                 value=plotstate.bintype,
             )
-            SingleAutocomplete(label="Column to Bin",
-                               values=columns,
-                               value=plotstate.color,
-                               disabled=(str(
-                                   plotstate.bintype.value) == "count"))
+            SingleAutocomplete(
+                label="Column to Bin",
+                values=columns,
+                value=plotstate.color,
+                disabled=(str(plotstate.bintype.value) == "count"),
+            )
             SingleAutocomplete(
                 label="Binning scale",
                 values=plotstate.Lookup["binscales"],
@@ -301,21 +308,24 @@ def StatisticsTableMenu(state):
         dependencies=[
             len(SubsetState.subsets.value),
             SubsetState.subsets.value,
-            State.columns.value,
         ],
     )
 
-    name, names = SubsetState.subsets.value.get(
-        state.subset.value, Subset(name='temp')).name, [
-            ss.name for ss in SubsetState.subsets.value.values()
-        ]
+    name, names = (
+        SubsetState.subsets.value.get(state.subset.value,
+                                      Subset(name="temp")).name,
+        [ss.name for ss in SubsetState.subsets.value.values()],
+    )
     with sl.Columns([2, 1]):
-        AutocompleteSelect(state.columns.value,
-                           state.columns.set,
-                           df=State.columns.value,
-                           expr='column',
-                           field='Column',
-                           multiple=True)
+        AutocompleteSelect(
+            state.columns.value,
+            state.columns.set,
+            df=SubsetState.subsets.value[state.subset.value].columns +
+            list(VCData.columns.value.keys()),
+            expr="column",
+            field="Column",
+            multiple=True,
+        )
 
         SingleAutocomplete(
             label="Subset",
@@ -329,13 +339,12 @@ def StatisticsTableMenu(state):
 @sl.component()
 def DeltaHeatmapMenu(plotstate):
     """Settings for DeltaHeatmapPlot"""
-    columns = State.columns.value
+    columns = SubsetState.subsets.value[plotstate.subset.value].columns
     sl.use_thread(
         plotstate.reset_values,
         dependencies=[
             len(SubsetState.subsets.value),
             SubsetState.subsets.value,
-            State.columns.value,
         ],
     )
     name_a = SubsetState.subsets.value[plotstate.subset.value].name

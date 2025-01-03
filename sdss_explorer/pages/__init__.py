@@ -1,18 +1,32 @@
-"""Main page component. Contains cache settings, memoized context intializers, AlertSystem instance, and general layout."""
+"""Main page component. Contains cache settings, logger setup, intializer functions, AlertSystem instance, and general layout."""
+
+import logging
+from urllib.parse import parse_qs
+from os import getenv
 
 import solara as sl
 import numpy as np
-from urllib.parse import parse_qs
 import vaex as vx
 from solara.lab import ThemeToggle
-from os import getenv
-import os
+
+# development envvar
+DEV = getenv("EXPLORER_DEV", False)
+
+# logger setup
+logger = logging.getLogger("sdss_explorer")
+
+logging.basicConfig(
+    filename=f'{getenv('EXPLORER_SCRATCH',default='./.runtime')}/logs/log',
+    filemode="a",
+    format="%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s",
+    datefmt="%H:%M:%S",
+    level=logging.INFO if DEV else logging.DEBUG,
+)
 
 # vaex setup
 # NOTE: vaex gets its cache settings from envvars, see README.md
 if sl.server.settings.main.mode == "production":
-    vx.logging.remove_handler(
-    )  # force remove handler prior to any imports on production
+    vx.logging.remove_handler()  # force remove handler prior to any imports on production
 vx.cache.on()  # activate caching
 
 from .dataclass import (
@@ -31,9 +45,6 @@ from .components.sidebar.subset_filters import flagList  # noqa: E402
 from .components.views import ObjectGrid, add_view  # noqa: E402
 from .components.views.dataframe import NoDF  # noqa: E402
 
-# development envvar
-DEV = getenv("EXPLORER_DEV", False)
-
 
 @sl.lab.on_kernel_start
 def on_start():
@@ -42,12 +53,17 @@ def on_start():
     State._kernel_id.set(sl.get_kernel_id())
     State._subset_store.set(SubsetStore())
 
+    logging.info("new session connected!")
+    logging.info(State)
+
     # TODO: get user authentication via router (?) and define permissions
     # NOTE: https://github.com/widgetti/solara/issues/774
 
     def on_shutdown():
         """On kernel shutdown function, helps to clear memory."""
-        State.df.value.close()
+        if State.df.value:
+            State.df.value.close()
+        logging.info("culled kernel", State.kernel_id)
 
     return on_shutdown
 
@@ -57,6 +73,7 @@ def Page():
     df = State.df.value
 
     # check query params
+    # NOTE: query params are not avaliable on kernel load, so it must be an effect.
     router = sl.use_router()
 
     def initialize():
@@ -90,8 +107,7 @@ def Page():
         datatype: str = query_params.pop("datatype", "star")
         try:
             assert validate_release(_datapath(), release), "release invalid"
-            assert (datatype == "star") or (datatype
-                                            == "visit"), "datatype invalid"
+            assert (datatype == "star") or (datatype == "visit"), "datatype invalid"
 
             # set the release and datatype
             State._release.set(release)
@@ -99,8 +115,7 @@ def Page():
             State.load_dataset()  # this changes State.df.value
         except Exception as e:
             # TODO: logging
-            print("invalid query params on release/datatype:", e)
-            return
+            logging.debug("invalid query params on release/datatype:", e)
 
         # set valid pipeline when not set properly with visit spec
         if (datatype == "visit") & ("dataset" not in query_params.keys()):
@@ -128,31 +143,37 @@ def Page():
 
             # validate all subset properties
             try:
-                assert validate_pipeline(State.df.value,
-                                         subset_data.get("dataset"))
-                # assert all({
-                #    flag in flagList.keys()
-                #    for flag in subset_data.get("flags")
-                # }), "flags failed"
-                # assert all(
-                #    np.isin(
-                #        subset_data.get("mapper"),
-                #        State.mapping.value["mapper"].unique(),
-                #        assume_unique=True,
-                #    )), "mapper failed"
-                # assert all(
-                #    np.isin(
-                #        subset_data.get("carton"),
-                #        State.mapping.value["alt_name"].unique(),
-                #        assume_unique=True,
-                #    )), "carton failed"
+                if subset_data.get("dataset"):
+                    assert validate_pipeline(State.df.value, subset_data.get("dataset"))
+                if subset_data.get("flags"):
+                    assert all(
+                        {
+                            flag in list(flagList.keys())
+                            for flag in subset_data.get("flags")
+                        }
+                    ), "flags failed"
+                if subset_data.get("mapper"):
+                    assert all(
+                        np.isin(
+                            subset_data.get("mapper"),
+                            State.mapping.value["mapper"].unique(),
+                            assume_unique=True,
+                        )
+                    ), "mapper failed"
+                if subset_data.get("carton"):
+                    assert all(
+                        np.isin(
+                            subset_data.get("carton"),
+                            State.mapping.value["alt_name"].unique(),
+                            assume_unique=True,
+                        )
+                    ), "carton failed"
 
                 expr = subset_data.get("expression")
                 if expr:
                     State.df.value.validate_expression(expr)
             except Exception as e:
-                print(e)
-                return
+                logging.debug("failed query params on subset parsing:", e)
 
             # generate subset and update
             subsets = {"s0": Subset(**subset_data)}
@@ -172,7 +193,7 @@ def Page():
                     add_view(plottype, **query_params)
                 except Exception as e:
                     # TODO: do we want logging/alerts here logging here
-                    print("query params error:", e)
+                    logging.debug("failed query params on plot parsing:", e)
                     return
 
         return

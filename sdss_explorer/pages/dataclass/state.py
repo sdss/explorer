@@ -1,5 +1,6 @@
 """Main application state variables"""
 
+import logging
 import os
 import json
 from typing import Optional, cast
@@ -9,6 +10,8 @@ import solara as sl
 import vaex as vx
 
 from .subsetstore import SubsetStore
+
+logger = logging.getLogger("sdss_explorer")
 
 # disable the vaex built-in logging (clogs on FileNotFounds et al)
 if sl.server.settings.main.mode == "production":
@@ -42,7 +45,7 @@ def open_file(filename):
         dataset = vx.open(f"{datapath}/{filename}")
         return dataset
     except Exception as e:  # noqa
-        print("Exception on dataload encountered", e)
+        logging.debug("Exception on dataload encountered", e)
         # NOTE: this should deal with exception quietly; can be changed later if desired
         return None
 
@@ -101,7 +104,9 @@ class StateData:
             f"{release}/explorerAll{datatype.capitalize()}-0.6.0.hdf5")
 
         if df is None:
-            print("no dataset loaded")
+            logging.debug(
+                "no dataset loaded, ensure everything is setup (files, envvars)"
+            )
             return
 
         # shuffle to ensure skyplot looks nice, constant seed for reproducibility

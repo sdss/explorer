@@ -22,12 +22,12 @@ __all__ = [
 operator_map = {"AND": operator.and_, "OR": operator.or_, "XOR": operator.xor}
 
 flagList = {
-    "SDSS5 only": "release=='sdss5'",
-    "SNR > 50": "snr>=50",
-    "Purely non-flagged": "result_flags==0",
-    #'No APO 1m': "telescope!='apo1m'", # WARNING: this one doesn't work for some reason, maybe it's not string; haven't checked
-    "No bad flags": "flag_bad==0",
-    "Vmag < 13": "v_jkc_mag<=13",
+    "sdss5 only": "release=='sdss5'",
+    "snr > 50": "snr>=50",
+    "purely non-flagged": "result_flags==0",
+    #'no apo 1m': "telescope!='apo1m'", # WARNING: this one doesn't work for some reason, maybe it's not string; haven't checked
+    "no bad flags": "flag_bad==0",
+    "gmag < 17": "g_mag<=17",
 }
 
 
@@ -53,7 +53,7 @@ def ExprEditor(key: str, invert) -> ValueElement:
         Validates if the expression is valid, and returns
         a precise error message for any issues in the expression.
         """
-        columns = State.columns.value
+        columns = State.df.value.get_column_names()
         try:
             if expression is None or expression == "" or expression == "None":
                 set_expfilter(None)
@@ -219,11 +219,9 @@ def ExprEditor(key: str, invert) -> ValueElement:
 
 
 @sl.component()
-def DatasetSelect(dataset, set_dataset) -> ValueElement:
-    """Select box for pipeline."""
+def DatasetSelect(key: str, dataset, set_dataset) -> ValueElement:
+    """Select box for pipeline, also sets columns on dataset change."""
     df = State.df.value
-    print(State)
-    print(State._release.value, State._datatype.value)
 
     def fetch():
         return State.df.value["pipeline"].unique()
@@ -231,9 +229,20 @@ def DatasetSelect(dataset, set_dataset) -> ValueElement:
     pipelines = sl.use_memo(
         fetch, dependencies=[df, State._release.value, State._datatype.value])
 
+    # TODO: move this thread somewhere better
+    def update_columns():
+        """Guardrails column selection to only columns that are not all NaN"""
+        # TODO
+        SubsetState.update_subset(
+            key,
+            columns=df.get_column_names(),
+        )
+        return
+
+    sl.use_thread(update_columns, dependencies=[State.df.value, dataset])
+
     return SingleAutocomplete(
         label="Dataset",
-        # TODO: fetch via valis or via df.row.unique()
         values=pipelines,
         value=dataset,
         on_value=set_dataset,
@@ -259,7 +268,7 @@ def FlagSelect(key: str, invert) -> ValueElement:
             for flag in flags:
                 # Skip iteration if the subset's dataset is 'best' and the flag is 'Purely non-flagged'
                 if (subset.dataset == "best") and (flag
-                                                   == "Purely non-flagged"):
+                                                   == "purely non-flagged"):
                     continue
                 filters.append(flagList[flag])
 
@@ -283,13 +292,7 @@ def FlagSelect(key: str, invert) -> ValueElement:
     return AutocompleteSelect(
         flags,
         set_flags,
-        df=[
-            "SDSS5 only",
-            "SNR > 50",
-            "Purely non-flagged",  #'No APO 1m',
-            "No bad flags",
-            "Vmag < 13",
-        ],
+        df=list(flagList.keys()),
         expr="foobar",
         field="Quick Flags",
         multiple=True,
@@ -375,7 +378,6 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
             # generate a filter based on the vaex-defined flag combiner
             cmp_filter = df.func.check_flags(df["sdss5_target_flags"], filters)
 
-        print("DATASET =", dataset)
         if dataset is not None:
             if cmp_filter is not None:
                 cmp_filter = operator_map[combotype](
@@ -399,7 +401,7 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
                             multiple=True,
                             v_model=open,
                             on_v_model=set_open) as main:
-        DatasetSelect(dataset, set_dataset)
+        DatasetSelect(key, dataset, set_dataset)
         with rv.ExpansionPanel():
             rv.ExpansionPanelHeader(children=["Targeting Filters"])
             with rv.ExpansionPanelContent():

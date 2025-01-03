@@ -16,9 +16,10 @@ class Subset:
     expression: str = ""
     dataset: str = "best" if State._datatype.value is "star" else "apogeenet"
     flags: list[str] = dataclasses.field(
-        default_factory=lambda: ["Purely non-flagged"])
+        default_factory=lambda: ["purely non-flagged"])
     mapper: list[str] = dataclasses.field(default_factory=list)
     carton: list[str] = dataclasses.field(default_factory=list)
+    columns: list[str] = dataclasses.field(default_factory=list)
 
 
 class SubsetData:

@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from datetime import datetime
 from typing import Optional
@@ -16,6 +17,8 @@ from ...dataclass import Alert, GridState, State, Subset, SubsetState, VCData
 from ...util.io import export_layout, export_subset, export_vcdata
 from ..dialog import Dialog
 from .plots import index_context, show_plot
+
+logger = logging.getLogger("sdss_explorer")
 
 
 class GridLayout(v.VuetifyTemplate):
@@ -230,7 +233,8 @@ def ObjectGrid():
                     except Exception as e:
                         Alert.update(f"JSON load of {fileobj['name']} failed!",
                                      color="error")
-                        print(e)
+                        logging.debug(
+                            f"JSON load of {fileobj['name']} failed: {e}")
                         set_lockout(False)
                         set_impmenu(False)
                         return

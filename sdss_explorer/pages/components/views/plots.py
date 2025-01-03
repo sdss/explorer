@@ -1,5 +1,6 @@
 """All interactive plot elements, complete with widget effects and action callback threads. Also contains plot settings PlotState class."""
 
+import logging
 import operator
 import webbrowser as wb
 from functools import reduce
@@ -17,10 +18,14 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.graph_objs._figurewidget import FigureWidget
 
+from sdss_explorer.pages.dataclass.vcdata import VCData
+
 from ...dataclass import Alert, State, SubsetState, use_subset, GridState
 from ...util import check_catagorical
 from .dataframe import ModdedDataTable
 from .plot_settings import show_settings
+
+logger = logging.getLogger("sdss_explorer")
 
 # index context for grid
 # NOTE: must be initialized here to avoid circular imports
@@ -64,7 +69,7 @@ LIGHT_TEMPLATE = go.layout.Template(
 
 class PlotState:
     """
-    Combination of reactive states which instantiate a specific plot's settings/properties. 
+    Combination of reactive states which instantiate a specific plot's settings/properties.
     Initializes based on keyword arguments.
     """
 
@@ -74,45 +79,45 @@ class PlotState:
         # NOTE: this prevents a reactive update to override the initialization prop
         self.subset = sl.use_reactive(current_key)
 
-        if 'stats' in plottype:
-            self.columns = sl.use_reactive(['g_mag', 'bp_mag'])
+        if "stats" in plottype:
+            self.columns = sl.use_reactive(["g_mag", "bp_mag"])
         else:
             # common plot settings
-            self.x = sl.use_reactive(kwargs.get('x', "snr"))
-            self.flipx = sl.use_reactive(kwargs.get('flipx', ''))
-            self.flipy = sl.use_reactive(kwargs.get('flipy', ''))
+            self.x = sl.use_reactive(kwargs.get("x", "snr"))
+            self.flipx = sl.use_reactive(kwargs.get("flipx", ""))
+            self.flipy = sl.use_reactive(kwargs.get("flipy", ""))
 
             # moderately unique plot parameters/settings
             if plottype != "histogram":
-                self.y = sl.use_reactive(kwargs.get('y', 'g_mag'))
-                self.color = sl.use_reactive(kwargs.get('color', 'g_mag'))
+                self.y = sl.use_reactive(kwargs.get("y", "g_mag"))
+                self.color = sl.use_reactive(kwargs.get("color", "g_mag"))
                 self.colorscale = sl.use_reactive(
-                    kwargs.get('colorscale', 'cividis'))
+                    kwargs.get("colorscale", "cividis"))
             if plottype != "aggregated" and plottype != "skyplot":
-                self.logx = sl.use_reactive(kwargs.get('logx', ''))
-                self.logy = sl.use_reactive(kwargs.get('logy', ''))
+                self.logx = sl.use_reactive(kwargs.get("logx", ""))
+                self.logy = sl.use_reactive(kwargs.get("logy", ""))
             if plottype in ["scatter", "skyplot"]:
                 self.colorlog = sl.use_reactive(
-                    kwargs.get('colorlog', cast(str, None)))
+                    kwargs.get("colorlog", cast(str, None)))
 
             # statistics settings
             if plottype == "heatmap" or plottype == "histogram" or "delta" in plottype:
                 self.nbins = sl.use_reactive(200)
                 if plottype == "heatmap" or plottype == "delta2d":
                     self.bintype = sl.use_reactive(
-                        kwargs.get('bintype', "mean"))
+                        kwargs.get("bintype", "mean"))
                     self.binscale = sl.use_reactive(
-                        kwargs.get('binscale', None))
+                        kwargs.get("binscale", None))
                 else:
                     self.bintype = sl.use_reactive(
-                        kwargs.get('bintype', "count"))
+                        kwargs.get("bintype", "count"))
 
             # skyplot settings
             if plottype == "skyplot":
                 self.geo_coords = sl.use_reactive(
-                    kwargs.get('coords', "celestial"))
+                    kwargs.get("coords", "celestial"))
                 self.projection = sl.use_reactive(
-                    kwargs.get('projection', "hammer"))
+                    kwargs.get("projection", "hammer"))
 
             # delta view settings
             if "delta" in plottype:
@@ -170,10 +175,13 @@ class PlotState:
         except:
             pass
 
+        valid_columns = SubsetState.subsets.value[
+            self.subset.value].columns + list(VCData.columns.value.keys())
+
         # columnar resets for table
-        if 'stats' in self.plottype:
+        if "stats" in self.plottype:
             for col in self.columns.value:
-                if col not in State.columns.value:
+                if col not in valid_columns:
                     # NOTE: i choose to remove quietly on stats table -- its very obvious when it disappears
                     self.columns.set(
                         list([q for q in self.columns.value if q != col]))
@@ -181,16 +189,16 @@ class PlotState:
 
         # columnar resets for plots
         else:
-            if self.x.value not in State.columns.value:
+            if self.x.value not in valid_columns:
                 Alert.update("VC removed! Column reset to 'teff'",
                              color="info")
                 self.x.value = "teff"
             if self.plottype != "histogram":
-                if self.y.value not in State.columns.value:
+                if self.y.value not in valid_columns:
                     Alert.update("VC removed! Column reset to 'logg'",
                                  color="info")
                     self.y.value = "logg"
-                if self.color.value not in State.columns.value:
+                if self.color.value not in valid_columns:
                     Alert.update("VC removed! Column reset to 'fe_h'",
                                  color="info")
                     self.color.value = "fe_h"
@@ -258,7 +266,7 @@ def show_plot(plottype, del_func, **kwargs):
                     SkymapPlot(plotstate)
                 elif plottype == "delta2d":
                     DeltaHeatmapPlot(plotstate)
-                elif plottype == 'stats':
+                elif plottype == "stats":
                     StatisticsTable(plotstate)
                 btn = sl.Button(
                     icon_name="mdi-settings",
@@ -1438,7 +1446,7 @@ def SkymapPlot(plotstate):
     def on_select(data):
         if len(data["points"]["xs"]) > 0:
             bool_arr = np.array(data["points"]["trace_indexes"]) == 0
-            print(np.array(data["points"]["point_indexes"])[bool_arr])
+            logging.info(np.array(data["points"]["point_indexes"])[bool_arr])
 
             # set_filter(df[df == dff[data["points"]["point_indexes"]]])
 

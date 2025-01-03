@@ -1,4 +1,5 @@
 """Functions for processing dataframes for the Table views."""
+
 import dataclasses
 import math
 import os
@@ -36,7 +37,6 @@ def TableView(del_func: Callable):
     order, set_order = sl.use_state(cast(bool, None))
     dark = use_dark_effective()
     dff = df
-    print('')
 
     def on_ascend(column):
         set_order(True)
@@ -70,8 +70,10 @@ def TableView(del_func: Callable):
         dff = dff.sort(dff[column], ascending=order)
 
     # TODO: add column add/remove functionality
-    with rv.Card(class_="grey darken-3" if dark else "grey lighten-3",
-                 style_="width: 100%; height: 100%"):
+    with rv.Card(
+            class_="grey darken-3" if dark else "grey lighten-3",
+            style_="width: 100%; height: 100%",
+    ):
         with rv.CardText():
             with sl.Column(
                     classes=["grey darken-3" if dark else "grey lighten-3"]):
@@ -84,7 +86,7 @@ def TableView(del_func: Callable):
                 btn = sl.Button(
                     icon_name="mdi-settings",
                     outlined=False,
-                    classes=["grey darken-3" if dark else 'grey lighten-3'],
+                    classes=["grey darken-3" if dark else "grey lighten-3"],
                 )
                 with Menu(activator=btn, close_on_content_click=False):
                     with sl.Card(margin=0):
