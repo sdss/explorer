@@ -21,6 +21,15 @@ __all__ = [
 
 operator_map = {"AND": operator.and_, "OR": operator.or_, "XOR": operator.xor}
 
+flagList = {
+    "SDSS5 only": "release=='sdss5'",
+    "SNR > 50": "snr>=50",
+    "Purely non-flagged": "result_flags==0",
+    #'No APO 1m': "telescope!='apo1m'", # WARNING: this one doesn't work for some reason, maybe it's not string; haven't checked
+    "No bad flags": "flag_bad==0",
+    "Vmag < 13": "v_jkc_mag<=13",
+}
+
 
 @sl.component()
 def ExprEditor(key: str, invert) -> ValueElement:
@@ -31,8 +40,10 @@ def ExprEditor(key: str, invert) -> ValueElement:
 
     _, set_expfilter = use_subset(id(df), key, "expr", write_only=True)
 
-    expression, set_expression = subset.expression, lambda arg: SubsetState.update_subset(
-        key, expression=arg)
+    expression, set_expression = (
+        subset.expression,
+        lambda arg: SubsetState.update_subset(key, expression=arg),
+    )
 
     error, set_error = sl.use_state(cast(str, None))
 
@@ -44,9 +55,9 @@ def ExprEditor(key: str, invert) -> ValueElement:
         """
         columns = State.columns.value
         try:
-            if expression is None or expression == "" or expression == 'None':
+            if expression is None or expression == "" or expression == "None":
                 set_expfilter(None)
-                set_expression('')
+                set_expression("")
                 return None
             # first, remove all spaces
             expr = expression.replace(" ", "")
@@ -163,7 +174,7 @@ def ExprEditor(key: str, invert) -> ValueElement:
         def add_append_handler():
 
             def on_click(widget, event, data):
-                Help.update('expressions')
+                Help.update("expressions")
 
             widget = sl.get_widget(el)
             widget.on_event("click:append", on_click)
@@ -176,7 +187,7 @@ def ExprEditor(key: str, invert) -> ValueElement:
         def add_clear_handler():
 
             def on_click(widget, event, data):
-                set_expression('')
+                set_expression("")
                 widget.v_model = ""
 
             widget = sl.get_widget(el)
@@ -192,16 +203,17 @@ def ExprEditor(key: str, invert) -> ValueElement:
 
     # expression editor
     with sl.Column(gap="0px") as main:
-        with sl.Row(justify='center', style={"align-items": "center"}):
+        with sl.Row(justify="center", style={"align-items": "center"}):
             el = InputTextExposed(
                 label="Enter an expression",
                 value=expression,
                 on_value=set_expression,
                 message=message,
                 error=errorFound,
-                append_icon='mdi-information-outline',
+                append_icon="mdi-information-outline",
                 clearable=True,
-                placeholder='teff < 15e3 & (mg_h > -1 | fe_h < -2)')
+                placeholder="teff < 15e3 & (mg_h > -1 | fe_h < -2)",
+            )
             add_effect(el)
     return main
 
@@ -210,18 +222,22 @@ def ExprEditor(key: str, invert) -> ValueElement:
 def DatasetSelect(dataset, set_dataset) -> ValueElement:
     """Select box for pipeline."""
     df = State.df.value
+    print(State)
+    print(State._release.value, State._datatype.value)
 
     def fetch():
-        return df['pipeline'].unique()
+        return State.df.value["pipeline"].unique()
 
-    pipelines = sl.use_memo(fetch, dependencies=[df])
+    pipelines = sl.use_memo(
+        fetch, dependencies=[df, State._release.value, State._datatype.value])
 
     return SingleAutocomplete(
-        label='Dataset',
+        label="Dataset",
         # TODO: fetch via valis or via df.row.unique()
         values=pipelines,
         value=dataset,
-        on_value=set_dataset)
+        on_value=set_dataset,
+    )
 
 
 @sl.component()
@@ -230,26 +246,20 @@ def FlagSelect(key: str, invert) -> ValueElement:
     df = State.df.value
     subset = SubsetState.subsets.value[key]
     _, set_flagfilter = use_subset(id(df), key, "flags", write_only=True)
-    flags, set_flags = subset.flags, lambda arg: SubsetState.update_subset(
-        key, flags=arg)
+    flags, set_flags = (
+        subset.flags,
+        lambda arg: SubsetState.update_subset(key, flags=arg),
+    )
 
     def update_flags():
         filters = []
         # TODO: relocate this somewhere better, like into a lookup dataclass or a file
-        flagList = {
-            'SDSS5 only': "release=='sdss5'",
-            'SNR > 50': "snr>=50",
-            'Purely non-flagged': 'result_flags==0',
-            #'No APO 1m': "telescope!='apo1m'", # WARNING: this one doesn't work for some reason, maybe it's not string; haven't checked
-            'No bad flags': 'flag_bad==0',
-            'Vmag < 13': 'v_jkc_mag<=13'
-        }
         # get the flag lookup
         if flags:
             for flag in flags:
                 # Skip iteration if the subset's dataset is 'best' and the flag is 'Purely non-flagged'
-                if (subset.dataset == 'best') and (flag
-                                                   == 'Purely non-flagged'):
+                if (subset.dataset == "best") and (flag
+                                                   == "Purely non-flagged"):
                     continue
                 filters.append(flagList[flag])
 
@@ -274,15 +284,16 @@ def FlagSelect(key: str, invert) -> ValueElement:
         flags,
         set_flags,
         df=[
-            'SDSS5 only',
-            'SNR > 50',
-            'Purely non-flagged',  #'No APO 1m',
-            'No bad flags',
-            'Vmag < 13'
+            "SDSS5 only",
+            "SNR > 50",
+            "Purely non-flagged",  #'No APO 1m',
+            "No bad flags",
+            "Vmag < 13",
         ],
-        expr='foobar',
-        field='Quick Flags',
-        multiple=True)
+        expr="foobar",
+        field="Quick Flags",
+        multiple=True,
+    )
 
 
 @sl.component()
@@ -293,12 +304,18 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
     subset = SubsetState.subsets.value[key]
     _, set_cmfilter = use_subset(id(df), key, "cartonmapper", write_only=True)
     # handlers for mapper/carton/data/setflags
-    mapper, set_mapper = subset.mapper, lambda arg: SubsetState.update_subset(
-        key, mapper=arg)
-    carton, set_carton = subset.carton, lambda arg: SubsetState.update_subset(
-        key, carton=arg)
-    dataset, set_dataset = subset.dataset, lambda arg: SubsetState.update_subset(
-        key, dataset=arg)
+    mapper, set_mapper = (
+        subset.mapper,
+        lambda arg: SubsetState.update_subset(key, mapper=arg),
+    )
+    carton, set_carton = (
+        subset.carton,
+        lambda arg: SubsetState.update_subset(key, carton=arg),
+    )
+    dataset, set_dataset = (
+        subset.dataset,
+        lambda arg: SubsetState.update_subset(key, dataset=arg),
+    )
     combotype = (
         "AND"  # NOTE: remains for functionality as potential state var (in future)
     )
@@ -394,18 +411,22 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
                     )
                 else:
                     with sl.Column(gap="2px"):
-                        AutocompleteSelect(mapper,
-                                           set_mapper,
-                                           df=State.mapping.value,
-                                           expr='mapper',
-                                           field='Mapper',
-                                           multiple=True)
-                        AutocompleteSelect(carton,
-                                           set_carton,
-                                           df=State.mapping.value,
-                                           expr='alt_name',
-                                           field='Carton',
-                                           multiple=True)
+                        AutocompleteSelect(
+                            mapper,
+                            set_mapper,
+                            df=State.mapping.value,
+                            expr="mapper",
+                            field="Mapper",
+                            multiple=True,
+                        )
+                        AutocompleteSelect(
+                            carton,
+                            set_carton,
+                            df=State.mapping.value,
+                            expr="alt_name",
+                            field="Carton",
+                            multiple=True,
+                        )
                         FlagSelect(key, invert)
 
     return main

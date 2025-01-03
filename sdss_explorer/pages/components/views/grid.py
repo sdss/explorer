@@ -165,7 +165,7 @@ def ObjectGrid():
         for name, subset in SubsetState.subsets.value.items():
             applayout["subsets"][name] = export_subset(subset)
         applayout["views"] = export_layout(GridState)
-        applayout['virtual_columns'] = export_vcdata(VCData)
+        applayout["virtual_columns"] = export_vcdata(VCData)
 
         return json.dumps(applayout)
 
@@ -176,27 +176,37 @@ def ObjectGrid():
                 outlined=False,
                 icon_name="mdi-image-plus",
             )
-            with Menu(activator=btn):
-                with sl.Column(gap="0px"):
-                    [
-                        sl.Button(label="histogram",
-                                  on_click=lambda: add_view("histogram")),
-                        sl.Button(label="heatmap",
-                                  on_click=lambda: add_view("heatmap")),
-                        sl.Button(label="stats",
-                                  on_click=lambda: add_view("stats")),
-                        sl.Button(label="scatter",
-                                  on_click=lambda: add_view("scatter")),
-                        sl.Button(label="skyplot",
-                                  on_click=lambda: add_view("skyplot")),
-                        # TODO: fix delta2d
-                        # BUG: delta2d is currently broken in many ways i need to fix
-                        # sl.Button(
-                        #    label="delta2d",
-                        #    on_click=lambda: add_view("delta2d"),
-                        #    disabled=True if n_subsets <= 1 else False,
-                        # ),
-                    ]
+            with sl.Tooltip("Add a plot."):
+                with sl.Column():
+                    with Menu(activator=btn):
+                        with sl.Column(gap="0px"):
+                            [
+                                sl.Button(
+                                    label="histogram",
+                                    on_click=lambda: add_view("histogram"),
+                                ),
+                                sl.Button(
+                                    label="heatmap",
+                                    on_click=lambda: add_view("heatmap"),
+                                ),
+                                sl.Button(label="stats",
+                                          on_click=lambda: add_view("stats")),
+                                sl.Button(
+                                    label="scatter",
+                                    on_click=lambda: add_view("scatter"),
+                                ),
+                                sl.Button(
+                                    label="skyplot",
+                                    on_click=lambda: add_view("skyplot"),
+                                ),
+                                # TODO: fix delta2d
+                                # BUG: delta2d is currently broken in many ways i need to fix
+                                # sl.Button(
+                                #    label="delta2d",
+                                #    on_click=lambda: add_view("delta2d"),
+                                #    disabled=True if n_subsets <= 1 else False,
+                                # ),
+                            ]
             rv.Spacer()
 
             # import/export app state UI
@@ -211,12 +221,12 @@ def ObjectGrid():
             ):
 
                 def import_applayout(fileobj: FileInfo) -> None:
-                    """Converts JSON to app state and updates accordingly. 
+                    """Converts JSON to app state and updates accordingly.
                     Function has to be here to serve state updates properly."""
                     # convert from json to dicts
                     set_lockout(True)
                     try:
-                        data = json.load(fileobj['file_obj'])
+                        data = json.load(fileobj["file_obj"])
                     except Exception as e:
                         Alert.update(f"JSON load of {fileobj['name']} failed!",
                                      color="error")
@@ -231,7 +241,7 @@ def ObjectGrid():
                         VCData.delete_column(name)
 
                     # now, readd all virtual columns
-                    for name, expr in data['virtual_columns'].items():
+                    for name, expr in data["virtual_columns"].items():
                         VCData.add_column(name, expr)
 
                     # second, readd all subsets
@@ -244,13 +254,13 @@ def ObjectGrid():
                     SubsetState.subsets.set(subsets_spawned)
 
                     # finally, create/add all plots with states and their according layout
-                    layouts = data['views']["layout"]
-                    states = data['views']["states"]
+                    layouts = data["views"]["layout"]
+                    states = data["views"]["states"]
                     for layout, state in zip(layouts, states):
                         add_view(layout=layout, **state)
 
-                    Alert.update('Layout imported successfully!',
-                                 color='success')
+                    Alert.update("Layout imported successfully!",
+                                 color="success")
 
                     # unlock
                     set_lockout(False)
@@ -274,7 +284,7 @@ def ObjectGrid():
                 open=areyousure,
                 title="Are you sure you want to reset the layout?",
                 max_width=480,
-                ok='Yes',
+                ok="Yes",
                 cancel="No",
                 close_on_ok=False,
                 on_ok=close_areyousure,
@@ -291,7 +301,7 @@ def ObjectGrid():
                     with rv.ListItem():
                         with rv.ListItemContent():
                             with sl.Tooltip(
-                                    'Import a previously exported layout.'):
+                                    "Import a previously exported layout."):
                                 sl.Button(
                                     "Import",
                                     outlined=False,
@@ -302,21 +312,21 @@ def ObjectGrid():
                         with rv.ListItemContent():
                             with sl.FileDownload(
                                     export_applayout,
-                                    f"zoraLayout-{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}-{State.uuid}.json",
+                                    f"zoraLayout-{datetime.now().strftime('%Y-%m-%d_%H:%M')}-{State.uuid}.json",
                             ):
                                 with sl.Tooltip(
-                                        'Export the current layout to a file.'
+                                        "Export the current layout to a file."
                                 ):
                                     sl.Button(
                                         "Export",
                                         outlined=False,
                                         icon_name="mdi-application-export",
-                                        style={'width': '100%'},
+                                        style={"width": "100%"},
                                     )
                     with rv.ListItem():
                         with rv.ListItemContent():
                             with sl.Tooltip(
-                                    'Reset and delete all open views.'):
+                                    "Reset and delete all open views."):
                                 sl.Button(
                                     "Reset",
                                     color="yellow",

@@ -2,6 +2,7 @@
 
 import os
 import json
+from typing import Optional, cast
 
 import pandas as pd
 import solara as sl
@@ -10,7 +11,7 @@ import vaex as vx
 from .subsetstore import SubsetStore
 
 # disable the vaex built-in logging (clogs on FileNotFounds et al)
-if sl.server.settings.main.mode == 'production':
+if sl.server.settings.main.mode == "production":
     vx.logging.remove_handler()  # force remove handler on production instance
 
 
@@ -26,7 +27,7 @@ def _datapath():
 
 
 def open_file(filename):
-    """Loader for files to catch excepts"""
+    """Loader for files to ensure authorization/etc"""
     # get dataset name
     datapath = _datapath()
 
@@ -41,7 +42,7 @@ def open_file(filename):
         dataset = vx.open(f"{datapath}/{filename}")
         return dataset
     except Exception as e:  # noqa
-        print('Exception on dataload encountered', e)
+        print("Exception on dataload encountered", e)
         # NOTE: this should deal with exception quietly; can be changed later if desired
         return None
 
@@ -69,57 +70,38 @@ class StateData:
 
     def __init__(self):
         # global, read-only reactives, dont care
-        self.mapping = sl.reactive(open_file('mappings.parquet'))
+        self.mapping = sl.reactive(open_file("mappings.parquet"))
         self.datamodel = sl.reactive(load_datamodel())
 
         # these force load
-        self._release = sl.reactive('dr19')
-        self._datatype = sl.reactive('star')
+        self._release = sl.reactive("dr19")
+        self._datatype = sl.reactive("star")
 
         # adaptively rerendered
-        self.df = sl.reactive(
-            StateData.load_dataset(self._release.value,
-                                   self._datatype.value.capitalize()))
-        self.columns = sl.reactive(self.df.value.get_column_names() if self.df.
-                                   value is not None else None)
+        self.df = sl.reactive(cast(vx.DataFrame, None))
 
         # user-binded instances
         # NOTE: this approach allows UUID + subsetstore to be read-only
         self._uuid = sl.reactive(sl.get_session_id())
+        self._kernel_id = sl.reactive(sl.get_kernel_id())
         self._subset_store = sl.reactive(SubsetStore())
 
-    def __repr__(self) -> str:
-        return str({
-            'uuid': self.uuid,
-            'df': hex(id(self.df.value)),
-            'release': self.release,
-            'datatype': self.datatype,
-            'subset_backend': self.subset_store,
-        })
+    def load_dataset(self,
+                     release: Optional[str] = None,
+                     datatype: Optional[str] = None) -> None:
+        # use attributes if not manually overridden
+        if not release:
+            release = self.release
+        if not datatype:
+            datatype = self.datatype
 
-    @property
-    def release(self):
-        return str(self._release.value)
-
-    @property
-    def datatype(self):
-        return str(self._datatype.value.capitalize())
-
-    @property
-    def uuid(self):
-        return str(self._uuid.value)
-
-    @property
-    def subset_store(self):
-        return self._subset_store.value
-
-    @staticmethod
-    def load_dataset(release, datatype):
         # start with standard open operation
-        df = open_file(f'{release}/explorerAll{datatype}-0.6.0.hdf5')
+        # TODO: redux version via envvar?
+        df = open_file(
+            f"{release}/explorerAll{datatype.capitalize()}-0.6.0.hdf5")
 
         if df is None:
-            print('no dataset loaded')
+            print("no dataset loaded")
             return
 
         # shuffle to ensure skyplot looks nice, constant seed for reproducibility
@@ -133,27 +115,41 @@ class StateData:
         #  for more info, see: https://vaex.io/docs/guides/performance.html
         df = df.materialize()
 
-        return df
+        self.df.set(df)
 
-    def initialize(self):
-        """Initializes with session-locked parameters"""
-        # memoize it all
-        df = sl.use_memo(
-            lambda *args: StateData.load_dataset(self.release, self.datatype),
-            dependencies=[self._release.value, self._datatype.value])
-        uuid = sl.use_memo(sl.get_session_id, [])
-        subset_store = sl.use_memo(SubsetStore, [])
+        return
 
-        # set values to memoized results
-        self._uuid.value = uuid
-        self._subset_store.value = subset_store
-        self.df.value = df
+    @property
+    def release(self):
+        return str(self._release.value)
 
-        # return memoized values to component so they exist
-        return (uuid, subset_store, df)
+    @property
+    def datatype(self):
+        return str(self._datatype.value)
 
-    class Lookup:
-        views = ["histogram", "histogram2d", "scatter", "skyplot"]
+    @property
+    def uuid(self):
+        return str(self._uuid.value)
+
+    @property
+    def kernel_id(self):
+        return str(self._kernel_id.value)
+
+    @property
+    def subset_store(self):
+        return self._subset_store.value
+
+    def __repr__(self) -> str:
+        """Show relevant properties of class as string"""
+        return "\n".join(
+            f"{k:15}: {v}" for k, v in {
+                "uuid": self.uuid,
+                "kernel_id": self.kernel_id,
+                "df": hex(id(self.df.value)),
+                "subset_backend": hex(id(self.subset_store)),
+                "release": self.release,
+                "datatype": self.datatype,
+            }.items())
 
 
 State = StateData()

@@ -84,9 +84,9 @@ def SubsetCard(key: str) -> ValueElement:
     """Holds filter update info, card structure, and calls to options"""
     df = State.df.value
     filter, _set_filter = use_subset(id(df), key, "subset-summary")
-    name = SubsetState.subsets.value[key].name
-    dataset = SubsetState.subsets.value[key].dataset
-    print(dataset)
+    subset = SubsetState.subsets.value[key]
+    name = subset.name
+    dataset = subset.dataset
 
     dfp = df[df[f"(pipeline == '{dataset}')"]]
 
@@ -120,7 +120,7 @@ def SubsetCard(key: str) -> ValueElement:
 
         with rv.ExpansionPanelContent():
             # filter bar
-            with sl.Column(gap='12px'):
+            with sl.Column(gap="12px"):
                 sl.ProgressLinear(value=progress, color="blue")
                 SubsetOptions(key, lambda: SubsetState.remove_subset(key))
     return main

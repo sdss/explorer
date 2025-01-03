@@ -4,17 +4,19 @@ import dataclasses
 import solara as sl
 
 from .alert import Alert
+from .state import State
 
 
 # frozen means it yells at us if we do assignment instead of replace
 @dataclasses.dataclass(frozen=True)
 class Subset:
     """Subset dataclass."""
-    name: str = 'A'
-    expression: str = ''
-    dataset: str = 'best'
+
+    name: str = "A"
+    expression: str = ""
+    dataset: str = "best" if State._datatype.value is "star" else "apogeenet"
     flags: list[str] = dataclasses.field(
-        default_factory=lambda: ['Purely non-flagged'])
+        default_factory=lambda: ["Purely non-flagged"])
     mapper: list[str] = dataclasses.field(default_factory=list)
     carton: list[str] = dataclasses.field(default_factory=list)
 
@@ -24,7 +26,7 @@ class SubsetData:
 
     def __init__(self):
         self.index = sl.reactive(1)
-        self.subsets = sl.reactive({'s0': Subset()})
+        self.subsets = sl.reactive({"s0": Subset()})
 
     def add_subset(self, name: str, **kwargs) -> bool:
         """Adds subset and subsetcard, generating new unique key for subset. Boolean return for success."""
@@ -41,7 +43,7 @@ class SubsetData:
             # add subset
             key = self.index.value
             subsets = self.subsets.value.copy()
-            subsets.update({'s' + str(key): Subset(name=name, **kwargs)})
+            subsets.update({"s" + str(key): Subset(name=name, **kwargs)})
             self.subsets.set(dict(**subsets))
 
             # iterate index
@@ -69,13 +71,13 @@ class SubsetData:
                          color="error")
             return False
         elif len(newname) == 0:
-            Alert.update("Enter a name for the subset!", color='warning')
+            Alert.update("Enter a name for the subset!", color="warning")
             return False
         elif newname == self.subsets.value[key].name:
-            Alert.update("Name is the same!", color='warning')
+            Alert.update("Name is the same!", color="warning")
             return False
         elif newname in [ss.name for ss in self.subsets.value.values()]:
-            Alert.update("Name already exists!", color='warning')
+            Alert.update("Name already exists!", color="warning")
             return False
         else:
             return self.update_subset(key, name=newname)
@@ -90,8 +92,8 @@ class SubsetData:
             subsets = self.subsets.value.copy()
             subset = self.subsets.value[key]
             # TODO: better name logic
-            name = 'copy of ' + subset.name
-            newkey = 's' + str(self.index.value)
+            name = "copy of " + subset.name
+            newkey = "s" + str(self.index.value)
             self.index.set(self.index.value + 1)
 
             subsets.update({newkey: dataclasses.replace(subset, name=name)})
