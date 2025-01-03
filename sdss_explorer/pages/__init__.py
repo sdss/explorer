@@ -54,7 +54,7 @@ def on_start():
     State._kernel_id.set(sl.get_kernel_id())
     State._subset_store.set(SubsetStore())
 
-    logging.info("new session connected!")
+    logging.info(f"new session connected! :: {State.kernel_id}")
     logging.info(State)
 
     # TODO: get user authentication via router (?) and define permissions
@@ -64,7 +64,7 @@ def on_start():
         """On kernel shutdown function, helps to clear memory."""
         if State.df.value:
             State.df.value.close()
-        logging.info("culled kernel", State.kernel_id)
+        logging.info(f"culled kernel! :: {State.kernel_id}")
 
     return on_shutdown
 
