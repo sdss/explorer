@@ -16,7 +16,7 @@ DEV = getenv("EXPLORER_DEV", False)
 logger = logging.getLogger("sdss_explorer")
 
 logging.basicConfig(
-    filename=f'{getenv('EXPLORER_SCRATCH',default='./.runtime')}/logs/log',
+    filename=f"{getenv('VAEX_HOME',default='./.runtime')}/logs/log",
     filemode="a",
     format="%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s",
     datefmt="%H:%M:%S",
@@ -26,7 +26,8 @@ logging.basicConfig(
 # vaex setup
 # NOTE: vaex gets its cache settings from envvars, see README.md
 if sl.server.settings.main.mode == "production":
-    vx.logging.remove_handler()  # force remove handler prior to any imports on production
+    vx.logging.remove_handler(
+    )  # force remove handler prior to any imports on production
 vx.cache.on()  # activate caching
 
 from .dataclass import (
@@ -107,7 +108,8 @@ def Page():
         datatype: str = query_params.pop("datatype", "star")
         try:
             assert validate_release(_datapath(), release), "release invalid"
-            assert (datatype == "star") or (datatype == "visit"), "datatype invalid"
+            assert (datatype == "star") or (datatype
+                                            == "visit"), "datatype invalid"
 
             # set the release and datatype
             State._release.set(release)
@@ -144,30 +146,27 @@ def Page():
             # validate all subset properties
             try:
                 if subset_data.get("dataset"):
-                    assert validate_pipeline(State.df.value, subset_data.get("dataset"))
+                    assert validate_pipeline(State.df.value,
+                                             subset_data.get("dataset"))
                 if subset_data.get("flags"):
-                    assert all(
-                        {
-                            flag in list(flagList.keys())
-                            for flag in subset_data.get("flags")
-                        }
-                    ), "flags failed"
+                    assert all({
+                        flag in list(flagList.keys())
+                        for flag in subset_data.get("flags")
+                    }), "flags failed"
                 if subset_data.get("mapper"):
                     assert all(
                         np.isin(
                             subset_data.get("mapper"),
                             State.mapping.value["mapper"].unique(),
                             assume_unique=True,
-                        )
-                    ), "mapper failed"
+                        )), "mapper failed"
                 if subset_data.get("carton"):
                     assert all(
                         np.isin(
                             subset_data.get("carton"),
                             State.mapping.value["alt_name"].unique(),
                             assume_unique=True,
-                        )
-                    ), "carton failed"
+                        )), "carton failed"
 
                 expr = subset_data.get("expression")
                 if expr:
