@@ -33,18 +33,18 @@ class MultiLineFormatter(logging.Formatter):
         """Format a record with added indentation and custom property prepended."""
         # Add the custom property to the record
         record.kernel_id = self.kernel_id
-        kernel_id_field = f"{record.kernel_id} - "
+        # TODO:kernel_id_field = f"{record.kernel_id} - "
 
         # get header
         head, *trailing = super().format(record).splitlines(True)
-        first = record.getMessage().splitlines(True)[0]
-        head = head.replace(first, "")
+        # first = record.getMessage().splitlines(True)[0]
+        # head = head.replace(first, "")
 
         # Format the message and preserve multiline formatting
-        indent = " " * (self.get_header_length(record) + len(kernel_id_field))
+        indent = " " * (self.get_header_length(record)
+                        )  # + len(kernel_id_field))
 
-        return (head + kernel_id_field + first + "".join(indent + line
-                                                         for line in trailing))
+        return head + "".join(indent + line for line in trailing)
 
 
 def setup_logging(
