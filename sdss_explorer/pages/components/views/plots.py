@@ -1446,7 +1446,7 @@ def SkymapPlot(plotstate):
     def on_select(data):
         if len(data["points"]["xs"]) > 0:
             bool_arr = np.array(data["points"]["trace_indexes"]) == 0
-            logging.info(np.array(data["points"]["point_indexes"])[bool_arr])
+            logger.info(np.array(data["points"]["point_indexes"])[bool_arr])
 
             # set_filter(df[df == dff[data["points"]["point_indexes"]]])
 

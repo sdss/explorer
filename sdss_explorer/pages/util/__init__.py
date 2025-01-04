@@ -2,3 +2,4 @@
 
 from .util import *
 from .regex import *
+from .logger import *

@@ -1,11 +1,14 @@
 """Holds specific filter components"""
 
 import operator
+import logging
 import re
 from functools import reduce
 from typing import cast
+from timeit import default_timer as timer
 
 import numpy as np
+import vaex as vx
 import reacton.ipyvuetify as rv
 import solara as sl
 from reacton.core import ValueElement
@@ -19,9 +22,12 @@ __all__ = [
     "ExprEditor", "TargetingFiltersPanel", "PivotTablePanel", "DatasetSelect"
 ]
 
+logger = logging.getLogger("sdss_explorer")
+
 operator_map = {"AND": operator.and_, "OR": operator.or_, "XOR": operator.xor}
 
 flagList = {
+    # TODO: more quick flags based on scientist input
     "sdss5 only": "release=='sdss5'",
     "snr > 50": "snr>=50",
     "purely non-flagged": "result_flags==0",
@@ -287,7 +293,8 @@ def FlagSelect(key: str, invert) -> ValueElement:
         set_flagfilter(concat_filter)
         return
 
-    sl.use_thread(update_flags, dependencies=[flags, invert.value])
+    sl.use_thread(update_flags,
+                  dependencies=[flags, subset.dataset, invert.value])
 
     return AutocompleteSelect(
         flags,
@@ -333,57 +340,53 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
             )
             return
 
-        # convert chosens to bool mask
-        cmp_filter = None
-        if len(mapper) == 0 and len(carton) == 0 and len(dataset) == 0:
-            set_cmfilter(None)
-            return
+        # create filtered version for efficient filtering
+        pipelineFilter = df[f"(pipeline=='{dataset}')"]
+        dff: vx.DataFrame = df[pipelineFilter]
 
         # mapper + cartons
-        elif len(mapper) != 0 or len(carton) != 0:
-            c = mapping["alt_name"].isin(carton).values
-            m = mapping["mapper"].isin(mapper).values
-
+        logger.info(f"MAPPER: {mapper}")
+        logger.info(f"CARTON: {carton}")
+        start = timer()
+        if len(mapper) != 0 or len(carton) != 0:
             # mask
             if len(mapper) == 0:
-                mask = c
+                mask = mapping["alt_name"].isin(carton).values
             elif len(carton) == 0:
-                mask = m
+                mask = mapping["mapper"].isin(mapper).values
             else:
-                mask = operator_map[combotype](m, c)
+                mask = operator_map[combotype](
+                    mapping["mapper"].isin(mapper).values,
+                    mapping["alt_name"].isin(carton).values,
+                )
 
-            bits = np.arange(len(mapping))[mask]
-
-            # get flag_number & offset
+            # determine active bits via mask and get flag_number & offset
             # NOTE: hardcoded nbits as 8, and nflags as 57
-            # TODO: in future, change to read from mappings parquet
+            bits = np.arange(len(mapping))[mask]
             num, offset = np.divmod(bits, 8)
             setbits = 57 > num  # ensure bits in flags
 
             # construct hashmap for each unique flag
-            filters = np.zeros(57).astype("uint8")
-            for unique in np.unique(num[setbits]):
-                # ANDs all the bitshifted values for the given unique flag
-                offsets = 1 << offset[setbits][np.where(
-                    num[setbits] == unique)]
-                actives = reduce(
-                    operator.or_,
-                    offsets)  # INFO: this is an OR operation PER bit
-                if actives == 0:
-                    continue  # skip
-                filters[unique] = (
-                    actives  # the required active bit(s) ACTIVES for bitmask position "UNIQUE"
-                )
+            filters = np.zeros(57, dtype="uint8")
+            unique_nums, indices = np.unique(num[setbits], return_inverse=True)
+            for i, unique in enumerate(unique_nums):
+                offsets = 1 << offset[setbits][indices == i]
+                filters[unique] = np.bitwise_or.reduce(offsets)
 
-            # generate a filter based on the vaex-defined flag combiner
-            cmp_filter = df.func.check_flags(df["sdss5_target_flags"], filters)
+            # generate another filtered frame based on the custom function
+            dfcm: vx.Expression = dff[dff.func.check_flags(
+                dff["sdss5_target_flags"], filters)]["__target_flags_filter__"]
 
-        if dataset is not None:
-            if cmp_filter is not None:
-                cmp_filter = operator_map[combotype](
-                    cmp_filter, df["pipeline"].isin([dataset]))
-            else:
-                cmp_filter = df["pipeline"].isin([dataset])
+            # regenerate the filter for the original dataframe
+            cmp_filter = df["__target_flags_filter__"].isin(dfcm.values)
+        else:
+            cmp_filter = None
+
+        # convert chosens to bool mask
+        if cmp_filter:
+            cmp_filter = operator_map[combotype](cmp_filter, pipelineFilter)
+        else:
+            cmp_filter = pipelineFilter
 
         # invert if requested
         if invert.value:
@@ -391,10 +394,12 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
         else:
             set_cmfilter(cmp_filter)
 
+        logger.info(f"CM filter took {timer() - start:.4f} seconds")
+
         return
 
     sl.use_thread(update_cm,
-                  dependencies=[mapper, carton, dataset, invert.value])
+                  dependencies=[df, mapper, carton, dataset, invert.value])
 
     open, set_open = sl.use_state([])
     with rv.ExpansionPanels(flat=True,

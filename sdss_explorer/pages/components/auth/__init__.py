@@ -17,6 +17,8 @@ from ipyvue import VueWidget
 from ...dataclass import State, Alert
 from ..dialog import Dialog
 
+logger = logging.getLogger("sdss_explorer")
+
 
 def get_url():
     """get the valis api url"""
@@ -66,7 +68,7 @@ def login(username: str, password: str):
                 "release": "dr17",
             },
         )
-        logging.info("response received:", response.json())
+        logger.info("response received:", response.json())
         if not response.ok:
             assert (
                 "502" not in response.json()["detail"]
@@ -76,7 +78,7 @@ def login(username: str, password: str):
         assert response.ok, "invalid username or password."
 
         # set the token
-        logging.info("token received:", response.json()["access_token"])
+        logger.info("token received:", response.json()["access_token"])
 
         # save to header
         # TODO: write to header with solara
@@ -84,7 +86,7 @@ def login(username: str, password: str):
 
         return True, ""
     except AssertionError as e:
-        logging.debug("login request failed:", e)
+        logger.debug("login request failed:", e)
         return False, e
 
     return

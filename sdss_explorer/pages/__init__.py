@@ -4,24 +4,11 @@ import logging
 from urllib.parse import parse_qs
 from os import getenv
 
+from pandas.core.frame import console
 import solara as sl
 import numpy as np
 import vaex as vx
 from solara.lab import ThemeToggle
-
-# development envvar
-DEV = getenv("EXPLORER_DEV", False)
-
-# logger setup
-logger = logging.getLogger("sdss_explorer")
-
-logging.basicConfig(
-    filename=f"{getenv('VAEX_HOME',default='./.runtime')}/logs/log",
-    filemode="a",
-    format="%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s",
-    datefmt="%H:%M:%S",
-    level=logging.INFO if DEV else logging.DEBUG,
-)
 
 # vaex setup
 # NOTE: vaex gets its cache settings from envvars, see README.md
@@ -39,12 +26,17 @@ from .dataclass import (
     SubsetState,
     _datapath,
 )  # noqa: E402
-from .util import validate_release, validate_pipeline
+from .util import validate_release, validate_pipeline, setup_logging
 from .components.sidebar import Sidebar  # noqa: E402
 from .components.sidebar.glossary import HelpBlurb  # noqa: E402
 from .components.sidebar.subset_filters import flagList  # noqa: E402
 from .components.views import ObjectGrid, add_view  # noqa: E402
 from .components.views.dataframe import NoDF  # noqa: E402
+
+# logging setup
+DEV = bool(getenv("EXPLORER_DEV", True))
+
+logger = logging.getLogger("sdss_explorer")
 
 
 @sl.lab.on_kernel_start
@@ -53,9 +45,16 @@ def on_start():
     State._uuid.set(sl.get_session_id())
     State._kernel_id.set(sl.get_kernel_id())
     State._subset_store.set(SubsetStore())
+    setup_logging(
+        log_path=getenv("VAEX_HOME", "./"),
+        console_log_level=logging.INFO if DEV else logging.CRITICAL,
+        file_log_level=logging.INFO if DEV else logging.DEBUG,
+        kernel_id=State.kernel_id,
+    )
 
-    logging.info(f"new session connected! :: {State.kernel_id}")
-    logging.info(State)
+    # connection log
+    logger.info(f"new session connected!")
+    logger.info(State)
 
     # TODO: get user authentication via router (?) and define permissions
     # NOTE: https://github.com/widgetti/solara/issues/774
@@ -64,7 +63,7 @@ def on_start():
         """On kernel shutdown function, helps to clear memory."""
         if State.df.value:
             State.df.value.close()
-        logging.info(f"culled kernel! :: {State.kernel_id}")
+        logger.info(f"culled kernel! :: {State.kernel_id}")
 
     return on_shutdown
 
@@ -117,7 +116,7 @@ def Page():
             State.load_dataset()  # this changes State.df.value
         except Exception as e:
             # TODO: logging
-            logging.debug("invalid query params on release/datatype:", e)
+            logger.debug("invalid query params on release/datatype:", e)
 
         # set valid pipeline when not set properly with visit spec
         if (datatype == "visit") & ("dataset" not in query_params.keys()):
@@ -172,7 +171,7 @@ def Page():
                 if expr:
                     State.df.value.validate_expression(expr)
             except Exception as e:
-                logging.debug("failed query params on subset parsing:", e)
+                logger.debug("failed query params on subset parsing:", e)
 
             # generate subset and update
             subsets = {"s0": Subset(**subset_data)}
@@ -192,7 +191,7 @@ def Page():
                     add_view(plottype, **query_params)
                 except Exception as e:
                     # TODO: do we want logging/alerts here logging here
-                    logging.debug("failed query params on plot parsing:", e)
+                    logger.debug("failed query params on plot parsing:", e)
                     return
 
         return

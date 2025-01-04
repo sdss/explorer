@@ -233,7 +233,7 @@ def ObjectGrid():
                     except Exception as e:
                         Alert.update(f"JSON load of {fileobj['name']} failed!",
                                      color="error")
-                        logging.debug(
+                        logger.debug(
                             f"JSON load of {fileobj['name']} failed: {e}")
                         set_lockout(False)
                         set_impmenu(False)

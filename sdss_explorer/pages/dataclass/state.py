@@ -45,7 +45,7 @@ def open_file(filename):
         dataset = vx.open(f"{datapath}/{filename}")
         return dataset
     except Exception as e:  # noqa
-        logging.debug("Exception on dataload encountered", e)
+        logger.debug("Exception on dataload encountered", e)
         # NOTE: this should deal with exception quietly; can be changed later if desired
         return None
 
@@ -104,13 +104,16 @@ class StateData:
             f"{release}/explorerAll{datatype.capitalize()}-0.6.0.hdf5")
 
         if df is None:
-            logging.debug(
+            logger.debug(
                 "no dataset loaded, ensure everything is setup (files, envvars)"
             )
             return
 
         # shuffle to ensure skyplot looks nice, constant seed for reproducibility
         df = df.shuffle(random_state=42)
+
+        # create inaccessible indices column for target flags filtering
+        df["__target_flags_filter__"] = vx.vrange(0, len(df), dtype="int32")
 
         # force materialization of target_flags column to maximize the performance
         # NOTE: embedded in a worker process, we will eat up significant memory with this command

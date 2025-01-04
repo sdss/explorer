@@ -14,13 +14,13 @@ from .subset_options import updater_context, SubsetOptions
 
 
 @vx.register_function()
-def check_flags(flags, vals):
+def check_flags(flags: vx.Expression, filters: vx.Expression):
     """Converts flags & values to boolean vaex expression for use as a filter."""
-    return np.any(np.logical_and(flags, vals), axis=1)
+    return np.logical_and(flags, filters).any(axis=1)
 
 
 @sl.component()
-def SubsetMenu():
+def SubsetMenu() -> ValueElement:
     """Control and display subset cards"""
     add = sl.use_reactive(False)
     name, set_name = sl.use_state("")
@@ -91,14 +91,13 @@ def SubsetCard(key: str) -> ValueElement:
     dfp = df[df[f"(pipeline == '{dataset}')"]]
 
     # progress bar logic
-    if filter:
+    if isinstance(filter, vx.Expression):
         # filter from plots or self
-        filtered = True
         dff = df[filter]
     else:
         # not filtered at all
-        filtered = False
         dff = df
+    filtered = len(dff) < len(dfp)
     denom = max(len(dfp), 1)
     progress = len(dff) / denom * 100
     summary = f"{len(dff):,}"
