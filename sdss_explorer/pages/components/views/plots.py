@@ -645,7 +645,7 @@ def HistogramPlot(plotstate):
                 limits = dff.minmax(xcol)
             except:
                 Alert.update(
-                    "Binning routine encountered stride bug, excepting...",
+                    "Failed to bin! Is your data too small for the aggregation?",
                     color="warning",
                 )
                 limits = [
@@ -918,8 +918,6 @@ def HeatmapPlot(plotstate):
 
             return (None, None, None)
 
-        # TODO: report weird stride bug that occurs on this code
-
         try:
             limits = [
                 dff.minmax(plotstate.x.value),
@@ -927,7 +925,7 @@ def HeatmapPlot(plotstate):
             ]
         except:
             Alert.update(
-                "Binning routine encountered stride bug, excepting...",
+                "Failed to bin! Is your data too small for the aggregation?",
                 color="warning",
             )
             # NOTE: empty tuple acts as index for the 0th of 0D array
@@ -1486,7 +1484,7 @@ def StatisticsTable(state):
             dfd = dff[columns].describe(strings=False)
         except:
             Alert.update(
-                "Statistics describe routine encountered stride bug, excepting...",
+                "Failed to get statistics! Is your data too small for aggregations?",
                 color="warning",
             )
             dfd = pd.DataFrame({"error": ["no"], "encountered": ["data"]})
@@ -1568,7 +1566,7 @@ def DeltaHeatmapPlot(plotstate):
             ]
         except:
             Alert.update(
-                "Binning routine encountered stride bug, excepting...",
+                "Failed to get statistics! Is your data too small for aggregations?",
                 color="warning",
             )
             # NOTE: empty tuple acts as index for the 0th of 0D array
