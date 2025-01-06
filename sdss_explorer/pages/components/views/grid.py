@@ -146,7 +146,7 @@ def ObjectGrid():
                 GridState.grid_layout.value.pop(-1)
             GridState.index.value = len(GridState.objects.value)
 
-    sl.use_thread(
+    sl.lab.use_task(
         monitor_grid,
         dependencies=[GridState.objects.value, GridState.grid_layout.value],
     )

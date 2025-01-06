@@ -32,7 +32,7 @@ def SkymapMenu(plotstate):
     """Settings for SkymapPlot"""
     columns = SubsetState.subsets.value[plotstate.subset.value].columns + list(
         VCData.columns.value.keys())
-    sl.use_thread(
+    sl.lab.use_task(
         plotstate.reset_values,
         dependencies=[
             len(SubsetState.subsets.value),
@@ -92,7 +92,7 @@ def ScatterMenu(plotstate):
     """Settings for ScatterPlot"""
     columns = SubsetState.subsets.value[plotstate.subset.value].columns + list(
         VCData.columns.value.keys())
-    sl.use_thread(
+    sl.lab.use_task(
         plotstate.reset_values,
         dependencies=[
             len(SubsetState.subsets.value),
@@ -166,7 +166,7 @@ def HistogramMenu(plotstate):
     """Settings for HistogramPlot"""
     columns = SubsetState.subsets.value[plotstate.subset.value].columns + list(
         VCData.columns.value.keys())
-    sl.use_thread(
+    sl.lab.use_task(
         plotstate.reset_values,
         dependencies=[
             len(SubsetState.subsets.value),
@@ -220,7 +220,7 @@ def HeatmapMenu(plotstate):
     """Settings for HeatmapPlot"""
     columns = SubsetState.subsets.value[plotstate.subset.value].columns + list(
         VCData.columns.value.keys())
-    sl.use_thread(
+    sl.lab.use_task(
         plotstate.reset_values,
         dependencies=[
             len(SubsetState.subsets.value),
@@ -303,7 +303,7 @@ def HeatmapMenu(plotstate):
 @sl.component()
 def StatisticsTableMenu(state):
     """Settings menu for Statistics Table view."""
-    sl.use_thread(
+    sl.lab.use_task(
         state.reset_values,
         dependencies=[
             len(SubsetState.subsets.value),
@@ -340,7 +340,7 @@ def StatisticsTableMenu(state):
 def DeltaHeatmapMenu(plotstate):
     """Settings for DeltaHeatmapPlot"""
     columns = SubsetState.subsets.value[plotstate.subset.value].columns
-    sl.use_thread(
+    sl.lab.use_task(
         plotstate.reset_values,
         dependencies=[
             len(SubsetState.subsets.value),

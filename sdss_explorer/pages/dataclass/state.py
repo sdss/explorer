@@ -110,10 +110,9 @@ class StateData:
             return
 
         # shuffle to ensure skyplot looks nice, constant seed for reproducibility
-        df = df.shuffle(random_state=42)
+        # df = df.shuffle(random_state=42)
 
         # create inaccessible indices column for target flags filtering
-        df["__target_flags_filter__"] = vx.vrange(0, len(df), dtype="int32")
 
         # force materialization of target_flags column to maximize the performance
         # NOTE: embedded in a worker process, we will eat up significant memory with this command

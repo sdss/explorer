@@ -77,8 +77,7 @@ def VirtualColumnsPanel():
         VCData.add_column(name, expression)
         close()
 
-    result: sl.Result = sl.use_thread(validate,
-                                      dependencies=[expression, name])
+    result = sl.lab.use_task(validate, dependencies=[expression, name])
 
     def close():
         """Clears state variables and closes dialog."""
@@ -118,7 +117,7 @@ def VirtualColumnsPanel():
                 value=expression,
                 on_value=set_expression,
             )
-            if result.state == sl.ResultState.FINISHED:
+            if result.finished:
                 if result.value:
                     sl.Success(
                         label="Valid expression & name entered.",
@@ -140,8 +139,8 @@ def VirtualColumnsPanel():
                         dense=True,
                         outlined=False,
                     )
-            elif result.state == sl.ResultState.ERROR:
-                sl.Error(f"Error occurred: {result.error}")
+            elif result.error:
+                sl.Error(f"Error occurred: {result.exception}")
             else:
                 sl.Info("Evaluating expression...")
                 rv.ProgressLinear(indeterminate=True)

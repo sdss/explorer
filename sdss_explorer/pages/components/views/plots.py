@@ -616,7 +616,7 @@ def HistogramPlot(plotstate):
                 set_layout(spec)
                 break
 
-    sl.use_thread(update_grid, dependencies=[GridState.grid_layout.value])
+    sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
 
     dff = df
     if filter:
@@ -869,7 +869,7 @@ def HeatmapPlot(plotstate):
                 set_layout(spec)
                 break
 
-    sl.use_thread(update_grid, dependencies=[GridState.grid_layout.value])
+    sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
 
     dff = df
     if filter:
@@ -1187,7 +1187,7 @@ def SkymapPlot(plotstate):
                 set_layout(spec)
                 break
 
-    sl.use_thread(update_grid, dependencies=[GridState.grid_layout.value])
+    sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
 
     def update_filter():
         if plotstate.geo_coords.value == "celestial":
@@ -1233,8 +1233,8 @@ def SkymapPlot(plotstate):
             set_local_filter(df[f"({lat} > {latlow})"]
                              & df[f"({lat}< {lathigh})"])
 
-    sl.use_thread(update_filter,
-                  dependencies=[plotstate.geo_coords.value, relayout])
+    sl.lab.use_task(update_filter,
+                    dependencies=[plotstate.geo_coords.value, relayout])
 
     # Apply global and local filters
     if filter is not None:
@@ -1545,7 +1545,7 @@ def DeltaHeatmapPlot(plotstate):
                 set_layout(spec)
                 break
 
-    sl.use_thread(update_grid, dependencies=[GridState.grid_layout.value])
+    sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
 
     if filterA:
         dfa = df[filterA]

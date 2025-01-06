@@ -154,9 +154,9 @@ def ExprEditor(key: str, invert) -> ValueElement:
             set_error("modifier at end of sequence with no expression")
             return False
 
-    result: sl.Result[bool] = sl.use_thread(
+    result: sl.Result[bool] = sl.lab.use_task(
         update_expr, dependencies=[expression, invert.value])
-    if result.state == sl.ResultState.FINISHED:
+    if result.finished:
         if result.value:
             errorFound = False
             message = "Valid expression entered"
@@ -167,7 +167,7 @@ def ExprEditor(key: str, invert) -> ValueElement:
             errorFound = True
             message = f"Invalid expression entered: {error}"
 
-    elif result.state == sl.ResultState.ERROR:
+    elif result.error:
         errorFound = True
         message = f"Backend failure occurred: {result.error}"
     else:
@@ -229,7 +229,7 @@ def DatasetSelect(key: str, dataset, set_dataset) -> ValueElement:
     """Select box for pipeline, also sets columns on dataset change."""
     df = State.df.value
 
-    def fetch():
+    def fetch() -> list:
         return State.df.value["pipeline"].unique()
 
     pipelines = sl.use_memo(
@@ -245,7 +245,7 @@ def DatasetSelect(key: str, dataset, set_dataset) -> ValueElement:
         )
         return
 
-    sl.use_thread(update_columns, dependencies=[State.df.value, dataset])
+    sl.lab.use_task(update_columns, dependencies=[State.df.value, dataset])
 
     return SingleAutocomplete(
         label="Dataset",
@@ -293,8 +293,8 @@ def FlagSelect(key: str, invert) -> ValueElement:
         set_flagfilter(concat_filter)
         return
 
-    sl.use_thread(update_flags,
-                  dependencies=[flags, subset.dataset, invert.value])
+    sl.lab.use_task(update_flags,
+                    dependencies=[flags, subset.dataset, invert.value])
 
     return AutocompleteSelect(
         flags,
@@ -373,12 +373,13 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
                 offsets = 1 << offset[setbits][indices == i]
                 filters[unique] = np.bitwise_or.reduce(offsets)
 
+            cmp_filter = df.func.check_flags(df["sdss5_target_flags"], filters)
             # generate another filtered frame based on the custom function
-            dfcm: vx.Expression = dff[dff.func.check_flags(
-                dff["sdss5_target_flags"], filters)]["__target_flags_filter__"]
+            # dfcm: vx.Expression = dff[dff.func.check_flags(
+            #    dff["sdss5_target_flags"], filters)]["__target_flags_filter__"]
 
-            # regenerate the filter for the original dataframe
-            cmp_filter = df["__target_flags_filter__"].isin(dfcm.values)
+            ## regenerate the filter for the original dataframe
+            # cmp_filter = df["__target_flags_filter__"].isin(dfcm.values)
         else:
             cmp_filter = None
 
@@ -398,8 +399,8 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
 
         return
 
-    sl.use_thread(update_cm,
-                  dependencies=[df, mapper, carton, dataset, invert.value])
+    sl.lab.use_task(update_cm,
+                    dependencies=[df, mapper, carton, dataset, invert.value])
 
     open, set_open = sl.use_state([])
     with rv.ExpansionPanels(flat=True,
