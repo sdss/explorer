@@ -45,8 +45,8 @@ def open_file(filename):
         dataset = vx.open(f"{datapath}/{filename}")
         return dataset
     except Exception as e:  # noqa
-        logger.debug("Exception on dataload encountered", e)
         # NOTE: this should deal with exception quietly; can be changed later if desired
+        logger.debug(f"Exception on dataload encountered: {e}")
         return None
 
 
@@ -104,8 +104,8 @@ class StateData:
             f"{release}/explorerAll{datatype.capitalize()}-0.6.0.hdf5")
 
         if df is None:
-            logger.debug(
-                "no dataset loaded, ensure everything is setup (files, envvars)"
+            logger.critical(
+                "No dataset loaded, ensure all options are setup (files, envvars)"
             )
             return
 

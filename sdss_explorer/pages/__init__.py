@@ -116,7 +116,7 @@ def Page():
             State.load_dataset()  # this changes State.df.value
         except Exception as e:
             # TODO: logging
-            logger.debug("invalid query params on release/datatype:", e)
+            logger.debug(f"invalid query params on release/datatype: {e}")
 
         # set valid pipeline when not set properly with visit spec
         if (datatype == "visit") & ("dataset" not in query_params.keys()):
@@ -171,7 +171,7 @@ def Page():
                 if expr:
                     State.df.value.validate_expression(expr)
             except Exception as e:
-                logger.debug("failed query params on subset parsing:", e)
+                logger.debug(f"failed query params on subset parsing: {e}")
 
             # generate subset and update
             subsets = {"s0": Subset(**subset_data)}
@@ -191,7 +191,7 @@ def Page():
                     add_view(plottype, **query_params)
                 except Exception as e:
                     # TODO: do we want logging/alerts here logging here
-                    logger.debug("failed query params on plot parsing:", e)
+                    logger.debug(f"failed query params on plot parsing: {e}")
                     return
 
         return
