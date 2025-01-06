@@ -1,17 +1,27 @@
 <template>
-    <div v-if="!loaded">Loading bokeh...</div>
+  <div v-if="!loaded">
+    <div class="loading-text">Loading...</div>
+  </div>
 </template>
+
 <script>
 module.exports = {
-    mounted() {
-        const check = () => {
-            if (window.Bokeh) {
-                this.loaded = true;
-                return;
-            }
-            setTimeout(check, 100);
-        }
-        check();
-    }
-}
+  mounted() {
+    const check = () => {
+      if (window.Bokeh) {
+        this.loaded = true;
+        return;
+      }
+      setTimeout(check, 100);
+    };
+    check();
+  },
+};
 </script>
+
+<style>
+.loading-text {
+  margin-top: 10px;
+  font-size: 16px;
+}
+</style>

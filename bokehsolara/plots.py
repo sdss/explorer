@@ -29,6 +29,8 @@ TOOLS = "pan,wheel_zoom,box_zoom,reset,save"
 
 colormaps = [x for x in colormaps if "256" in x]
 
+# https://docs.bokeh.org/en/latest/docs/user_guide/interaction/js_callbacks.html#customjs-for-topics-events
+
 
 def get_data():
     expr = (df[plotstate.x.value], df[plotstate.y.value])
@@ -371,19 +373,14 @@ def Scatter():
         # add hover callback
         cb = CustomJS(
             args=dict(p=p, source=source, hover_source=hover_source),
-            code="""let timeout;
-                    p.on_event('mousemove', function(event) {
-                        clearTimeout(timeout);
-                        timeout = setTimeout(function() {
-                        if (source.inspected.indices.length>0){
-                            console.log('cb triggered');
-                            hover_source.data.ind[1] = source.inspected.indices[0];
-                            };
-                            },300);
-                        });
+            code="""if (source.inspected.indices.length>0){
+                        console.log('cb triggered');
+                        hover_source.data.ind[1] = source.inspected.indices[0];
+                    };
                       """,
         )
-        p.js_on_event("mousemove", cb)
+        items[0].on_change("visible",
+                           lambda attr, old, new: print("cb triggered"))
 
         # add selection callback
 
@@ -396,6 +393,8 @@ def Scatter():
             high=z.max(),
         )
 
+        # TODO: JS_LINK whether the Actionitem for Target page is open depending on the hover
+        # TODO: JS LINK a disable if the Menu is visible
         # generate scatter points
         glyph = p.scatter(
             x="x",
@@ -415,7 +414,18 @@ def Scatter():
             (plotstate.color.value, "@z"),
             ("sdss_id", "@sdss_id"),
         ]
-        hover = HoverTool(tooltips=TOOLTIPS, renderers=[glyph], visible=False)
+        code = """
+        console.log('cb triggered');
+        console.log(cb_data.index.indices);
+        console.log(cb_data.geometry);
+        """
+        hoverCallback = CustomJS(args=dict(toolsource=source,
+                                           hover_source=hover_source),
+                                 code=code)
+        hover = HoverTool(tooltips=TOOLTIPS,
+                          renderers=[glyph],
+                          visible=False,
+                          callback=hoverCallback)
         p.add_tools(hover)
 
         # add selection tools
