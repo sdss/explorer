@@ -34,7 +34,7 @@ from .components.views import ObjectGrid, add_view  # noqa: E402
 from .components.views.dataframe import NoDF  # noqa: E402
 
 # logging setup
-DEV = bool(getenv("EXPLORER_DEV", True))
+DEV = bool(getenv("EXPLORER_DEV", False))
 
 logger = logging.getLogger("sdss_explorer")
 
@@ -48,13 +48,13 @@ def on_start():
     setup_logging(
         log_path=getenv("VAEX_HOME", "./"),
         console_log_level=logging.INFO if DEV else logging.CRITICAL,
-        file_log_level=logging.INFO if DEV else logging.DEBUG,
+        file_log_level=logging.INFO
+        if DEV else logging.DEBUG,  # TODO: discuss logging setup
         kernel_id=State.kernel_id,
     )
 
     # connection log
-    logger.info(f"new session connected!")
-    logger.info(State)
+    logger.info(f"new session connected! :: {State.kernel_id}")
 
     # TODO: get user authentication via router (?) and define permissions
     # NOTE: https://github.com/widgetti/solara/issues/774
