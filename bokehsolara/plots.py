@@ -13,8 +13,8 @@ import vaex as vx
 import xarray
 from bokeh.io import output_notebook
 from bokeh.events import Reset
-from bokeh.models import BoxSelectTool, ColorBar, LinearColorMapper, HoverTool
-from bokeh.models import CustomJS
+from bokeh.models import BoxSelectTool, ColorBar, LinearColorMapper, HoverTool, TapTool
+from bokeh.models import CustomJS, OpenURL
 from bokeh.palettes import __palettes__ as colormaps
 from bokeh.models.ui import ActionItem, Menu as BokehMenu
 from bokeh.plotting import ColumnDataSource, figure
@@ -25,7 +25,8 @@ from solara.lab import Menu
 from state import plotstate, df
 from figurebokeh import FigureBokeh
 
-TOOLS = "pan,wheel_zoom,box_zoom,reset,save"
+TOOLS = "pan,wheel_zoom,box_zoom,reset,save,examine"
+ANTIHOVER = "<style>.bk-tooltip>div:not(:first-child) {display:none;}</style>"
 
 colormaps = [x for x in colormaps if "256" in x]
 
@@ -323,8 +324,6 @@ def Scatter():
                 "z": z,
                 "sdss_id": df["L"].values,  # temp
             })
-        hover_source = ColumnDataSource(
-            data={"ind": [1, None]})  # 2 length arr to not break bokeh
 
         # generate main figure
         p = figure(
@@ -347,18 +346,6 @@ def Scatter():
         # setup menu items
         name = "menu-propogate"
         items = [
-            ActionItem(
-                label="Go to Target Page",
-                action=CustomJS(
-                    args=dict(source=source, hover_source=hover_source),
-                    code="""
-                    if (hover_source.data.ind[1] !== null) {
-                        console.log('loading page');
-                        window.open(`https://data.sdss.org/zora/target/${source.data.sdss_id[hover_source.data.ind[1]]}`, '_blank').focus();
-                    }
-                    """,
-                ),
-            ),
             ActionItem(label="Propagate selection to subset",
                        disabled=True,
                        name=name),  # TODO
@@ -369,18 +356,6 @@ def Scatter():
         ]
         plotstate.menu_item_id.set(name)
         menu.update(items=items)
-
-        # add hover callback
-        cb = CustomJS(
-            args=dict(p=p, source=source, hover_source=hover_source),
-            code="""if (source.inspected.indices.length>0){
-                        console.log('cb triggered');
-                        hover_source.data.ind[1] = source.inspected.indices[0];
-                    };
-                      """,
-        )
-        items[0].on_change("visible",
-                           lambda attr, old, new: print("cb triggered"))
 
         # add selection callback
 
@@ -414,19 +389,30 @@ def Scatter():
             (plotstate.color.value, "@z"),
             ("sdss_id", "@sdss_id"),
         ]
-        code = """
-        console.log('cb triggered');
-        console.log(cb_data.index.indices);
-        console.log(cb_data.geometry);
-        """
-        hoverCallback = CustomJS(args=dict(toolsource=source,
-                                           hover_source=hover_source),
-                                 code=code)
-        hover = HoverTool(tooltips=TOOLTIPS,
-                          renderers=[glyph],
-                          visible=False,
-                          callback=hoverCallback)
+
+        hover = HoverTool(
+            tooltips=TOOLTIPS,
+            renderers=[glyph],
+            visible=False,
+        )
         p.add_tools(hover)
+
+        # add double click to open target page
+        cb = CustomJS(
+            args=dict(source=source),
+            code=
+            """window.open(`https://data.sdss.org/zora/target/${source.data.sdss_id[source.inspected.indices[0]]}`, '_blank').focus();""",
+        )
+        tap = TapTool(
+            behavior="inspect",
+            callback=cb,
+            gesture="doubletap",
+            renderers=[glyph],
+        )
+        p.add_tools(tap)
+
+        # Attach the callback to the figure
+        # p.js_on_event("contextmenu", contextcallback)
 
         # add selection tools
         box_select = BoxSelectTool(renderers=[glyph])
@@ -480,9 +466,9 @@ def Scatter():
 
                 # directly update data
                 source.data = {
-                    "x": np.repeat(x_centers, len(y_centers)),
-                    "y": np.tile(y_centers, len(x_centers)),
-                    "z": z.values.flatten(),
+                    "x": df[plotstate.x.value].values,
+                    "y": df[plotstate.y.value].values,
+                    "z": df[plotstate.color.value].values,
                 }
 
                 # update x/y labels
