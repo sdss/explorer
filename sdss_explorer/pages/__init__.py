@@ -188,6 +188,7 @@ def Page():
                             # TODO: update to ensure in the specific dataset
                             assert col in columns
                     plottype = query_params.pop("plottype")
+                    print(query_params)
                     add_view(plottype, **query_params)
                 except Exception as e:
                     # TODO: do we want logging/alerts here logging here

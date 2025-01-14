@@ -175,8 +175,10 @@ class PlotState:
         except:
             pass
 
-        valid_columns = SubsetState.subsets.value[
-            self.subset.value].columns + list(VCData.columns.value.keys())
+        # valid_columns = SubsetState.subsets.value[
+        #    self.subset.value].columns + list(VCData.columns.value.keys())
+        valid_columns = State.df.value.get_column_names(virtual=False) + list(
+            VCData.columns.value.keys())
 
         # columnar resets for table
         if "stats" in self.plottype:
