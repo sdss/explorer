@@ -24,10 +24,6 @@ build-backend = "hatchling.build"
 path = "sdss_explorer/__init__.py"
 
 
-[tool.pdm]
-[project.urls]
-repository = "https://www.github.com/sdss_explorer"
-
 [tool.black]
 line-length = 160
 
