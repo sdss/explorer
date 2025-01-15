@@ -920,16 +920,13 @@ def HeatmapPlot(plotstate):
 
             return (None, None, None)
 
+        # get limits, will never fail.
         try:
             limits = [
                 dff.minmax(plotstate.x.value),
                 dff.minmax(plotstate.y.value),
             ]
-        except:
-            Alert.update(
-                "Failed to bin! Is your data too small for the aggregation?",
-                color="warning",
-            )
+        except Exception:
             # NOTE: empty tuple acts as index for the 0th of 0D array
             limits = [
                 [
@@ -1005,8 +1002,15 @@ def HeatmapPlot(plotstate):
             )
         else:
             raise ValueError("no assigned bintype for aggregated")
-        df.execute()
-        y = y.get()
+        try:
+            df.execute()
+            y = y.get()
+        except RuntimeError:
+            Alert.update(
+                "Failed to bin! Is your data too small for the aggregation?",
+                color="warning",
+            )
+            return (None, None, None)
         if bintype == "median":
             # convert to xarray
             y = xarray.DataArray(
@@ -1047,6 +1051,7 @@ def HeatmapPlot(plotstate):
             return f"{plotstate.color.value} ({plotstate.bintype.value})"
 
     def create_fig():
+        # TODO: a minmax check
         z, cmin, cmax = perform_binning()
         colorlabel = set_colorlabel()
         fig = px.imshow(
