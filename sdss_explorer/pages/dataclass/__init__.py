@@ -6,3 +6,4 @@ from .subsets import SubsetState, Subset  # noqa
 from .gridstate import GridState  # noqa
 from .vcdata import VCData  # noqa
 from .hooks import use_subset  # noqa
+from .subsetstore import SubsetStore  # noqa

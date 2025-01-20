@@ -1,11 +1,14 @@
 """Holds specific filter components"""
 
 import operator
+import logging
 import re
 from functools import reduce
 from typing import cast
+from timeit import default_timer as timer
 
 import numpy as np
+import vaex as vx
 import reacton.ipyvuetify as rv
 import solara as sl
 from reacton.core import ValueElement
@@ -19,7 +22,19 @@ __all__ = [
     "ExprEditor", "TargetingFiltersPanel", "PivotTablePanel", "DatasetSelect"
 ]
 
+logger = logging.getLogger("sdss_explorer")
+
 operator_map = {"AND": operator.and_, "OR": operator.or_, "XOR": operator.xor}
+
+flagList = {
+    # TODO: more quick flags based on scientist input
+    "sdss5 only": "release=='sdss5'",
+    "snr > 50": "snr>=50",
+    "purely non-flagged": "result_flags==0",
+    #'no apo 1m': "telescope!='apo1m'", # WARNING: this one doesn't work for some reason, maybe it's not string; haven't checked
+    "no bad flags": "flag_bad==0",
+    "gmag < 17": "g_mag<=17",
+}
 
 
 @sl.component()
@@ -31,8 +46,10 @@ def ExprEditor(key: str, invert) -> ValueElement:
 
     _, set_expfilter = use_subset(id(df), key, "expr", write_only=True)
 
-    expression, set_expression = subset.expression, lambda arg: SubsetState.update_subset(
-        key, expression=arg)
+    expression, set_expression = (
+        subset.expression,
+        lambda arg: SubsetState.update_subset(key, expression=arg),
+    )
 
     error, set_error = sl.use_state(cast(str, None))
 
@@ -42,11 +59,11 @@ def ExprEditor(key: str, invert) -> ValueElement:
         Validates if the expression is valid, and returns
         a precise error message for any issues in the expression.
         """
-        columns = State.columns.value
+        columns = State.df.value.get_column_names()
         try:
-            if expression is None or expression == "" or expression == 'None':
+            if expression is None or expression == "" or expression == "None":
                 set_expfilter(None)
-                set_expression('')
+                set_expression("")
                 return None
             # first, remove all spaces
             expr = expression.replace(" ", "")
@@ -137,9 +154,9 @@ def ExprEditor(key: str, invert) -> ValueElement:
             set_error("modifier at end of sequence with no expression")
             return False
 
-    result: sl.Result[bool] = sl.use_thread(
+    result: sl.Result[bool] = sl.lab.use_task(
         update_expr, dependencies=[expression, invert.value])
-    if result.state == sl.ResultState.FINISHED:
+    if result.finished:
         if result.value:
             errorFound = False
             message = "Valid expression entered"
@@ -150,7 +167,7 @@ def ExprEditor(key: str, invert) -> ValueElement:
             errorFound = True
             message = f"Invalid expression entered: {error}"
 
-    elif result.state == sl.ResultState.ERROR:
+    elif result.error:
         errorFound = True
         message = f"Backend failure occurred: {result.error}"
     else:
@@ -163,7 +180,7 @@ def ExprEditor(key: str, invert) -> ValueElement:
         def add_append_handler():
 
             def on_click(widget, event, data):
-                Help.update('expressions')
+                Help.update("expressions")
 
             widget = sl.get_widget(el)
             widget.on_event("click:append", on_click)
@@ -176,7 +193,7 @@ def ExprEditor(key: str, invert) -> ValueElement:
         def add_clear_handler():
 
             def on_click(widget, event, data):
-                set_expression('')
+                set_expression("")
                 widget.v_model = ""
 
             widget = sl.get_widget(el)
@@ -192,29 +209,50 @@ def ExprEditor(key: str, invert) -> ValueElement:
 
     # expression editor
     with sl.Column(gap="0px") as main:
-        with sl.Row(justify='center', style={"align-items": "center"}):
+        with sl.Row(justify="center", style={"align-items": "center"}):
             el = InputTextExposed(
                 label="Enter an expression",
                 value=expression,
                 on_value=set_expression,
                 message=message,
                 error=errorFound,
-                append_icon='mdi-information-outline',
+                append_icon="mdi-information-outline",
                 clearable=True,
-                placeholder='teff < 15e3 & (mg_h > -1 | fe_h < -2)')
+                placeholder="teff < 15e3 & (mg_h > -1 | fe_h < -2)",
+            )
             add_effect(el)
     return main
 
 
 @sl.component()
-def DatasetSelect(dataset, set_dataset) -> ValueElement:
-    """Select box for pipeline."""
+def DatasetSelect(key: str, dataset, set_dataset) -> ValueElement:
+    """Select box for pipeline, also sets columns on dataset change."""
+    df = State.df.value
+
+    def fetch() -> list:
+        return State.df.value["pipeline"].unique()
+
+    pipelines = sl.use_memo(
+        fetch, dependencies=[df, State._release.value, State._datatype.value])
+
+    # TODO: move this thread somewhere better
+    def update_columns():
+        """Guardrails column selection to only columns that are not all NaN"""
+        # TODO
+        SubsetState.update_subset(
+            key,
+            columns=df.get_column_names(),
+        )
+        return
+
+    sl.lab.use_task(update_columns, dependencies=[State.df.value, dataset])
+
     return SingleAutocomplete(
-        label='Dataset',
-        # TODO: fetch via valis or via df.row.unique()
-        values=['apogeenet', 'thecannon', 'aspcap'],
+        label="Dataset",
+        values=pipelines,
         value=dataset,
-        on_value=set_dataset)
+        on_value=set_dataset,
+    )
 
 
 @sl.component()
@@ -223,53 +261,49 @@ def FlagSelect(key: str, invert) -> ValueElement:
     df = State.df.value
     subset = SubsetState.subsets.value[key]
     _, set_flagfilter = use_subset(id(df), key, "flags", write_only=True)
-    flags, set_flags = subset.flags, lambda arg: SubsetState.update_subset(
-        key, flags=arg)
+    flags, set_flags = (
+        subset.flags,
+        lambda arg: SubsetState.update_subset(key, flags=arg),
+    )
 
     def update_flags():
         filters = []
         # TODO: relocate this somewhere better, like into a lookup dataclass or a file
-        flagList = {
-            'SDSS5 only': "release=='sdss5'",
-            'SNR > 50': "snr>=50",
-            'Purely non-flagged': 'result_flags==0',
-            #'No APO 1m': "telescope!='apo1m'", # WARNING: this one doesn't work for some reason, maybe it's not string; haven't checked
-            'No bad flags': 'flag_bad==0',
-            'Vmag < 13': 'v_jkc_mag<=13'
-        }
         # get the flag lookup
-        if len(flags) > 0:
+        if flags:
             for flag in flags:
+                # Skip iteration if the subset's dataset is 'best' and the flag is 'Purely non-flagged'
+                if (subset.dataset == "best") and (flag
+                                                   == "purely non-flagged"):
+                    continue
                 filters.append(flagList[flag])
 
-            # string join
-            print('FLAG FILTERS', filters)
-            concat_filter = ")&(".join(filters)
-            concat_filter = "((" + concat_filter + "))"
-            concat_filter = df[concat_filter]
-            if invert.value:
-                concat_filter = ~concat_filter
+            # Determine the final concatenated filter
+            if filters:
+                # Join the filters with ")&(" and wrap them in outer parentheses
+                concat_filter = f"(({'&)('.join(filters)}))"
+                concat_filter = df[concat_filter]
+                if invert.value:
+                    concat_filter = ~concat_filter
+            else:
+                concat_filter = None
         else:
             concat_filter = None
 
         set_flagfilter(concat_filter)
         return
 
-    sl.use_thread(update_flags, dependencies=[flags, invert.value])
+    sl.lab.use_task(update_flags,
+                    dependencies=[flags, subset.dataset, invert.value])
 
     return AutocompleteSelect(
         flags,
         set_flags,
-        df=[
-            'SDSS5 only',
-            'SNR > 50',
-            'Purely non-flagged',  #'No APO 1m',
-            'No bad flags',
-            'Vmag < 13'
-        ],
-        expr='foobar',
-        field='Quick Flags',
-        multiple=True)
+        df=list(flagList.keys()),
+        expr="foobar",
+        field="Quick Flags",
+        multiple=True,
+    )
 
 
 @sl.component()
@@ -280,12 +314,18 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
     subset = SubsetState.subsets.value[key]
     _, set_cmfilter = use_subset(id(df), key, "cartonmapper", write_only=True)
     # handlers for mapper/carton/data/setflags
-    mapper, set_mapper = subset.mapper, lambda arg: SubsetState.update_subset(
-        key, mapper=arg)
-    carton, set_carton = subset.carton, lambda arg: SubsetState.update_subset(
-        key, carton=arg)
-    dataset, set_dataset = subset.dataset, lambda arg: SubsetState.update_subset(
-        key, dataset=arg)
+    mapper, set_mapper = (
+        subset.mapper,
+        lambda arg: SubsetState.update_subset(key, mapper=arg),
+    )
+    carton, set_carton = (
+        subset.carton,
+        lambda arg: SubsetState.update_subset(key, carton=arg),
+    )
+    dataset, set_dataset = (
+        subset.dataset,
+        lambda arg: SubsetState.update_subset(key, dataset=arg),
+    )
     combotype = (
         "AND"  # NOTE: remains for functionality as potential state var (in future)
     )
@@ -300,58 +340,54 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
             )
             return
 
-        # convert chosens to bool mask
-        cmp_filter = None
-        if len(mapper) == 0 and len(carton) == 0 and len(dataset) == 0:
-            set_cmfilter(None)
-            return
+        # create filtered version for efficient filtering
+        pipelineFilter = df[f"(pipeline=='{dataset}')"]
+        dff: vx.DataFrame = df[pipelineFilter]
 
         # mapper + cartons
-        elif len(mapper) != 0 or len(carton) != 0:
-            c = mapping["alt_name"].isin(carton).values
-            m = mapping["mapper"].isin(mapper).values
-
+        logger.info(f"MAPPER: {mapper}")
+        logger.info(f"CARTON: {carton}")
+        start = timer()
+        if len(mapper) != 0 or len(carton) != 0:
             # mask
             if len(mapper) == 0:
-                mask = c
+                mask = mapping["alt_name"].isin(carton).values
             elif len(carton) == 0:
-                mask = m
+                mask = mapping["mapper"].isin(mapper).values
             else:
-                mask = operator_map[combotype](m, c)
+                mask = operator_map[combotype](
+                    mapping["mapper"].isin(mapper).values,
+                    mapping["alt_name"].isin(carton).values,
+                )
 
-            bits = np.arange(len(mapping))[mask]
-
-            # get flag_number & offset
+            # determine active bits via mask and get flag_number & offset
             # NOTE: hardcoded nbits as 8, and nflags as 57
-            # TODO: in future, change to read from mappings parquet
+            bits = np.arange(len(mapping))[mask]
             num, offset = np.divmod(bits, 8)
             setbits = 57 > num  # ensure bits in flags
 
             # construct hashmap for each unique flag
-            filters = np.zeros(57).astype("uint8")
-            for unique in np.unique(num[setbits]):
-                # ANDs all the bitshifted values for the given unique flag
-                offsets = 1 << offset[setbits][np.where(
-                    num[setbits] == unique)]
-                actives = reduce(
-                    operator.or_,
-                    offsets)  # INFO: this is an OR operation PER bit
-                if actives == 0:
-                    continue  # skip
-                filters[unique] = (
-                    actives  # the required active bit(s) ACTIVES for bitmask position "UNIQUE"
-                )
+            filters = np.zeros(57, dtype="uint8")
+            unique_nums, indices = np.unique(num[setbits], return_inverse=True)
+            for i, unique in enumerate(unique_nums):
+                offsets = 1 << offset[setbits][indices == i]
+                filters[unique] = np.bitwise_or.reduce(offsets)
 
-            # generate a filter based on the vaex-defined flag combiner
             cmp_filter = df.func.check_flags(df["sdss5_target_flags"], filters)
+            # generate another filtered frame based on the custom function
+            # dfcm: vx.Expression = dff[dff.func.check_flags(
+            #    dff["sdss5_target_flags"], filters)]["__target_flags_filter__"]
 
-        print("DATASET =", dataset)
-        if dataset is not None:
-            if cmp_filter is not None:
-                cmp_filter = operator_map[combotype](
-                    cmp_filter, df["dataset"].isin([dataset]))
-            else:
-                cmp_filter = df["dataset"].isin([dataset])
+            ## regenerate the filter for the original dataframe
+            # cmp_filter = df["__target_flags_filter__"].isin(dfcm.values)
+        else:
+            cmp_filter = None
+
+        # convert chosens to bool mask
+        if cmp_filter:
+            cmp_filter = operator_map[combotype](cmp_filter, pipelineFilter)
+        else:
+            cmp_filter = pipelineFilter
 
         # invert if requested
         if invert.value:
@@ -359,17 +395,19 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
         else:
             set_cmfilter(cmp_filter)
 
+        logger.info(f"CM filter took {timer() - start:.4f} seconds")
+
         return
 
-    sl.use_thread(update_cm,
-                  dependencies=[mapper, carton, dataset, invert.value])
+    sl.lab.use_task(update_cm,
+                    dependencies=[df, mapper, carton, dataset, invert.value])
 
     open, set_open = sl.use_state([])
     with rv.ExpansionPanels(flat=True,
                             multiple=True,
                             v_model=open,
                             on_v_model=set_open) as main:
-        DatasetSelect(dataset, set_dataset)
+        DatasetSelect(key, dataset, set_dataset)
         with rv.ExpansionPanel():
             rv.ExpansionPanelHeader(children=["Targeting Filters"])
             with rv.ExpansionPanelContent():
@@ -381,18 +419,22 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
                     )
                 else:
                     with sl.Column(gap="2px"):
-                        AutocompleteSelect(mapper,
-                                           set_mapper,
-                                           df=State.mapping.value,
-                                           expr='mapper',
-                                           field='Mapper',
-                                           multiple=True)
-                        AutocompleteSelect(carton,
-                                           set_carton,
-                                           df=State.mapping.value,
-                                           expr='alt_name',
-                                           field='Carton',
-                                           multiple=True)
+                        AutocompleteSelect(
+                            mapper,
+                            set_mapper,
+                            df=State.mapping.value,
+                            expr="mapper",
+                            field="Mapper",
+                            multiple=True,
+                        )
+                        AutocompleteSelect(
+                            carton,
+                            set_carton,
+                            df=State.mapping.value,
+                            expr="alt_name",
+                            field="Carton",
+                            multiple=True,
+                        )
                         FlagSelect(key, invert)
 
     return main

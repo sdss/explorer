@@ -51,9 +51,16 @@ def SingleAutocomplete(label: str,
                        values: List[T],
                        value=None,
                        on_value=None,
+                       allow_none: bool = False,
                        **kwargs):
     """Selectable component to select an single from a given list. Mimics solara.Select API."""
     input, set_input = sl.use_state("")
+
+    def setting_parser(vmodel_data):
+        """Parses vmodel data to disallow a None"""
+        if vmodel_data or allow_none:
+            reactive_value.set(vmodel_data)
+        return
 
     reactive_value = sl.use_reactive(value, on_value)  # type: ignore
     del value, on_value
@@ -63,7 +70,7 @@ def SingleAutocomplete(label: str,
         label=label,
         #filled=True,
         v_model=reactive_value.value,
-        on_v_model=reactive_value.set,
+        on_v_model=setting_parser,
         items=values,
         style={"width": "100%"},
         hide_selected=True,

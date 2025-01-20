@@ -15,16 +15,17 @@ from solara.lab import Tabs, Tab
 # read help info
 # TODO: consider moving to State? idk
 # NOTE: may not work on deployment, check with Brian.
-HELPDIR = os.path.join(os.path.dirname(__file__), '../../../assets/help/')
+HELPDIR = os.path.join(os.path.dirname(__file__), "../../../assets/help/")
 
 # NOTE: the IO read on this is quite large, but it should be okay, right?
 help_text = dict()
-for file in map(os.path.basename, glob.glob(f'{HELPDIR}/*.md')):
-    with open(f'{HELPDIR}/{file}', 'r') as f:
+for file in map(os.path.basename, glob.glob(f"{HELPDIR}/*.md")):
+    with open(f"{HELPDIR}/{file}", "r") as f:
         icon = f.readline()
-        help_text[file.split('.')[0].replace('_',
-                                             ' ')] = (icon,
-                                                      "\n".join(f.readlines()))
+        help_text[file.split(".")[0].replace("_", " ")] = (
+            icon,
+            "\n".join(f.readlines()),
+        )
         f.close()
 
 lookup = dict()
@@ -61,14 +62,14 @@ def HelpBlurb():
                 icon_name="mdi-information-outline",
                 icon=True,
                 text=True,
-                on_click=lambda: Help.update('about'),
+                on_click=lambda: Help.update("about"),
             )
         with Dialog(
                 Help.open.value,
                 ok=None,
                 title="About",
                 cancel="close",
-                max_width='960',  # 1920/2
+                max_width="960",  # 1920/2
                 on_cancel=lambda: Help.close(),
         ):
             with rv.Card(flat=True, style_="width: 100%; height: 100%"):
@@ -93,16 +94,17 @@ def ColumnGlossary():
         dmf = dm[filter]
 
     def update_columns():
+        # always need to cut
         if query:
             # union of regex across name and desc
-            alpha = filter_regex(dm, query=query, col='name')
-            beta = filter_regex(dm, query=query, col='description')
+            alpha = filter_regex(dm, query=query, col="name")
+            beta = filter_regex(dm, query=query, col="description")
             set_filter(np.logical_or(alpha, beta))
 
         elif query == "":
             set_filter(None)
 
-    result = sl.use_thread(update_columns, dependencies=[query])
+    result = sl.lab.use_task(update_columns, dependencies=[query])
 
     with rv.ExpansionPanel() as main:
         rv.ExpansionPanelHeader(children=["Column Glossary"])
@@ -120,18 +122,18 @@ def ColumnGlossary():
                     with sl.GridFixed(columns=1,
                                       align_items="end",
                                       justify_items="stretch"):
-                        if result.state == sl.ResultState.FINISHED:
+                        if result.finished:
                             if len(dmf) == 0:
                                 sl.Warning(
                                     "No columns found, try a different filter")
                             else:
                                 # summary text logic
                                 if len(dmf) > 20:
-                                    summary = f"{len(dmf):,}/{len(dm):,} columns (showing 20)"
-                                elif len(dmf) == len(dm):
                                     summary = (
-                                        f"{len(dm):,} total columns (showing 20)"
+                                        f"{len(dmf):,}/{len(dm):,} columns (showing 20)"
                                     )
+                                elif len(dmf) == len(dm):
+                                    summary = f"{len(dm):,} total columns (showing 20)"
                                 else:
                                     summary = f"{len(dmf):,}/{len(dm):,} columns"
 
@@ -141,8 +143,8 @@ def ColumnGlossary():
                                     if n > 19:
                                         break
                                     with sl.Columns([1, 1]):
-                                        sl.Text(d['name'])
-                                        sl.Text(d['description'])
+                                        sl.Text(d["name"])
+                                        sl.Text(d["description"])
 
                         else:
                             with sl.Div():

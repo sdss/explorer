@@ -1,11 +1,13 @@
 """All interactive plot elements, complete with widget effects and action callback threads. Also contains plot settings PlotState class."""
 
+import logging
 import operator
 import webbrowser as wb
 from functools import reduce
 from typing import cast
 
 import numpy as np
+import pandas as pd
 import reacton.ipyvuetify as rv
 import solara as sl
 import vaex as vx
@@ -16,9 +18,14 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.graph_objs._figurewidget import FigureWidget
 
+from sdss_explorer.pages.dataclass.vcdata import VCData
+
 from ...dataclass import Alert, State, SubsetState, use_subset, GridState
 from ...util import check_catagorical
+from .dataframe import ModdedDataTable
 from .plot_settings import show_settings
+
+logger = logging.getLogger("sdss_explorer")
 
 # index context for grid
 # NOTE: must be initialized here to avoid circular imports
@@ -26,82 +33,91 @@ index_context = sl.create_context(0)
 
 # TEMPLATES AND STATE
 # NOTE: all use standard vuetify grey colors
-DARK_TEMPLATE = dict(layout=go.Layout(
-    font=dict(color="white", size=16),
-    showlegend=False,
-    paper_bgcolor="#424242",  # darken-3
-    autosize=True,
-    plot_bgcolor="#212121",  # darken-4
-    xaxis_gridcolor="#616161",  # darken-2
-    yaxis_gridcolor="#616161",  # darken-2
-    margin={
-        "t": 30,
-        "b": 80,
-        "l": 80,
-        "r": 80
-    },
-))
-LIGHT_TEMPLATE = dict(layout=go.Layout(
-    font=dict(color="black", size=16),
-    showlegend=False,
-    paper_bgcolor="#EEEEEE",  # lighten-3
-    autosize=True,
-    plot_bgcolor="#FAFAFA",  # lighten-5
-    xaxis_gridcolor="#BDBDBD",  # lighten-1
-    yaxis_gridcolor="#BDBDBD",  # lighten-1
-    margin={
-        "t": 30,
-        "b": 80,
-        "l": 80,
-        "r": 80
-    },
-))
+DARK_TEMPLATE = go.layout.Template(
+    dict(layout=go.Layout(
+        font=dict(color="white", size=16),
+        showlegend=False,
+        paper_bgcolor="#424242",  # darken-3
+        autosize=True,
+        plot_bgcolor="#212121",  # darken-4
+        xaxis_gridcolor="#616161",  # darken-2
+        yaxis_gridcolor="#616161",  # darken-2
+        margin={
+            "t": 30,
+            "b": 80,
+            "l": 80,
+            "r": 80
+        },
+    )))
+LIGHT_TEMPLATE = go.layout.Template(
+    dict(layout=go.Layout(
+        font=dict(color="black", size=16),
+        showlegend=False,
+        paper_bgcolor="#EEEEEE",  # lighten-3
+        autosize=True,
+        plot_bgcolor="#FAFAFA",  # lighten-5
+        xaxis_gridcolor="#BDBDBD",  # lighten-1
+        yaxis_gridcolor="#BDBDBD",  # lighten-1
+        margin={
+            "t": 30,
+            "b": 80,
+            "l": 80,
+            "r": 80
+        },
+    )))
 
 
 class PlotState:
     """
-    Combination of reactive states which instantiate a specific plot's settings/properties
+    Combination of reactive states which instantiate a specific plot's settings/properties.
+    Initializes based on keyword arguments.
     """
 
-    def __init__(self, plottype, current_key):
+    def __init__(self, plottype, current_key, **kwargs):
         # subset and type states
         self.plottype = str(plottype)
         # NOTE: this prevents a reactive update to override the initialization prop
         self.subset = sl.use_reactive(current_key)
 
-        if 'table' in plottype:
-            self.columns = sl.use_reactive(['g_mag', 'teff'])
+        if "stats" in plottype:
+            self.columns = sl.use_reactive(["g_mag", "bp_mag"])
         else:
             # common plot settings
-            self.x = sl.use_reactive("teff")
-            self.flipx = sl.use_reactive(False)
-            self.flipy = sl.use_reactive(False)
+            self.x = sl.use_reactive(kwargs.get("x", "snr"))
+            self.flipx = sl.use_reactive(kwargs.get("flipx", ""))
+            self.flipy = sl.use_reactive(kwargs.get("flipy", ""))
 
             # moderately unique plot parameters/settings
             if plottype != "histogram":
-                self.y = sl.use_reactive("logg")
-                self.color = sl.use_reactive("fe_h")
-                self.colorscale = sl.use_reactive("cividis")
+                self.y = sl.use_reactive(kwargs.get("y", "g_mag"))
+                self.color = sl.use_reactive(kwargs.get("color", "g_mag"))
+                self.colorscale = sl.use_reactive(
+                    kwargs.get("colorscale", "cividis"))
             if plottype != "aggregated" and plottype != "skyplot":
-                self.logx = sl.use_reactive(False)
-                self.logy = sl.use_reactive(False)
+                self.logx = sl.use_reactive(kwargs.get("logx", ""))
+                self.logy = sl.use_reactive(kwargs.get("logy", ""))
             if plottype in ["scatter", "skyplot"]:
-                self.colorlog = sl.use_reactive(cast(str, None))
+                self.colorlog = sl.use_reactive(
+                    kwargs.get("colorlog", cast(str, None)))
 
             # statistics settings
             if plottype == "heatmap" or plottype == "histogram" or "delta" in plottype:
                 self.nbins = sl.use_reactive(200)
                 if plottype == "heatmap" or plottype == "delta2d":
-                    self.bintype = sl.use_reactive("mean")
-                    self.binscale = sl.use_reactive(None)
+                    self.bintype = sl.use_reactive(
+                        kwargs.get("bintype", "mean"))
+                    self.binscale = sl.use_reactive(
+                        kwargs.get("binscale", None))
                 else:
-                    self.bintype = sl.use_reactive("count")
-                    self.norm = sl.use_reactive(cast(str, None))
+                    self.bintype = sl.use_reactive(
+                        kwargs.get("bintype", "count"))
 
             # skyplot settings
             if plottype == "skyplot":
-                self.geo_coords = sl.use_reactive("celestial")
-                self.projection = sl.use_reactive("hammer")
+                self.geo_coords = sl.use_reactive(
+                    kwargs.get("coords", "celestial"))
+                self.projection = sl.use_reactive(
+                    kwargs.get("projection", "hammer"))
 
             # delta view settings
             if "delta" in plottype:
@@ -159,10 +175,15 @@ class PlotState:
         except:
             pass
 
+        # valid_columns = SubsetState.subsets.value[
+        #    self.subset.value].columns + list(VCData.columns.value.keys())
+        valid_columns = State.df.value.get_column_names(virtual=False) + list(
+            VCData.columns.value.keys())
+
         # columnar resets for table
-        if 'table' in self.plottype:
+        if "stats" in self.plottype:
             for col in self.columns.value:
-                if col not in State.columns.value:
+                if col not in valid_columns:
                     # NOTE: i choose to remove quietly on stats table -- its very obvious when it disappears
                     self.columns.set(
                         list([q for q in self.columns.value if q != col]))
@@ -170,16 +191,16 @@ class PlotState:
 
         # columnar resets for plots
         else:
-            if self.x.value not in State.columns.value:
+            if self.x.value not in valid_columns:
                 Alert.update("VC removed! Column reset to 'teff'",
                              color="info")
                 self.x.value = "teff"
             if self.plottype != "histogram":
-                if self.y.value not in State.columns.value:
+                if self.y.value not in valid_columns:
                     Alert.update("VC removed! Column reset to 'logg'",
                                  color="info")
                     self.y.value = "logg"
-                if self.color.value not in State.columns.value:
+                if self.color.value not in valid_columns:
                     Alert.update("VC removed! Column reset to 'fe_h'",
                                  color="info")
                     self.color.value = "fe_h"
@@ -214,7 +235,7 @@ def check_cat_color(color: vx.Expression) -> bool:
 
 
 # SHOW PLOT
-def show_plot(plottype, del_func):
+def show_plot(plottype, del_func, **kwargs):
     # NOTE: force set to grey darken-3 colour for visibility of card against grey darken-4 background
     dark = use_dark_effective()
     with rv.Card(
@@ -225,8 +246,15 @@ def show_plot(plottype, del_func):
         current_key = sl.use_memo(
             lambda: list(SubsetState.subsets.value.keys())[-1],
             dependencies=[])
-        print("SHOWPLOT KEY", current_key)
-        plotstate = PlotState(plottype, current_key)
+        plotstate = PlotState(plottype, current_key, **kwargs)
+
+        def add_to_grid():
+            """Adds a pointer/reference to PlotState instance in GridState for I/O."""
+            GridState.states.set(list(GridState.states.value + [plotstate]))
+            return None
+
+        sl.use_memo(add_to_grid, dependencies=[])  # runs once
+
         with rv.CardText():
             with sl.Column(
                     classes=["grey darken-3" if dark else "grey lighten-3"]):
@@ -240,6 +268,8 @@ def show_plot(plottype, del_func):
                     SkymapPlot(plotstate)
                 elif plottype == "delta2d":
                     DeltaHeatmapPlot(plotstate)
+                elif plottype == "stats":
+                    StatisticsTable(plotstate)
                 btn = sl.Button(
                     icon_name="mdi-settings",
                     outlined=False,
@@ -386,8 +416,6 @@ def ScatterPlot(plotstate):
             points = fig_widget.data[0]
             points.on_click(on_click)
 
-        sl.use_effect(add_context_menu, dependencies=[relayout])
-
         def set_xflip():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
             if fig_widget.layout.xaxis.range is not None:
@@ -524,6 +552,8 @@ def ScatterPlot(plotstate):
                 plotstate.colorlog.value,
             ],
         )
+
+        sl.use_effect(add_context_menu, dependencies=[relayout])
         sl.use_effect(update_xy,
                       dependencies=[plotstate.x.value, plotstate.y.value])
         sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
@@ -531,6 +561,7 @@ def ScatterPlot(plotstate):
         sl.use_effect(update_theme, dependencies=[dark])
         sl.use_effect(
             set_log, dependencies=[plotstate.logx.value, plotstate.logy.value])
+        return
 
     # Plotly-side callbacks (relayout, select, and deselect)
     def on_relayout(data):
@@ -566,6 +597,8 @@ def ScatterPlot(plotstate):
 
     add_effects(fig_el)
 
+    return fig_el
+
 
 @sl.component()
 def HistogramPlot(plotstate):
@@ -585,7 +618,7 @@ def HistogramPlot(plotstate):
                 set_layout(spec)
                 break
 
-    sl.use_thread(update_grid, dependencies=[GridState.grid_layout.value])
+    sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
 
     dff = df
     if filter:
@@ -614,7 +647,7 @@ def HistogramPlot(plotstate):
                 limits = dff.minmax(xcol)
             except:
                 Alert.update(
-                    "Binning routine encountered stride bug, excepting...",
+                    "Failed to bin! Is your data too small for the aggregation?",
                     color="warning",
                 )
                 limits = [
@@ -708,7 +741,6 @@ def HistogramPlot(plotstate):
             nbins=nbins,
             log_x=logx,
             log_y=plotstate.logy.value,
-            histnorm=plotstate.norm.value,
             labels={
                 "x": xcol,
                 "y": f"{plotstate.bintype.value}({xcol})",
@@ -839,7 +871,7 @@ def HeatmapPlot(plotstate):
                 set_layout(spec)
                 break
 
-    sl.use_thread(update_grid, dependencies=[GridState.grid_layout.value])
+    sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
 
     dff = df
     if filter:
@@ -888,18 +920,13 @@ def HeatmapPlot(plotstate):
 
             return (None, None, None)
 
-        # TODO: report weird stride bug that occurs on this code
-
+        # get limits, will never fail.
         try:
             limits = [
                 dff.minmax(plotstate.x.value),
                 dff.minmax(plotstate.y.value),
             ]
-        except:
-            Alert.update(
-                "Binning routine encountered stride bug, excepting...",
-                color="warning",
-            )
+        except Exception:
             # NOTE: empty tuple acts as index for the 0th of 0D array
             limits = [
                 [
@@ -975,8 +1002,15 @@ def HeatmapPlot(plotstate):
             )
         else:
             raise ValueError("no assigned bintype for aggregated")
-        df.execute()
-        y = y.get()
+        try:
+            df.execute()
+            y = y.get()
+        except RuntimeError:
+            Alert.update(
+                "Failed to bin! Is your data too small for the aggregation?",
+                color="warning",
+            )
+            return (None, None, None)
         if bintype == "median":
             # convert to xarray
             y = xarray.DataArray(
@@ -1017,6 +1051,7 @@ def HeatmapPlot(plotstate):
             return f"{plotstate.color.value} ({plotstate.bintype.value})"
 
     def create_fig():
+        # TODO: a minmax check
         z, cmin, cmax = perform_binning()
         colorlabel = set_colorlabel()
         fig = px.imshow(
@@ -1157,7 +1192,7 @@ def SkymapPlot(plotstate):
                 set_layout(spec)
                 break
 
-    sl.use_thread(update_grid, dependencies=[GridState.grid_layout.value])
+    sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
 
     def update_filter():
         if plotstate.geo_coords.value == "celestial":
@@ -1203,8 +1238,8 @@ def SkymapPlot(plotstate):
             set_local_filter(df[f"({lat} > {latlow})"]
                              & df[f"({lat}< {lathigh})"])
 
-    sl.use_thread(update_filter,
-                  dependencies=[plotstate.geo_coords.value, relayout])
+    sl.lab.use_task(update_filter,
+                    dependencies=[plotstate.geo_coords.value, relayout])
 
     # Apply global and local filters
     if filter is not None:
@@ -1416,7 +1451,7 @@ def SkymapPlot(plotstate):
     def on_select(data):
         if len(data["points"]["xs"]) > 0:
             bool_arr = np.array(data["points"]["trace_indexes"]) == 0
-            print(np.array(data["points"]["point_indexes"])[bool_arr])
+            logger.info(np.array(data["points"]["point_indexes"])[bool_arr])
 
             # set_filter(df[df == dff[data["points"]["point_indexes"]]])
 
@@ -1432,6 +1467,70 @@ def SkymapPlot(plotstate):
     )
     add_effects(fig_el)
     return fig_el
+
+
+@sl.component()
+def StatisticsTable(state):
+    """Statistics description view for the dataset."""
+    df = State.df.value
+    filter, set_filter = use_subset(id(df), state.subset, name="statsview")
+    columns, set_columns = state.columns.value, state.columns.set
+
+    if filter:
+        dff = df[filter]
+    else:
+        dff = df
+
+    # the summary table is its own DF (for render purposes)
+    # NOTE: worker process concerns if this takes more than 10MB.
+
+    def generate_describe() -> pd.DataFrame:
+        """Generates the description table only on column/filter updates"""
+        # INFO: vaex returns a pandas df.describe()
+        try:
+            dfd = dff[columns].describe(strings=False)
+        except:
+            Alert.update(
+                "Failed to get statistics! Is your data too small for aggregations?",
+                color="warning",
+            )
+            dfd = pd.DataFrame({"error": ["no"], "encountered": ["data"]})
+        return dfd
+
+    result = use_task(generate_describe,
+                      dependencies=[filter, columns,
+                                    len(columns)])
+
+    def remove_column(name):
+        """Removes column from column list"""
+        # perform removal via slice (cannot modify inplace)
+        # TODO: check if slicing is actually necessary
+
+        q = None
+        for i, col in enumerate(columns):
+            if col == name:
+                q = i
+                break
+
+        set_columns(columns[:q] + columns[q + 1:])
+
+    column_actions = [
+        # TODO: a more complex action in here?
+        sl.ColumnAction(icon="mdi-delete",
+                        name="Remove column",
+                        on_click=remove_column),
+    ]
+
+    sl.ProgressLinear(result.pending)
+    if ~result.not_called and result.latest is not None:
+        ModdedDataTable(
+            result.latest,
+            items_per_page=7,
+            column_actions=column_actions,
+        )
+    else:
+        sl.Info("Loading...")
+    return
 
 
 @sl.component()
@@ -1451,7 +1550,7 @@ def DeltaHeatmapPlot(plotstate):
                 set_layout(spec)
                 break
 
-    sl.use_thread(update_grid, dependencies=[GridState.grid_layout.value])
+    sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
 
     if filterA:
         dfa = df[filterA]
@@ -1474,7 +1573,7 @@ def DeltaHeatmapPlot(plotstate):
             ]
         except:
             Alert.update(
-                "Binning routine encountered stride bug, excepting...",
+                "Failed to get statistics! Is your data too small for aggregations?",
                 color="warning",
             )
             # NOTE: empty tuple acts as index for the 0th of 0D array

@@ -13,14 +13,14 @@ from ...dataclass import SubsetState, State, use_subset
 from .subset_options import updater_context, SubsetOptions
 
 
-@vx.register_function()
-def check_flags(flags, vals):
+@vx.register_function(multiprocessing=True)
+def check_flags(flags: vx.Expression, filters: vx.Expression):
     """Converts flags & values to boolean vaex expression for use as a filter."""
-    return np.any(np.logical_and(flags, vals), axis=1)
+    return np.logical_and(flags, filters).any(axis=1)
 
 
 @sl.component()
-def SubsetMenu():
+def SubsetMenu() -> ValueElement:
     """Control and display subset cards"""
     add = sl.use_reactive(False)
     name, set_name = sl.use_state("")
@@ -84,21 +84,22 @@ def SubsetCard(key: str) -> ValueElement:
     """Holds filter update info, card structure, and calls to options"""
     df = State.df.value
     filter, _set_filter = use_subset(id(df), key, "subset-summary")
-    name = SubsetState.subsets.value[key].name
-    dataset = SubsetState.subsets.value[key].dataset
+    subset = SubsetState.subsets.value[key]
+    name = subset.name
+    dataset = subset.dataset
 
-    dfp = df[df[f"(dataset == '{dataset}')"]]
+    dfp = df[df[f"(pipeline == '{dataset}')"]]
 
     # progress bar logic
-    if filter:
+    if isinstance(filter, vx.Expression):
         # filter from plots or self
-        filtered = True
         dff = df[filter]
     else:
         # not filtered at all
-        filtered = False
         dff = df
-    progress = len(dff) / len(dfp) * 100
+    filtered = len(dff) < len(dfp)
+    denom = max(len(dfp), 1)
+    progress = len(dff) / denom * 100
     summary = f"{len(dff):,}"
     with rv.ExpansionPanel() as main:
         with rv.ExpansionPanelHeader():
@@ -118,7 +119,7 @@ def SubsetCard(key: str) -> ValueElement:
 
         with rv.ExpansionPanelContent():
             # filter bar
-            with sl.Column(gap='12px'):
+            with sl.Column(gap="12px"):
                 sl.ProgressLinear(value=progress, color="blue")
                 SubsetOptions(key, lambda: SubsetState.remove_subset(key))
     return main

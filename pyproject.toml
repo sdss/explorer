@@ -7,7 +7,7 @@ license = {file = "LICENSE"}
 classifiers = ["Intended Audience :: Developers",  "Programming Language :: Python :: 3.10"]
 dynamic = ["version", "description"]
 dependencies = [
-    "solara>=1.30.0",
+    "solara>=1.40.0",
     "plotly",
     "vaex>=4.17.0",
     "numpy",
@@ -23,10 +23,6 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 path = "sdss_explorer/__init__.py"
 
-
-[tool.pdm]
-[project.urls]
-repository = "https://www.github.com/sdss_explorer"
 
 [tool.black]
 line-length = 160
