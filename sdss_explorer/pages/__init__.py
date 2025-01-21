@@ -39,7 +39,6 @@ DEV = bool(getenv("EXPLORER_DEV", False))
 logger = logging.getLogger("sdss_explorer")
 
 
-@sl.lab.on_kernel_start
 def on_start():
     # set session identifiers
     State._uuid.set(sl.get_session_id())
@@ -66,6 +65,9 @@ def on_start():
         logger.info(f"culled kernel! :: {State.kernel_id}")
 
     return on_shutdown
+
+
+sl.lab.on_kernel_start(on_start)
 
 
 @sl.component()
