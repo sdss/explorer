@@ -1472,7 +1472,6 @@ def StatisticsTable(state):
     df = State.df.value
     filter, set_filter = use_subset(id(df), state.subset, name="statsview")
     columns, set_columns = state.columns.value, state.columns.set
-    print(filter, type(filter))
 
     # the summary table is its own DF (for render purposes)
     # NOTE: worker process concerns if this takes more than 10MB.
