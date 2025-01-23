@@ -646,10 +646,7 @@ def HistogramPlot(plotstate):
             try:
                 limits = dff.minmax(xcol)
             except:
-                Alert.update(
-                    "Failed to bin! Is your data too small for the aggregation?",
-                    color="warning",
-                )
+                # dodge stride bug
                 limits = [
                     # NOTE: empty tuple acts as index for the 0th of 0D array
                     dff.min(xcol)[()],
