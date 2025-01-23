@@ -1472,11 +1472,7 @@ def StatisticsTable(state):
     df = State.df.value
     filter, set_filter = use_subset(id(df), state.subset, name="statsview")
     columns, set_columns = state.columns.value, state.columns.set
-
-    if filter:
-        dff = df[filter]
-    else:
-        dff = df
+    print(filter, type(filter))
 
     # the summary table is its own DF (for render purposes)
     # NOTE: worker process concerns if this takes more than 10MB.
@@ -1484,13 +1480,20 @@ def StatisticsTable(state):
     def generate_describe() -> pd.DataFrame:
         """Generates the description table only on column/filter updates"""
         # INFO: vaex returns a pandas df.describe()
+        if filter:
+            dff = df[filter].extract()
+        else:
+            dff = df
+
         try:
+            assert len(dff) > 0
             dfd = dff[columns].describe(strings=False)
-        except:
+        except Exception as e:
             Alert.update(
                 "Failed to get statistics! Is your data too small for aggregations?",
                 color="warning",
             )
+            logger.error(f"Failure on StatsTable: {e}")
             dfd = pd.DataFrame({"error": ["no"], "encountered": ["data"]})
         return dfd
 
@@ -1568,11 +1571,8 @@ def DeltaHeatmapPlot(plotstate):
                 dfa.minmax(plotstate.x.value),
                 dfa.minmax(plotstate.y.value),
             ]
-        except:
-            Alert.update(
-                "Failed to get statistics! Is your data too small for aggregations?",
-                color="warning",
-            )
+        except Exception:
+            # stride bug dodge
             # NOTE: empty tuple acts as index for the 0th of 0D array
             limits = [
                 [
