@@ -109,8 +109,8 @@ def Page():
         datatype: str = query_params.pop("datatype", "star")
         try:
             assert validate_release(_datapath(), release), "release invalid"
-            assert (datatype == "star") or (datatype
-                                            == "visit"), "datatype invalid"
+            if not ((datatype == "star") or (datatype == "visit")):
+                datatype = "star"  # force reassignment if bad; ensures no load failure
 
             # set the release and datatype
             State._release.set(release)
