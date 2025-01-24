@@ -397,10 +397,10 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
 
         logger.info(f"CM filter took {timer() - start:.4f} seconds")
 
-        return
+        return cmp_filter
 
-    sl.lab.use_task(update_cm,
-                    dependencies=[df, mapper, carton, dataset, invert.value])
+    result = sl.lab.use_task(
+        update_cm, dependencies=[df, mapper, carton, dataset, invert.value])
 
     open, set_open = sl.use_state([])
     with rv.ExpansionPanels(flat=True,
@@ -409,7 +409,15 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
                             on_v_model=set_open) as main:
         DatasetSelect(key, dataset, set_dataset)
         with rv.ExpansionPanel():
-            rv.ExpansionPanelHeader(children=["Targeting Filters"])
+            rv.ExpansionPanelHeader(children=[
+                rv.Col(
+                    cols=1,
+                    children=[
+                        "Targeting Filters",
+                        sl.ProgressLinear(result.pending),
+                    ],
+                )
+            ])
             with rv.ExpansionPanelContent():
                 if State.mapping.value is None:
                     sl.Warning(
