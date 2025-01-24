@@ -9,6 +9,8 @@
             :responsive="true"
             :is-mirrored="false"
             :vertical-compact="true"
+            :auto-size="true"
+            :prevent-collision="false"
             :margin="[10, 10]"
             :use-css-transforms="true"
     >

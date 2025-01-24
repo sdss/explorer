@@ -1474,13 +1474,11 @@ def StatisticsTable(state):
     columns, set_columns = state.columns.value, state.columns.set
 
     # the summary table is its own DF (for render purposes)
-    # NOTE: worker process concerns if this takes more than 10MB.
-
     def generate_describe() -> pd.DataFrame:
         """Generates the description table only on column/filter updates"""
         # INFO: vaex returns a pandas df.describe()
         if filter:
-            dff = df[filter].extract()
+            dff = df[filter].extract()  # only need df here, so make here
         else:
             dff = df
 
