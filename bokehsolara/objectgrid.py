@@ -1,4 +1,3 @@
-import datashader as ds
 import os
 from typing import Callable, Optional, cast
 
@@ -57,7 +56,7 @@ class GridState:
     states = sl.reactive([])
 
 
-def show_plot(plottype, *args, **kwargs):
+def show_plot(plottype, remover, *args, **kwargs):
     with rv.Card(
             class_="grey darken-3" if dark else "grey lighten-3",
             style_="width: 100%#; height: 100%",
@@ -104,6 +103,12 @@ def show_plot(plottype, *args, **kwargs):
                             label="bintype",
                             value=plotstate.colormap,
                             values=colormaps,
+                        )
+                        sl.Button(
+                            icon_name="mdi-delete",
+                            color="red",
+                            block=True,
+                            on_click=remover,
                         )
 
 
@@ -234,6 +239,7 @@ def ObjectGrid():
                         # ),
                     ]
             rv.Spacer()
+            sl.lab.ThemeToggle()
 
         GridDraggableToolbar(
             items=GridState.objects.value,

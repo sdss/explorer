@@ -1,4 +1,3 @@
-import datashader as ds
 import os
 from typing import Callable, Optional, cast
 
@@ -11,7 +10,7 @@ import solara as sl
 import traitlets as t
 import vaex as vx
 import xarray
-from bokeh.io import output_notebook
+from bokeh.io import output_notebook, curdoc
 from bokeh.events import Reset
 from bokeh.models import BoxSelectTool, ColorBar, LinearColorMapper, HoverTool
 from bokeh.models import CustomJS
@@ -23,7 +22,7 @@ from solara.components.file_drop import FileInfo
 from solara.lab import Menu
 
 
-@sl.component_vue('bokeh_loaded.vue')
+@sl.component_vue("bokeh_loaded.vue")
 def BokehLoaded(loaded: bool, on_loaded: Callable[[bool], None]):
     pass
 
@@ -44,23 +43,32 @@ def FigureBokeh(
     dependencies=None,
 ):
     loaded = sl.use_reactive(False)
+    dark = sl.lab.use_dark_effective()
     output_notebook(hide_banner=True)
     BokehLoaded(loaded=loaded.value, on_loaded=loaded.set)
     if loaded.value:
         fig_element = BokehModel.element(model=fig)
 
         def update_data():
-            fig_widget = sl.get_widget(fig_element)
-            model = fig_widget._model
-            fig_widget.update_from_model(fig)
+            fig_widget: BokehModel = sl.get_widget(fig_element)
 
-            def cleanup():
-                # destroy all renderers, then figure object & close widget element
-                for renderer in model.renderers:
-                    renderer.destroy()
-                fig_widget._model.destroy()
-                fig_widget.close()
-                return
+            # fig_widget.update_from_model(fig)
+            return
+
+        def update_theme():
+            # NOTE: using bokeh.io.curdoc and this model._document prop will point to the same object
+            # TODO: check if this curdoc prop needs to be updated PER PLOT or PER FIGURE
+            fig_widget: BokehModel = sl.get_widget(fig_element)
+            if dark:
+                fig_widget._document.theme = "dark_minimal"
+            else:
+                fig_widget._document.theme = "light_minimal"
 
         sl.use_effect(update_data, dependencies or fig)
+        sl.use_effect(update_theme, dark)
         return fig_element
+    else:
+        with sl.Card(margin=0, elevation=0):
+            # NOTE: the card expands to fit space
+            with sl.Row(justify="center"):
+                sl.SpinnerSolara(size="200px")

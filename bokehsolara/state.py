@@ -1,4 +1,3 @@
-import datashader as ds
 import os
 from typing import Callable, Optional, cast
 

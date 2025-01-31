@@ -1,0 +1,7 @@
+New version of Solara available: 1.44.0. You have 1.36.0. Please upgrade using:
+	$ pip install "solara==1.44.0"
+Solara server is starting at http://localhost:8765
+Opening in existing browser session.
+Re-executed app app.py
+Re-executed app app.py
+Aborted.
