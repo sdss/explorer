@@ -38,7 +38,7 @@ class plotstate:
 
 @sl.component()
 def Page():
-    df = vx.example()
+    df = vx.example()[:30_000]
     z = df[plotstate.color.value].values
     source = ColumnDataSource(
         data={
@@ -76,7 +76,7 @@ def Page():
         },
     )
     with sl.Card():
-        FigureBokeh(p)
+        FigureBokeh(p, dependencies=[plotstate.x.value, plotstate.y.value])
     with sl.Card(margin=0):
         with sl.Columns([1, 1]):
             sl.Select(

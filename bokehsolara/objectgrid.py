@@ -104,6 +104,15 @@ def show_plot(plottype, remover, *args, **kwargs):
                             value=plotstate.colormap,
                             values=colormaps,
                         )
+                        with sl.Columns([1, 1]):
+                            with sl.Column():
+                                sl.Checkbox(label="xlog", value=plotstate.xlog)
+                                sl.Checkbox(label="ylog", value=plotstate.ylog)
+                            with sl.Column():
+                                sl.Checkbox(label="xflip",
+                                            value=plotstate.flipx)
+                                sl.Checkbox(label="yflip",
+                                            value=plotstate.flipy)
                         sl.Button(
                             icon_name="mdi-delete",
                             color="red",
