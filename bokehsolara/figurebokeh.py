@@ -17,6 +17,7 @@ from bokeh.models import CustomJS
 from bokeh.palettes import __palettes__ as colormaps
 from bokeh.models.ui import ActionItem, Menu as BokehMenu
 from bokeh.plotting import ColumnDataSource, figure
+from bokeh.models import Plot
 from bokeh.themes import Theme
 from jupyter_bokeh import BokehModel
 from solara.components.file_drop import FileInfo
@@ -29,7 +30,7 @@ def BokehLoaded(loaded: bool, on_loaded: Callable[[bool], None]):
 
 
 @sl.component
-def PlotBokeh(fig: figure):
+def PlotBokeh(fig: Plot):
     loaded = sl.use_reactive(False)
     output_notebook(hide_banner=True)
     BokehLoaded(loaded=loaded.value, on_loaded=loaded.set)
@@ -55,10 +56,25 @@ def FigureBokeh(
 
         def update_data():
             fig_widget: BokehModel = sl.get_widget(fig_element)
+            fig_model: Plot = fig_widget._model
 
-            length = len(fig_widget._model.renderers)
-            fig_widget._model.renderers.extend(fig.renderers)
-            fig_widget._model.renderers = fig_widget._model.renderers[length:]
+            fig_model.hold_render = True
+            # extend renderer set and cull previous
+            length = len(fig_model.renderers)
+            fig_model.renderers.extend(fig.renderers)
+            fig_model.renderers = fig_model.renderers[length:]
+
+            # change plot layout properties
+            length = len(fig_model.below)
+            fig_model.below.extend(fig.below)
+            fig_model.below = fig_model.below[length:]
+            length = len(fig_model.left)
+            fig_model.left.extend(fig.left)
+            fig_model.left = fig_model.left[length:]
+            length = len(fig_model.right)
+            fig_model.right.extend(fig.right)
+            fig_model.hold_render = False
+            fig_model.right = fig_model.right[length:]
 
             # WARNING: leads to errors
             # fig_widget._model.renderers = fig.renderers

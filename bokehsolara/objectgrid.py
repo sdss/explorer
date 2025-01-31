@@ -22,7 +22,7 @@ from solara.components.file_drop import FileInfo
 from solara.lab import Menu
 
 from state import plotstate, df
-from plots import Scatter, Heatmap
+from plots import ScatterPlot, HeatmapPlot
 
 dark = True
 
@@ -65,9 +65,9 @@ def show_plot(plottype, remover, *args, **kwargs):
             with sl.Column(
                     classes=["grey darken-3" if dark else "grey lighten-3"]):
                 if plottype == "heatmap":
-                    Heatmap()
+                    HeatmapPlot()
                 else:
-                    Scatter()
+                    ScatterPlot()
                 btn = sl.Button(
                     icon_name="mdi-settings",
                     outlined=False,

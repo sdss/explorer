@@ -1,6 +1,10 @@
 import os
 from typing import Callable, Optional, cast
 
+from bokeh.models.grids import Grid
+from bokeh.models.plots import Plot
+from bokeh.models.ranges import DataRange1d
+from bokeh.models.tools import WheelZoomTool
 import ipyvuetify as v
 import ipywidgets as widgets
 import numpy as np
@@ -17,6 +21,7 @@ from bokeh.models import (
     BoxSelectTool,
     ColorBar,
     HoverTool,
+    Scatter,
     TapTool,
 )
 from bokeh.models.mappers import (
@@ -160,7 +165,7 @@ def get_data():
 
 
 @sl.component()
-def Heatmap():
+def HeatmapPlot():
 
     def create_figure():
         """Creates figure with relevant objects"""
@@ -315,7 +320,7 @@ def Heatmap():
 
 
 @sl.component()
-def Scatter():
+def ScatterPlot():
     dark = sl.lab.use_dark_effective()
 
     def create_figure():
@@ -337,19 +342,15 @@ def Scatter():
                 "sdss_id": df["L"].values,  # temp
             })
 
-        # generate main figure
-        p = figure(
-            x_axis_label=plotstate.x.value,
-            y_axis_label=plotstate.y.value,
-            x_axis_type="log" if plotstate.xlog.value else "linear",
-            y_axis_type="log" if plotstate.ylog.value else "linear",
-            tools=TOOLS,
+        # generate main Plot glyph
+        p = Plot(
+            # tools=TOOLS,
             context_menu=menu,
-            # sizing_mode="stretch_both",
             toolbar_location="above",
+            x_range=DataRange1d(),
+            y_range=DataRange1d(),
             # height_policy='max',
             width_policy="max",
-            active_scroll="wheel_zoom",  # default to scroll wheel for zoom
             output_backend=
             "webgl",  # for performance, will fallback to HTML5 if unsupported
             lod_factor=2000,
@@ -357,6 +358,22 @@ def Scatter():
             lod_threshold=1000,
             lod_timeout=2000,
         )
+
+        # generate axes
+        xaxis = LinearAxis(axis_label=plotstate.x.value)
+        yaxis = LinearAxis(axis_label=plotstate.y.value)
+        p.add_layout(xaxis, "below")
+        p.add_layout(yaxis, "below")
+        grid_x = Grid(dimension=0, ticker=xaxis.ticker)
+        grid_y = Grid(dimension=1, ticker=yaxis.ticker)
+        p.add_layout(grid_x)
+        p.add_layout(grid_y)
+
+        # generate scrool wheel zoom
+        wz = WheelZoomTool()
+        p.add_tools(wz)
+        p.toolbar.active_scroll = wz
+        p.toolbar.autohide = True
 
         # setup menu items
         name = "menu-propogate"
@@ -402,7 +419,7 @@ def Scatter():
         )
 
         # generate scatter points
-        glyph = p.scatter(
+        glyph = Scatter(
             x="x",
             y="y",
             source=source,
@@ -412,6 +429,7 @@ def Scatter():
                 "transform": mapper
             },
         )
+        p.add_glyph(source, glyph)
         cb = ColorBar(color_mapper=mapper,
                       location=(5, 6),
                       title=plotstate.color.value)
@@ -446,17 +464,13 @@ def Scatter():
         )
         p.add_tools(tap)
 
-        # Attach the callback to the figure
-        # p.js_on_event("contextmenu", contextcallback)
-
         # add selection tools
         box_select = BoxSelectTool(renderers=[glyph])
         p.add_tools(box_select)
-        print("creted figure")
 
-        return p, source, mapper, menu, (hover, box_select)
+        return p, source, (xaxis, yaxis), mapper, menu, (wz, hover, box_select)
 
-    p, source, mapper, menu, tools = sl.use_memo(
+    p, source, axes, mapper, menu, tools = sl.use_memo(
         create_figure,
         dependencies=[],
     )
@@ -464,9 +478,6 @@ def Scatter():
     # source on selection effect
     def on_select(attr, old, new):
         print(type(attr), attr)
-        # print(old)
-        # print(new)
-        # print(source.selected.indices) # this is equal to new
         item = p.select(name=plotstate.menu_item_id.value)[0]
         print(item)
         if len(new) == 0:
