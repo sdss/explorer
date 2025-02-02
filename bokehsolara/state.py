@@ -21,7 +21,7 @@ from jupyter_bokeh import BokehModel
 from solara.components.file_drop import FileInfo
 from solara.lab import Menu
 
-df = vx.example()[:100_000]
+df = vx.example()[:50_000]
 
 
 def gen_tooltips(state):
@@ -36,11 +36,11 @@ def gen_tooltips(state):
 
 
 class plotstate:
-    type = sl.reactive("heatmap")
+    plottype = sl.reactive("heatmap")
     x = sl.reactive("x")
     y = sl.reactive("y")
-    xlog = sl.reactive(False)
-    ylog = sl.reactive(False)
+    logx = sl.reactive(False)
+    logy = sl.reactive(False)
     flipx = sl.reactive(False)
     flipy = sl.reactive(False)
     bintype = sl.reactive("mean")

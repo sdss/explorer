@@ -57,9 +57,10 @@ class GridState:
 
 
 def show_plot(plottype, remover, *args, **kwargs):
+    dark = sl.lab.use_dark_effective()
     with rv.Card(
             class_="grey darken-3" if dark else "grey lighten-3",
-            style_="width: 100%#; height: 100%",
+            style_="width: 100%; height: 100%",
     ):
         with rv.CardText():
             with sl.Column(
@@ -106,8 +107,8 @@ def show_plot(plottype, remover, *args, **kwargs):
                         )
                         with sl.Columns([1, 1]):
                             with sl.Column():
-                                sl.Checkbox(label="xlog", value=plotstate.xlog)
-                                sl.Checkbox(label="ylog", value=plotstate.ylog)
+                                sl.Checkbox(label="xlog", value=plotstate.logx)
+                                sl.Checkbox(label="ylog", value=plotstate.logy)
                             with sl.Column():
                                 sl.Checkbox(label="xflip",
                                             value=plotstate.flipx)

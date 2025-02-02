@@ -23,6 +23,7 @@ from solara.lab import Menu
 
 from objectgrid import ObjectGrid
 from state import df
+from plots import LIGHTTHEME, DARKTHEME
 
 
 @sl.component

@@ -30,7 +30,7 @@ def BokehLoaded(loaded: bool, on_loaded: Callable[[bool], None]):
 
 
 @sl.component
-def PlotBokeh(fig: Plot):
+def PlotBokeh(fig: Plot | figure):
     loaded = sl.use_reactive(False)
     output_notebook(hide_banner=True)
     BokehLoaded(loaded=loaded.value, on_loaded=loaded.set)
@@ -52,55 +52,76 @@ def FigureBokeh(
     BokehLoaded(loaded=loaded.value, on_loaded=loaded.set)
     if loaded.value:
         fig_element = BokehModel.element(model=fig)
-        print(type(fig_element))
 
         def update_data():
             fig_widget: BokehModel = sl.get_widget(fig_element)
-            fig_model: Plot = fig_widget._model
+            fig_model: Plot = fig_widget._model  # base class for figure
 
-            fig_model.hold_render = True
-            # extend renderer set and cull previous
-            length = len(fig_model.renderers)
-            fig_model.renderers.extend(fig.renderers)
-            fig_model.renderers = fig_model.renderers[length:]
+            if fig != fig_model:
+                # pause until all updates complete
+                fig_model.hold_render = True
 
-            # change plot layout properties
-            length = len(fig_model.below)
-            fig_model.below.extend(fig.below)
-            fig_model.below = fig_model.below[length:]
-            length = len(fig_model.left)
-            fig_model.left.extend(fig.left)
-            fig_model.left = fig_model.left[length:]
-            length = len(fig_model.right)
-            fig_model.right.extend(fig.right)
-            fig_model.hold_render = False
-            fig_model.right = fig_model.right[length:]
+                # if the figure is regenerated, the tool callbacks will break. we have no idea whic
+                fig_model.remove_tools(*fig_model.toolbar.tools)
+                fig_model.add_tools(*fig.toolbar.tools)
 
-            # WARNING: leads to errors
+                # this fixes if a user sets default tools in the toolbar
+                # NOTE: not exactly perfect; will reset it to whatever the default init was
+                #     (i.e. default LMB was pan, switch to box select, will reset back to pan after rerender)
+                for active in [
+                        "active_drag",
+                        "active_inspect",
+                        "active_multi",
+                        "active_scroll",
+                        "active_tap",
+                ]:
+                    attr = getattr(fig_model.toolbar, active)
+                    newattr = getattr(fig.toolbar, active)
+                    if attr != "auto":
+                        setattr(fig_model.toolbar, active, newattr)
+
+                # extend renderer set and cull previous
+                length = len(fig_model.renderers)
+                fig_model.renderers.extend(fig.renderers)
+                fig_model.renderers = fig_model.renderers[length:]
+
+                # similarly update plot layout properties
+                places = ["above", "below", "center", "left", "right"]
+                for place in places:
+                    attr = getattr(fig_model, place)
+                    newattr = getattr(fig, place)
+                    length = len(attr)
+                    attr.extend(newattr)
+                    if place == "right":
+                        fig_model.hold_render = False
+                    setattr(fig_model, place, attr[length:])
+
+            # WARNING: just breaks
             # fig_widget._model.renderers = fig.renderers
 
             # WARNING: do not do this ever
             # fig_widget._model = fig
 
-            # WARNING: overwrites model; wrapper method that performs above whilst adjusting render bundle
+            # WARNING: this does above but also render bundle; leads to widget KeyError on close/shutdown
             # fig_widget.update_from_model(fig)
-
-            # push_notebook(document=fig_widget._document)
             return
 
         def update_theme():
             # NOTE: using bokeh.io.curdoc and this model._document prop will point to the same object
-            # TODO: check if this curdoc prop needs to be updated PER PLOT or PER FIGURE
             fig_widget: BokehModel = sl.get_widget(fig_element)
+            print(curdoc())
             if dark:
+                curdoc().theme = dark_theme
                 fig_widget._document.theme = dark_theme
             else:
+                curdoc().theme = light_theme
                 fig_widget._document.theme = light_theme
 
         sl.use_effect(update_data, dependencies or fig)
-        sl.use_effect(update_theme, dark)
+        sl.use_effect(update_theme, [dark, loaded.value])
         return fig_element
     else:
+        # NOTE: we don't return this as to not break effect callbacks outside this function; reacton a
         with sl.Card(margin=0, elevation=0) as main:
             # NOTE: the card expands to fit space
             with sl.Row(justify="center"):

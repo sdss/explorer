@@ -111,7 +111,7 @@ module.exports = {
 
 <style id="grid_layout">
 .vue-grid-item > div {
-  height: 97%;
+  height: 100%;
 }
 
 .vue-grid-item.vue-resizable-handle > {

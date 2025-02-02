@@ -33,20 +33,103 @@ from bokeh.models import CustomJS, OpenURL
 from bokeh.palettes import __palettes__ as colormaps
 from bokeh.models.ui import ActionItem, Menu as BokehMenu
 from bokeh.plotting import ColumnDataSource, figure
-from bokeh.models.axes import LogAxis, LinearAxis
+from bokeh.models.axes import CategoricalAxis, LogAxis, LinearAxis
+from bokeh.themes import Theme
 from jupyter_bokeh import BokehModel
 from solara.components.file_drop import FileInfo
 from solara.lab import Menu
 
+from plot_utils import (
+    add_all_tools,
+    generate_axes,
+    generate_color_mapper_bar,
+    generate_plot,
+)
 from state import plotstate, df
 from figurebokeh import FigureBokeh
 
 TOOLS = "pan,wheel_zoom,box_zoom,reset,save,examine"
-ANTIHOVER = "<style>.bk-tooltip>div:not(:first-child) {display:none;}</style>"
 
 colormaps = [x for x in colormaps if "256" in x]
 
 # https://docs.bokeh.org/en/latest/docs/user_guide/interaction/js_callbacks.html#customjs-for-topics-events
+
+DARKTHEME = Theme(
+    json={
+        "attrs": {
+            "Plot": {
+                "background_fill_color": "#212121",  # grey-darken-3
+                "border_fill_color": "#424242",
+                "outline_line_color": "#616161",  # darken-2
+            },
+            "Axis": {
+                "major_tick_line_color": "#FFFFFF",  # White ticks for contrast
+                "minor_tick_line_color": "#BDBDBD",  # grey-lighten-1
+                "axis_line_color": "#BDBDBD",
+                "major_label_text_color": "#FFFFFF",  # White for labels
+                "axis_label_text_color": "#FFFFFF",  # White for labels
+                "axis_label_text_font_size": "16pt",
+            },
+            "Grid": {
+                "grid_line_color": "#616161",  # grey-darken-2 (x/y grid)
+            },
+            "Title": {
+                "text_color": "#FFFFFF",  # White text
+                "text_font_size": "16pt",
+            },
+            "Legend": {
+                "background_fill_color": "#424242",
+                "label_text_color": "#FFFFFF",  # White legend labels
+            },
+            "ColorBar": {
+                "background_fill_color": "#424242",
+                "title_text_color": "#FFFFFF",
+                "major_label_text_color": "#FFFFFF",
+            },
+            "Text": {
+                "text_color": "#FFFFFF",
+            },
+        }
+    })
+LIGHTTHEME = Theme(
+    json={
+        "attrs": {
+            "Plot": {
+                "background_fill_color":
+                "#FAFAFA",  # grey-lighten-3 (paper_bgcolor)
+                "border_fill_color": "#EEEEEE",
+                "outline_line_color": "#BDBDBD",  # lighten-1
+            },
+            "Axis": {
+                "major_tick_line_color":
+                "#212121",  # grey-darken-4 (dark ticks for contrast)
+                "minor_tick_line_color": "#616161",  # grey-darken-2
+                "axis_line_color": "#616161",
+                "major_label_text_color": "#212121",  # grey-darken-4
+                "axis_label_text_color": "#212121",  # grey-darken-4
+                "axis_label_text_font_size": "16pt",
+            },
+            "Grid": {
+                "grid_line_color": "#BDBDBD",  # grey-lighten-1 (x/y grid)
+            },
+            "Title": {
+                "text_color": "#212121",  # grey-darken-4
+                "text_font_size": "16pt",
+            },
+            "Legend": {
+                "background_fill_color": "#EEEEEE",
+                "label_text_color": "#212121",  # grey-darken-4
+            },
+            "ColorBar": {
+                "background_fill_color": "#EEEEEE",
+                "title_text_color": "#212121",
+                "major_label_text_color": "#212121",
+            },
+            "Text": {
+                "text_color": "#212121",
+            },
+        }
+    })
 
 
 def get_data():
@@ -166,6 +249,7 @@ def get_data():
 
 @sl.component()
 def HeatmapPlot():
+    return sl.Card()
 
     def create_figure():
         """Creates figure with relevant objects"""
@@ -323,17 +407,27 @@ def HeatmapPlot():
 def ScatterPlot():
     dark = sl.lab.use_dark_effective()
 
+    def generate_tooltips(plotstate):
+        return (f"""
+        <div>
+        {plotstate.x.value}: $snap_x
+        {plotstate.y.value}: $snap_x
+        {plotstate.color.value}: @z
+        sdss_id: @sdss_id
+        </div>\n""" + """
+        <style>
+        div.bk-tooltip-content > div > div:not(:first-child) {
+            display:none !important;
+        } 
+        </style>
+        """)
+
     def create_figure():
         """Creates figure with relevant objects"""
         # obtain data
-        # TODO: categorical support
         z = df[plotstate.color.value].values
 
-        # create menu
-        menu = BokehMenu()
-        menu.styles = {"color": "black", "font-size": "16px"}
-
-        # generate source objects
+        # create source objects
         source = ColumnDataSource(
             data={
                 "x": df[plotstate.x.value].values,
@@ -341,223 +435,146 @@ def ScatterPlot():
                 "z": z,
                 "sdss_id": df["L"].values,  # temp
             })
-
-        # generate main Plot glyph
-        p = Plot(
-            # tools=TOOLS,
-            context_menu=menu,
-            toolbar_location="above",
-            x_range=DataRange1d(),
-            y_range=DataRange1d(),
-            # height_policy='max',
-            width_policy="max",
-            output_backend=
-            "webgl",  # for performance, will fallback to HTML5 if unsupported
-            lod_factor=2000,
-            lod_interval=300,
-            lod_threshold=1000,
-            lod_timeout=2000,
-        )
+        p, menu = generate_plot(plotstate)
 
         # generate axes
-        xaxis = LinearAxis(axis_label=plotstate.x.value)
-        yaxis = LinearAxis(axis_label=plotstate.y.value)
+        xaxis, yaxis, grid_x, grid_y = generate_axes(plotstate)
+
         p.add_layout(xaxis, "below")
-        p.add_layout(yaxis, "below")
-        grid_x = Grid(dimension=0, ticker=xaxis.ticker)
-        grid_y = Grid(dimension=1, ticker=yaxis.ticker)
+        p.add_layout(yaxis, "left")
         p.add_layout(grid_x)
         p.add_layout(grid_y)
 
-        # generate scrool wheel zoom
-        wz = WheelZoomTool()
-        p.add_tools(wz)
-        p.toolbar.active_scroll = wz
-        p.toolbar.autohide = True
-
-        # setup menu items
-        name = "menu-propogate"
-        items = [
-            ActionItem(label="Propagate selection to subset",
-                       disabled=True,
-                       name=name),  # TODO
-            ActionItem(
-                label="Reset plot",
-                action=CustomJS(args=dict(p=p), code="""p.reset.emit()"""),
-            ),
-        ]
-        plotstate.menu_item_id.set(name)
-        menu.update(items=items)
-
-        # add selection callback
-
-        # setup colormap
-        # TODO: use factor_cmap for catagorical data
-        # TODO: use log_cmap when log is requested
-
-        # TODO: temp
-        def check_categorical(x: str):
-            return False
-
-        if check_categorical(plotstate.color.value):
-            mpr = CategoricalColorMapper
-            mpr_kwargs = dict()
-        else:
-            mpr_kwargs = dict(
-                low=z.min(),
-                high=z.max(),
-            )
-            if plotstate.colorlog.value is not None:
-                mpr = LogColorMapper
-            else:
-                # linear
-                mpr = LinearColorMapper
-
-        mapper = mpr(
-            palette=plotstate.colormap.value,
-            **mpr_kwargs,
-        )
-
         # generate scatter points
+        mapper, cb = generate_color_mapper_bar(plotstate, z)
         glyph = Scatter(
             x="x",
             y="y",
-            source=source,
             size=8,
             fill_color={
                 "field": "z",
-                "transform": mapper
+                "transform": mapper,
             },
         )
         p.add_glyph(source, glyph)
-        cb = ColorBar(color_mapper=mapper,
-                      location=(5, 6),
-                      title=plotstate.color.value)
         p.add_layout(cb, "right")
 
-        # create hovertool, bound to figure object
-        TOOLTIPS = [
-            (plotstate.x.value, "$snap_x"),
-            (plotstate.y.value, "$snap_y"),
-            (plotstate.color.value, "@z"),
-            ("sdss_id", "@sdss_id"),
-        ]
+        # add all tools; custom hoverinfo
+        # TODO: fix css styling
+        add_all_tools(p, tooltips=generate_tooltips(plotstate))
 
-        hover = HoverTool(
-            tooltips=TOOLTIPS,
-            renderers=[glyph],
-            visible=False,
-        )
-        p.add_tools(hover)
-
-        # add double click to open target page
-        cb = CustomJS(
+        # zora jump
+        tapcb = CustomJS(
             args=dict(source=source),
-            code=
-            """window.open(`https://data.sdss.org/zora/target/${source.data.sdss_id[source.inspected.indices[0]]}`, '_blank').focus();""",
+            code="""console.log('Tap');
+            console.log(source.selected.indices);
+            window.open(`https://data.sdss.org/zora/target/${source.data.sdss_id[source.inspected.indices[0]]}`, '_blank').focus();
+            """,
         )
         tap = TapTool(
             behavior="inspect",
-            callback=cb,
+            callback=tapcb,
             gesture="doubletap",
-            renderers=[glyph],
+            visible=False,
         )
         p.add_tools(tap)
 
-        # add selection tools
-        box_select = BoxSelectTool(renderers=[glyph])
-        p.add_tools(box_select)
+        # source on selection effect
+        def on_select(attr, old, new):
+            item = p.select(name="menu-propogate")[0]
+            if len(new) == 0:
+                # disable button
+                item.update(disabled=True)
+            else:
+                item.update(disabled=False)
 
-        return p, source, (xaxis, yaxis), mapper, menu, (wz, hover, box_select)
+        source.selected.on_change("indices", on_select)
 
-    p, source, axes, mapper, menu, tools = sl.use_memo(
+        return p, source, mapper, menu, cb
+
+    p, source, mapper, menu, cb = sl.use_memo(
         create_figure,
-        dependencies=[],
+        dependencies=[
+            plotstate.x.value,
+            plotstate.y.value,
+            plotstate.logx.value,
+            plotstate.logy.value,
+            plotstate.flipx.value,
+            plotstate.flipy.value,
+        ],
     )
-
-    # source on selection effect
-    def on_select(attr, old, new):
-        print(type(attr), attr)
-        item = p.select(name=plotstate.menu_item_id.value)[0]
-        print(item)
-        if len(new) == 0:
-            # disable buitton
-            item.update(disabled=True)
-        else:
-            item.update(disabled=False)
-
-    source.selected.on_change("indices", on_select)
 
     def add_effects(pfig):
 
-        def change_data():
+        def update_x():
+            # TODO: ensure no catagorical data failure
+            # update CDS
             if pfig is not None:
-                fig_element: BokehModel = sl.get_widget(pfig)
-                z, x_centers, y_centers, limits = get_data()
+                fig_widget: BokehModel = sl.get_widget(pfig)
+                fig_model: plot = fig_widget._model
+                source.data["x"] = df[plotstate.x.value].values
 
-                # directly update data
-                fig_element._model.renderers[0].data_source.data = {
-                    "x": df[plotstate.x.value].values,
-                    "y": df[plotstate.y.value].values,
-                    "z": df[plotstate.color.value].values,
-                    "sdss_id": df["L"].values,
-                }
+                # replace grid and axes objects
+                fig_model.below[0].axis_label = plotstate.x.value
 
-                # update x/y labels
-                fig_element._model.xaxis.axis_label = plotstate.x.value
-                fig_element._model.yaxis.axis_label = plotstate.y.value
-
-                # update colorbar
-                mapper.low = z.min().item()
-                mapper.high = z.max().item()
-
-                return
-
-        def change_log():
+        def update_y():
+            # TODO: ensure no catagorical data failure
+            # update CDS
             if pfig is not None:
-                fig_element: BokehModel = sl.get_widget(pfig)
-                figmodel: figure = fig_element._model
-                if plotstate.xlog.value:
-                    p.update(x_scale=LogScale())
-                else:
-                    p.update(x_scale=LinearScale())
-                if plotstate.ylog.value:
-                    p.update(y_scale=LogScale())
-                else:
-                    p.update(y_scale=LinearScale())
+                fig_widget: BokehModel = sl.get_widget(pfig)
+                fig_model: plot = fig_widget._model
+                source.data["y"] = df[plotstate.y.value].values
 
-        def change_flip():
-            if pfig is not None:
-                fig_element: BokehModel = sl.get_widget(pfig)
-                figmodel: figure = fig_element._model
-                p.x_range.flipped = plotstate.flipx.value
-                p.y_range.flipped = plotstate.flipy.value
+        def update_color():
+            # TODO: ensure no catagorical data failure
+            z = df[plotstate.color.value].values
+            source.data["z"] = z
+            mapper.update(low=z.min(), high=z.max())
 
-        def change_filter():
-            """Filter update"""
-            if pfig is not None:
-                fig_element: BokehModel = sl.get_widget(pfig)
+            cb.title = plotstate.color.value
 
-        def change_colormap():
+        def update_cmap():
             if pfig is not None:
+                fig_widget: BokehModel = sl.get_widget(pfig)
+                fig_model: plot = fig_widget._model
                 mapper.palette = plotstate.colormap.value
 
-        # sl.use_effect(change_filter,dependencies=[filter])
-        sl.use_effect(
-            change_data,
-            dependencies=[
-                plotstate.x.value, plotstate.y.value, plotstate.color.value
-            ],
-        )
-        sl.use_effect(change_colormap, dependencies=[plotstate.colormap.value])
-        # sl.use_effect(
-        #    change_log,
-        #    dependencies=[plotstate.xlog.value, plotstate.ylog.value])
-        sl.use_effect(
-            change_flip,
-            dependencies=[plotstate.flipx.value, plotstate.flipy.value])
+        def update_log():
+            if pfig is not None:
+                fig_widget: BokehModel = sl.get_widget(pfig)
+                fig_model: plot = fig_widget._model
 
-    pfig = FigureBokeh(
-        p, dependencies=[plotstate.flipx.value, plotstate.flipy.value])
+                xaxis, yaxis, xgrid, ygrid = generate_axes(plotstate)
+
+                fig_model.below.append(xaxis)
+                fig_model.below = fig_model.below[1:]
+                fig_model.left.append(yaxis)
+                fig_model.left = fig_model.left[1:]
+                length = len(fig_model.center)
+                fig_model.center.extend([xgrid, ygrid])
+                fig_model.center = fig_model.center[length:]
+
+        def update_flip():
+            if pfig is not None:
+                fig_widget: BokehModel = sl.get_widget(pfig)
+                fig_model: plot = fig_widget._model
+                fig_model.x_range.flipped = plotstate.flipx.value
+                fig_model.y_range.flipped = plotstate.flipy.value
+
+        sl.use_effect(update_x, dependencies=[plotstate.x.value])
+        # sl.use_effect(update_y, dependencies=[plotstate.y.value])
+        sl.use_effect(update_color, dependencies=[plotstate.color.value])
+        sl.use_effect(update_cmap, dependencies=[plotstate.colormap.value])
+        # sl.use_effect(
+        #    update_log,
+        #    dependencies=[plotstate.logx.value, plotstate.logy.value])
+        # sl.use_effect(
+        #    update_flip,
+        #    dependencies=[plotstate.flipx.value, plotstate.flipy.value])
+
+    pfig = FigureBokeh(p,
+                       dependencies=[p],
+                       dark_theme=DARKTHEME,
+                       light_theme=LIGHTTHEME)
     add_effects(pfig)
     return pfig
