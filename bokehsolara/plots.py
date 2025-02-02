@@ -424,19 +424,14 @@ def ScatterPlot():
 
     def create_figure():
         """Creates figure with relevant objects"""
-        # obtain data
-        z = df[plotstate.color.value].values
-
-        # create source objects
+        p, menu = generate_plot(plotstate)
         source = ColumnDataSource(
             data={
                 "x": df[plotstate.x.value].values,
                 "y": df[plotstate.y.value].values,
-                "z": z,
+                "z": df[plotstate.color.value].values,
                 "sdss_id": df["L"].values,  # temp
             })
-        p, menu = generate_plot(plotstate)
-
         # generate axes
         xaxis, yaxis, grid_x, grid_y = generate_axes(plotstate)
 
@@ -446,7 +441,8 @@ def ScatterPlot():
         p.add_layout(grid_y)
 
         # generate scatter points
-        mapper, cb = generate_color_mapper_bar(plotstate, z)
+        mapper, cb = generate_color_mapper_bar(
+            plotstate, df[plotstate.color.value].values)
         glyph = Scatter(
             x="x",
             y="y",
@@ -456,6 +452,7 @@ def ScatterPlot():
                 "transform": mapper,
             },
         )
+
         p.add_glyph(source, glyph)
         p.add_layout(cb, "right")
 
@@ -495,12 +492,8 @@ def ScatterPlot():
     p, source, mapper, menu, cb = sl.use_memo(
         create_figure,
         dependencies=[
-            plotstate.x.value,
-            plotstate.y.value,
             plotstate.logx.value,
             plotstate.logy.value,
-            plotstate.flipx.value,
-            plotstate.flipy.value,
         ],
     )
 
@@ -516,6 +509,7 @@ def ScatterPlot():
 
                 # replace grid and axes objects
                 fig_model.below[0].axis_label = plotstate.x.value
+                p.below[0].axis_label = plotstate.x.value
 
         def update_y():
             # TODO: ensure no catagorical data failure
@@ -524,14 +518,18 @@ def ScatterPlot():
                 fig_widget: BokehModel = sl.get_widget(pfig)
                 fig_model: plot = fig_widget._model
                 source.data["y"] = df[plotstate.y.value].values
+                fig_model.left[0].axis_label = plotstate.y.value
+                p.left[0].axis_label = plotstate.y.value
 
         def update_color():
             # TODO: ensure no catagorical data failure
-            z = df[plotstate.color.value].values
-            source.data["z"] = z
-            mapper.update(low=z.min(), high=z.max())
-
-            cb.title = plotstate.color.value
+            if pfig is not None:
+                fig_widget: BokehModel = sl.get_widget(pfig)
+                fig_model: plot = fig_widget._model
+                z = df[plotstate.color.value].values
+                source.data["z"] = z
+                mapper.update(low=z.min(), high=z.max())
+                cb.title = plotstate.color.value
 
         def update_cmap():
             if pfig is not None:
@@ -539,38 +537,40 @@ def ScatterPlot():
                 fig_model: plot = fig_widget._model
                 mapper.palette = plotstate.colormap.value
 
-        def update_log():
-            if pfig is not None:
-                fig_widget: BokehModel = sl.get_widget(pfig)
-                fig_model: plot = fig_widget._model
-
-                xaxis, yaxis, xgrid, ygrid = generate_axes(plotstate)
-
-                fig_model.below.append(xaxis)
-                fig_model.below = fig_model.below[1:]
-                fig_model.left.append(yaxis)
-                fig_model.left = fig_model.left[1:]
-                length = len(fig_model.center)
-                fig_model.center.extend([xgrid, ygrid])
-                fig_model.center = fig_model.center[length:]
-
         def update_flip():
             if pfig is not None:
                 fig_widget: BokehModel = sl.get_widget(pfig)
                 fig_model: plot = fig_widget._model
+                # TODO: catagorical support
+                fig_model.x_range.start = (df[plotstate.x.value].min()[()]
+                                           if not plotstate.flipx.value else
+                                           df[plotstate.x.value].max()[()])
+                fig_model.x_range.end = (df[plotstate.x.value].max()[()]
+                                         if not plotstate.flipx.value else
+                                         df[plotstate.x.value].min()[()])
+                fig_model.y_range.start = (df[plotstate.y.value].min()[()]
+                                           if not plotstate.flipy.value else
+                                           df[plotstate.y.value].max()[()])
+                fig_model.y_range.end = (df[plotstate.y.value].max()[()]
+                                         if not plotstate.flipy.value else
+                                         df[plotstate.y.value].min()[()])
                 fig_model.x_range.flipped = plotstate.flipx.value
                 fig_model.y_range.flipped = plotstate.flipy.value
 
+        def update_log():
+            if pfig is not None:
+                fig_widget: BokehModel = sl.get_widget(pfig)
+
         sl.use_effect(update_x, dependencies=[plotstate.x.value])
-        # sl.use_effect(update_y, dependencies=[plotstate.y.value])
+        sl.use_effect(update_y, dependencies=[plotstate.y.value])
         sl.use_effect(update_color, dependencies=[plotstate.color.value])
         sl.use_effect(update_cmap, dependencies=[plotstate.colormap.value])
         # sl.use_effect(
         #    update_log,
         #    dependencies=[plotstate.logx.value, plotstate.logy.value])
-        # sl.use_effect(
-        #    update_flip,
-        #    dependencies=[plotstate.flipx.value, plotstate.flipy.value])
+        sl.use_effect(
+            update_flip,
+            dependencies=[plotstate.flipx.value, plotstate.flipy.value])
 
     pfig = FigureBokeh(p,
                        dependencies=[p],

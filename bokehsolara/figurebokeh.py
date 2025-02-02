@@ -48,15 +48,17 @@ def FigureBokeh(
 ):
     loaded = sl.use_reactive(False)
     dark = sl.lab.use_dark_effective()
+    fig_key = sl.use_uuid4([])
     output_notebook(hide_banner=True)
     BokehLoaded(loaded=loaded.value, on_loaded=loaded.set)
     if loaded.value:
-        fig_element = BokehModel.element(model=fig)
+        fig_element = BokehModel.element(model=fig).key(
+            fig_key)  # TODO: since it isnt hashable it needs a unique key
 
         def update_data():
             fig_widget: BokehModel = sl.get_widget(fig_element)
             fig_model: Plot = fig_widget._model  # base class for figure
-
+            print("internal FigureBokeh update data triggered")
             if fig != fig_model:
                 # pause until all updates complete
                 fig_model.hold_render = True
@@ -99,7 +101,7 @@ def FigureBokeh(
             # WARNING: just breaks
             # fig_widget._model.renderers = fig.renderers
 
-            # WARNING: do not do this ever
+            # WARNING: instead of orphaning, this gives it two parents, which we do not want
             # fig_widget._model = fig
 
             # WARNING: this does above but also render bundle; leads to widget KeyError on close/shutdown

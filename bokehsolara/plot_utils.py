@@ -153,20 +153,20 @@ def generate_plot(plotstate):
     p = Plot(
         context_menu=menu,
         toolbar_location="above",
-        x_range=DataRange1d(bounds="auto")
+        x_range=DataRange1d()
         if not check_categorical(plotstate.x.value) else FactorRange(),
         x_scale=get_xscale(plotstate),
-        y_range=DataRange1d(bounds="auto")
+        y_range=DataRange1d()
         if not check_categorical(plotstate.y.value) else FactorRange(),
         y_scale=get_yscale(plotstate),
         # height_policy='max', # NOTE: doesn't work
         width_policy="max",
         output_backend=
         "webgl",  # for performance, will fallback to HTML5 if unsupported
-        lod_factor=2000,
+        lod_factor=20000,
         lod_interval=300,
         lod_threshold=1000,
-        lod_timeout=2000,
+        lod_timeout=10000,
     )
     name = "menu-propogate"
     items = [
@@ -179,11 +179,5 @@ def generate_plot(plotstate):
         ),
     ]
     menu.update(items=items)
-
-    # set flip if needed
-    if plotstate.flipx.value:
-        p.x_range.flipped = True
-    if plotstate.flipy.value:
-        p.y_range.flipped = True
 
     return p, menu
