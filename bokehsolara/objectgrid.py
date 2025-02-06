@@ -21,7 +21,7 @@ from jupyter_bokeh import BokehModel
 from solara.components.file_drop import FileInfo
 from solara.lab import Menu
 
-from state import plotstate, df
+from state import plotstate, df, GridState
 from plots import ScatterPlot, HeatmapPlot
 from plot_themes import DARKTHEME, LIGHTTHEME
 
@@ -48,13 +48,6 @@ class GridLayout(v.VuetifyTemplate):
 
 
 GridDraggableToolbar = r.core.ComponentWidget(GridLayout)
-
-
-class GridState:
-    index = sl.reactive(0)
-    objects = sl.reactive([])
-    grid_layout = sl.reactive([])
-    states = sl.reactive([])
 
 
 # @sl.component

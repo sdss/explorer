@@ -22,6 +22,9 @@ from solara.components.file_drop import FileInfo
 from solara.lab import Menu
 
 df = vx.example()[:50_000]
+df["category"] = np.array(
+    ["foo" if i < len(df) // 2 else "bar" for i in range(len(df))])
+df = df.materialize("category")
 
 
 def gen_tooltips(state):
@@ -50,3 +53,10 @@ class plotstate:
     nbins = sl.reactive(101)
     menu_item_id = sl.reactive(cast(str, None))
     last_hovered_id = sl.reactive(cast(int, None))
+
+
+class GridState:
+    index = sl.reactive(0)
+    objects = sl.reactive([])
+    grid_layout = sl.reactive([])
+    states = sl.reactive([])

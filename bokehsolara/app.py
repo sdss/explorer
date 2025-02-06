@@ -30,8 +30,6 @@ from figurebokeh import BokehLoaded
 
 @sl.component
 def Page():
-    dark = sl.lab.use_dark_effective()
-    loaded = sl.use_reactive(False)
     output_notebook(hide_banner=True)
     ExprEditor()
     ObjectGrid()

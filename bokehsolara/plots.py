@@ -47,13 +47,15 @@ from plot_utils import (
     generate_xlabel,
     generate_ylabel,
 )
-from state import plotstate, df
+from state import plotstate, df, GridState
 from figurebokeh import FigureBokeh
+from util import check_categorical
 
 TOOLS = "pan,wheel_zoom,box_zoom,reset,save,examine"
 
 colormaps = [x for x in colormaps if "256" in x]
 
+index_context = sl.create_context(0)
 # https://docs.bokeh.org/en/latest/docs/user_guide/interaction/js_callbacks.html#customjs-for-topics-events
 
 from plot_themes import LIGHTTHEME, DARKTHEME, darkprops, lightprops
@@ -304,10 +306,6 @@ def HeatmapPlot():
                 # update colorbar
                 mapper.low = z.min().item()
                 mapper.high = z.max().item()
-
-                # TODO: force trigger a reset somehow???
-                Reset(model=fig_element._model)
-
                 return
 
         def change_colormap():
@@ -335,6 +333,17 @@ def ScatterPlot():
     filter, set_filter = sl.use_cross_filter(id(df), name="scatter")
     dark = sl.lab.use_dark_effective()
     counter = sl.use_reactive(0)
+    i = sl.use_context(index_context)
+    layout, set_layout = sl.use_state({"w": 6, "h": 10, "i": i})
+
+    def update_grid():
+        # fetch from gridstate
+        for spec in GridState.grid_layout.value:
+            if spec["i"] == i:
+                set_layout(spec)
+                break
+
+    sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
     if filter:
         dff = df[filter]
     else:
@@ -368,10 +377,6 @@ def ScatterPlot():
         # generate axes
         xaxis, yaxis, xgrid, ygrid = generate_axes(plotstate)
 
-        p.add_layout(xaxis, "below")
-        p.add_layout(yaxis, "left")
-        p.add_layout(xgrid)
-        p.add_layout(ygrid)
 
         # generate scatter points
         mapper, cb = generate_color_mapper_bar(
@@ -390,7 +395,6 @@ def ScatterPlot():
         p.add_layout(cb, "right")
 
         # add all tools; custom hoverinfo
-        # TODO: fix css styling
         add_all_tools(p, tooltips=generate_tooltips(plotstate))
 
         # zora jump
@@ -427,9 +431,6 @@ def ScatterPlot():
         dependencies=[],
     )
 
-    def rerender():
-        p.document.theme = DARKTHEME if dark else LIGHTTHEME
-
     def add_effects(pfig):
 
         def update_x():
@@ -438,11 +439,13 @@ def ScatterPlot():
             if pfig is not None:
                 fig_widget: BokehModel = sl.get_widget(pfig)
                 fig_model: plot = fig_widget._model
+                exprx = dff[plotstate.x.value]
+                if check_categorical(exprx):
+
                 x = dff[plotstate.x.value].values
                 source.data["x"] = np.log10(x) if plotstate.logx.value else x
 
                 # replace grid and axes objects
-                fig_model.below[0].axis_label = generate_xlabel(plotstate)
                 p.below[0].axis_label = generate_xlabel(plotstate)
 
         def update_y():
@@ -453,7 +456,6 @@ def ScatterPlot():
                 fig_model: plot = fig_widget._model
                 y = dff[plotstate.y.value].values
                 source.data["y"] = np.log10(y) if plotstate.logy.value else y
-                fig_model.left[0].axis_label = generate_ylabel(plotstate)
                 p.left[0].axis_label = generate_ylabel(plotstate)
 
         def update_color():
@@ -463,6 +465,7 @@ def ScatterPlot():
                 fig_model: Plot = fig_widget._model
                 fig_model.hold_render = True
                 z = dff[plotstate.color.value].values
+                z = np.log10(z) if plotstate.colorlog.value else z
                 source.data["z"] = z
                 mapper.update(low=z.min(), high=z.max())
                 fig_model.hold_render = False
@@ -479,12 +482,23 @@ def ScatterPlot():
                 fig_widget: BokehModel = sl.get_widget(pfig)
                 fig_model: Plot = fig_widget._model
                 # TODO: catagorical support
-                fig_model.x_range.start = (dff[plotstate.x.value].min()[()]
-                                           if not plotstate.flipx.value else
-                                           dff[plotstate.x.value].max()[()])
-                fig_model.x_range.end = (dff[plotstate.x.value].max()[()]
-                                         if not plotstate.flipx.value else
-                                         dff[plotstate.x.value].min()[()])
+
+                # bokeh uses 1/20th of range as padding
+                xrange = abs(dff[plotstate.x.value].min()[()] -
+                             dff[plotstate.x.value].max()[()])
+                xpad = xrange / 20
+                yrange = abs(dff[plotstate.y.value].min()[()] -
+                             dff[plotstate.y.value].max()[()])
+                ypad = yrange / 20
+
+                fig_model.x_range.start = (dff[plotstate.x.value].min()[
+                    ()] if not plotstate.flipx.value else dff[
+                        plotstate.x.value].max()[()]) - (
+                            xpad if not plotstate.flipx.value else -xpad)
+                fig_model.x_range.end = (dff[plotstate.x.value].max()[
+                    ()] if not plotstate.flipx.value else dff[
+                        plotstate.x.value].min()[()]) + (
+                            xpad if not plotstate.flipx.value else -xpad)
                 fig_model.y_range.start = (dff[plotstate.y.value].min()[()]
                                            if not plotstate.flipy.value else
                                            dff[plotstate.y.value].max()[()])
@@ -496,7 +510,6 @@ def ScatterPlot():
 
         def update_filter():
             if pfig is not None:
-                current = len(source.data["x"])
                 x = dff[plotstate.x.value].values
                 y = dff[plotstate.y.value].values
                 source.data = dict(
@@ -505,11 +518,8 @@ def ScatterPlot():
                     z=dff[plotstate.color.value].values,
                     sdss_id=dff["L"].values,
                 )
-                for k, v in source.data.items():
-                    print(k, len(v))
 
         def apply_theme():
-            print("running applier")
             if pfig is not None:
                 p.document.theme = DARKTHEME if dark else LIGHTTHEME
 
@@ -526,8 +536,9 @@ def ScatterPlot():
         sl.use_effect(apply_theme, dependencies=[dark, pfig, counter.value])
 
     pfig = FigureBokeh(p,
-                       dependencies=[p],
+                       dependencies=[],
                        dark_theme=DARKTHEME,
                        light_theme=LIGHTTHEME)
+
     add_effects(pfig)
     return pfig

@@ -185,7 +185,7 @@ def generate_plot(plotstate):
     name = "menu-propogate"
     items = [
         ActionItem(label="View table of selected targets",
-                   disable=True,
+                   disabled=True,
                    name="menu-table"),
         ActionItem(
             label="Propagate selection to new subset",
@@ -201,3 +201,10 @@ def generate_plot(plotstate):
     menu.update(items=items)
 
     return p, menu
+
+
+def calculate_range(plotstate, df, col, start, end):
+    """Fetches a new reset-like start/end value based on the flip, log, and column"""
+    pass
+    # expr = df[col] if
+    # range = abs(.min()[()] - df[col].max()[()])
