@@ -10,7 +10,7 @@ import solara as sl
 import traitlets as t
 import vaex as vx
 import xarray
-from bokeh.io import output_notebook
+from bokeh.io import output_notebook, curdoc
 from bokeh.events import Reset
 from bokeh.models import BoxSelectTool, ColorBar, LinearColorMapper, HoverTool
 from bokeh.models import CustomJS
@@ -23,6 +23,7 @@ from solara.lab import Menu
 
 from state import plotstate, df
 from plots import ScatterPlot, HeatmapPlot
+from plot_themes import DARKTHEME, LIGHTTHEME
 
 dark = True
 
@@ -56,12 +57,13 @@ class GridState:
     states = sl.reactive([])
 
 
+# @sl.component
 def show_plot(plottype, remover, *args, **kwargs):
     dark = sl.lab.use_dark_effective()
     with rv.Card(
             class_="grey darken-3" if dark else "grey lighten-3",
             style_="width: 100%; height: 100%",
-    ):
+    ) as main:
         with rv.CardText():
             with sl.Column(
                     classes=["grey darken-3" if dark else "grey lighten-3"]):
@@ -120,6 +122,7 @@ def show_plot(plottype, remover, *args, **kwargs):
                             block=True,
                             on_click=remover,
                         )
+    return main
 
 
 @sl.component()
@@ -146,9 +149,8 @@ def ViewCard(plottype, i, **kwargs):
         # INFO: cannot be deleted because it breaks all renders
         GridState.objects.value[i] = rv.Card()
 
-    show_plot(plottype, lambda: remove(i), **kwargs)  # plot shower
-
-    return
+    main = show_plot(plottype, lambda: remove(i), **kwargs)  # plot shower
+    return main
 
 
 def add_view(plottype, layout: Optional[dict] = None, **kwargs):

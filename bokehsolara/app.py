@@ -10,7 +10,7 @@ import solara as sl
 import traitlets as t
 import vaex as vx
 import xarray
-from bokeh.io import output_notebook
+from bokeh.io import output_notebook, curdoc
 from bokeh.events import Reset
 from bokeh.models import BoxSelectTool, ColorBar, LinearColorMapper, HoverTool
 from bokeh.models import CustomJS
@@ -24,11 +24,18 @@ from solara.lab import Menu
 from objectgrid import ObjectGrid
 from state import df
 from plots import LIGHTTHEME, DARKTHEME
+from editor import ExprEditor
+from figurebokeh import BokehLoaded
 
 
 @sl.component
 def Page():
-    if df is not None:
-        ObjectGrid()
-    else:
-        sl.Info("help")
+    dark = sl.lab.use_dark_effective()
+    loaded = sl.use_reactive(False)
+    output_notebook(hide_banner=True)
+    ExprEditor()
+    ObjectGrid()
+
+    # if df is not None:
+    # else:
+    #    sl.Info("help")

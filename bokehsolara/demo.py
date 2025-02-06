@@ -13,7 +13,7 @@ import solara as sl
 import traitlets as t
 import vaex as vx
 import xarray
-from bokeh.io import output_notebook
+from bokeh.io import output_notebook, curdoc
 from bokeh.events import Reset
 from bokeh.models import (
     BoxSelectTool,
@@ -50,14 +50,15 @@ from plot_utils import (
     generate_color_mapper_bar,
     generate_plot,
 )
+from plot_themes import darkprops as props
 from state import plotstate
+from bokeh.io import show
 
 
 @sl.component()
 def Page():
     df = vx.example()[:30_000]
     z = df[plotstate.color.value].values
-
     # generate source objects
     source = ColumnDataSource(
         data={
@@ -122,18 +123,22 @@ def Page():
         gesture="doubletap",
     )
     p.add_tools(tap)
+    output_notebook(hide_banner=True)
+    active = sl.use_reactive(False)
 
     with sl.GridFixed(columns=1):
         with sl.Card(elevation=0):
-            FigureBokeh(
-                p,
-                dependencies=[
-                    plotstate.x.value,
-                    plotstate.y.value,
-                    plotstate.color.value,
-                ],
-            )
+            if active.value:
+                FigureBokeh(
+                    p,
+                    dependencies=[
+                        plotstate.x.value,
+                        plotstate.y.value,
+                        plotstate.color.value,
+                    ],
+                )
     with sl.Card(margin=0):
+        sl.Button(label="spawn", on_click=lambda *ignore: active.set(True))
         with sl.Columns([1, 1]):
             sl.Select(
                 label="x",

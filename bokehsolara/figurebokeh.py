@@ -11,8 +11,9 @@ import traitlets as t
 import vaex as vx
 import xarray
 from bokeh.io import output_notebook, curdoc, push_notebook
+from bokeh.io.doc import set_curdoc
 from bokeh.events import Reset
-from bokeh.models import BoxSelectTool, ColorBar, LinearColorMapper, HoverTool
+from bokeh.models import BoxSelectTool, ColorBar, LinearColorMapper, HoverTool, SetValue
 from bokeh.models import CustomJS
 from bokeh.palettes import __palettes__ as colormaps
 from bokeh.models.ui import ActionItem, Menu as BokehMenu
@@ -40,6 +41,11 @@ def PlotBokeh(fig: Plot | figure):
         return foo
 
 
+def on_ready(event):
+    print(event)
+    print("Document is ready!")
+
+
 def FigureBokeh(
     fig,
     dependencies=None,
@@ -49,7 +55,6 @@ def FigureBokeh(
     loaded = sl.use_reactive(False)
     dark = sl.lab.use_dark_effective()
     fig_key = sl.use_uuid4([])
-    output_notebook(hide_banner=True)
     BokehLoaded(loaded=loaded.value, on_loaded=loaded.set)
     if loaded.value:
         fig_element = BokehModel.element(model=fig).key(
@@ -58,29 +63,28 @@ def FigureBokeh(
         def update_data():
             fig_widget: BokehModel = sl.get_widget(fig_element)
             fig_model: Plot = fig_widget._model  # base class for figure
-            print("internal FigureBokeh update data triggered")
-            if fig != fig_model:
+            if fig != fig_model:  # don't do on first startup
                 # pause until all updates complete
                 fig_model.hold_render = True
 
                 # if the figure is regenerated, the tool callbacks will break. we have no idea whic
-                fig_model.remove_tools(*fig_model.toolbar.tools)
-                fig_model.add_tools(*fig.toolbar.tools)
+                # fig_model.remove_tools(*fig_model.toolbar.tools)
+                # fig_model.add_tools(*fig.toolbar.tools)
 
-                # this fixes if a user sets default tools in the toolbar
-                # NOTE: not exactly perfect; will reset it to whatever the default init was
-                #     (i.e. default LMB was pan, switch to box select, will reset back to pan after rerender)
-                for active in [
-                        "active_drag",
-                        "active_inspect",
-                        "active_multi",
-                        "active_scroll",
-                        "active_tap",
-                ]:
-                    attr = getattr(fig_model.toolbar, active)
-                    newattr = getattr(fig.toolbar, active)
-                    if attr != "auto":
-                        setattr(fig_model.toolbar, active, newattr)
+                ## this fixes if a user sets default tools in the toolbar
+                ## NOTE: not exactly perfect; will reset it to whatever the default init was
+                ##     (i.e. default LMB was pan, switch to box select, will reset back to pan after rerender)
+                # for active in [
+                #        "active_drag",
+                #        "active_inspect",
+                #        "active_multi",
+                #        "active_scroll",
+                #        "active_tap",
+                # ]:
+                #    attr = getattr(fig_model.toolbar, active)
+                #    newattr = getattr(fig.toolbar, active)
+                #    if attr != "auto":
+                #        setattr(fig_model.toolbar, active, newattr)
 
                 # extend renderer set and cull previous
                 length = len(fig_model.renderers)
@@ -111,12 +115,12 @@ def FigureBokeh(
         def update_theme():
             # NOTE: using bokeh.io.curdoc and this model._document prop will point to the same object
             fig_widget: BokehModel = sl.get_widget(fig_element)
-            print(curdoc())
+            doc = curdoc()
             if dark:
-                curdoc().theme = dark_theme
+                doc.theme = dark_theme
                 fig_widget._document.theme = dark_theme
             else:
-                curdoc().theme = light_theme
+                doc.theme = light_theme
                 fig_widget._document.theme = light_theme
 
         sl.use_effect(update_data, dependencies or fig)

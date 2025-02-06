@@ -15,7 +15,7 @@ import traitlets as t
 import vaex as vx
 import xarray
 from bokeh.io import output_notebook, curdoc, push_notebook
-from bokeh.events import Reset
+from bokeh.events import DocumentReady, Reset
 from bokeh.models.scales import LinearScale, LogScale, CategoricalScale
 from bokeh.models import (
     BoxSelectTool,
@@ -44,6 +44,8 @@ from plot_utils import (
     generate_axes,
     generate_color_mapper_bar,
     generate_plot,
+    generate_xlabel,
+    generate_ylabel,
 )
 from state import plotstate, df
 from figurebokeh import FigureBokeh
@@ -54,82 +56,7 @@ colormaps = [x for x in colormaps if "256" in x]
 
 # https://docs.bokeh.org/en/latest/docs/user_guide/interaction/js_callbacks.html#customjs-for-topics-events
 
-DARKTHEME = Theme(
-    json={
-        "attrs": {
-            "Plot": {
-                "background_fill_color": "#212121",  # grey-darken-3
-                "border_fill_color": "#424242",
-                "outline_line_color": "#616161",  # darken-2
-            },
-            "Axis": {
-                "major_tick_line_color": "#FFFFFF",  # White ticks for contrast
-                "minor_tick_line_color": "#BDBDBD",  # grey-lighten-1
-                "axis_line_color": "#BDBDBD",
-                "major_label_text_color": "#FFFFFF",  # White for labels
-                "axis_label_text_color": "#FFFFFF",  # White for labels
-                "axis_label_text_font_size": "16pt",
-            },
-            "Grid": {
-                "grid_line_color": "#616161",  # grey-darken-2 (x/y grid)
-            },
-            "Title": {
-                "text_color": "#FFFFFF",  # White text
-                "text_font_size": "16pt",
-            },
-            "Legend": {
-                "background_fill_color": "#424242",
-                "label_text_color": "#FFFFFF",  # White legend labels
-            },
-            "ColorBar": {
-                "background_fill_color": "#424242",
-                "title_text_color": "#FFFFFF",
-                "major_label_text_color": "#FFFFFF",
-            },
-            "Text": {
-                "text_color": "#FFFFFF",
-            },
-        }
-    })
-LIGHTTHEME = Theme(
-    json={
-        "attrs": {
-            "Plot": {
-                "background_fill_color":
-                "#FAFAFA",  # grey-lighten-3 (paper_bgcolor)
-                "border_fill_color": "#EEEEEE",
-                "outline_line_color": "#BDBDBD",  # lighten-1
-            },
-            "Axis": {
-                "major_tick_line_color":
-                "#212121",  # grey-darken-4 (dark ticks for contrast)
-                "minor_tick_line_color": "#616161",  # grey-darken-2
-                "axis_line_color": "#616161",
-                "major_label_text_color": "#212121",  # grey-darken-4
-                "axis_label_text_color": "#212121",  # grey-darken-4
-                "axis_label_text_font_size": "16pt",
-            },
-            "Grid": {
-                "grid_line_color": "#BDBDBD",  # grey-lighten-1 (x/y grid)
-            },
-            "Title": {
-                "text_color": "#212121",  # grey-darken-4
-                "text_font_size": "16pt",
-            },
-            "Legend": {
-                "background_fill_color": "#EEEEEE",
-                "label_text_color": "#212121",  # grey-darken-4
-            },
-            "ColorBar": {
-                "background_fill_color": "#EEEEEE",
-                "title_text_color": "#212121",
-                "major_label_text_color": "#212121",
-            },
-            "Text": {
-                "text_color": "#212121",
-            },
-        }
-    })
+from plot_themes import LIGHTTHEME, DARKTHEME, darkprops, lightprops
 
 
 def get_data():
@@ -405,7 +332,13 @@ def HeatmapPlot():
 
 @sl.component()
 def ScatterPlot():
+    filter, set_filter = sl.use_cross_filter(id(df), name="scatter")
     dark = sl.lab.use_dark_effective()
+    counter = sl.use_reactive(0)
+    if filter:
+        dff = df[filter]
+    else:
+        dff = df
 
     def generate_tooltips(plotstate):
         return (f"""
@@ -427,22 +360,22 @@ def ScatterPlot():
         p, menu = generate_plot(plotstate)
         source = ColumnDataSource(
             data={
-                "x": df[plotstate.x.value].values,
-                "y": df[plotstate.y.value].values,
-                "z": df[plotstate.color.value].values,
-                "sdss_id": df["L"].values,  # temp
+                "x": dff[plotstate.x.value].values,
+                "y": dff[plotstate.y.value].values,
+                "z": dff[plotstate.color.value].values,
+                "sdss_id": dff["L"].values,  # temp
             })
         # generate axes
-        xaxis, yaxis, grid_x, grid_y = generate_axes(plotstate)
+        xaxis, yaxis, xgrid, ygrid = generate_axes(plotstate)
 
         p.add_layout(xaxis, "below")
         p.add_layout(yaxis, "left")
-        p.add_layout(grid_x)
-        p.add_layout(grid_y)
+        p.add_layout(xgrid)
+        p.add_layout(ygrid)
 
         # generate scatter points
         mapper, cb = generate_color_mapper_bar(
-            plotstate, df[plotstate.color.value].values)
+            plotstate, dff[plotstate.color.value].values)
         glyph = Scatter(
             x="x",
             y="y",
@@ -491,11 +424,11 @@ def ScatterPlot():
 
     p, source, mapper, menu, cb = sl.use_memo(
         create_figure,
-        dependencies=[
-            plotstate.logx.value,
-            plotstate.logy.value,
-        ],
+        dependencies=[],
     )
+
+    def rerender():
+        p.document.theme = DARKTHEME if dark else LIGHTTHEME
 
     def add_effects(pfig):
 
@@ -505,11 +438,12 @@ def ScatterPlot():
             if pfig is not None:
                 fig_widget: BokehModel = sl.get_widget(pfig)
                 fig_model: plot = fig_widget._model
-                source.data["x"] = df[plotstate.x.value].values
+                x = dff[plotstate.x.value].values
+                source.data["x"] = np.log10(x) if plotstate.logx.value else x
 
                 # replace grid and axes objects
-                fig_model.below[0].axis_label = plotstate.x.value
-                p.below[0].axis_label = plotstate.x.value
+                fig_model.below[0].axis_label = generate_xlabel(plotstate)
+                p.below[0].axis_label = generate_xlabel(plotstate)
 
         def update_y():
             # TODO: ensure no catagorical data failure
@@ -517,60 +451,79 @@ def ScatterPlot():
             if pfig is not None:
                 fig_widget: BokehModel = sl.get_widget(pfig)
                 fig_model: plot = fig_widget._model
-                source.data["y"] = df[plotstate.y.value].values
-                fig_model.left[0].axis_label = plotstate.y.value
-                p.left[0].axis_label = plotstate.y.value
+                y = dff[plotstate.y.value].values
+                source.data["y"] = np.log10(y) if plotstate.logy.value else y
+                fig_model.left[0].axis_label = generate_ylabel(plotstate)
+                p.left[0].axis_label = generate_ylabel(plotstate)
 
         def update_color():
             # TODO: ensure no catagorical data failure
             if pfig is not None:
                 fig_widget: BokehModel = sl.get_widget(pfig)
-                fig_model: plot = fig_widget._model
-                z = df[plotstate.color.value].values
+                fig_model: Plot = fig_widget._model
+                fig_model.hold_render = True
+                z = dff[plotstate.color.value].values
                 source.data["z"] = z
                 mapper.update(low=z.min(), high=z.max())
+                fig_model.hold_render = False
                 cb.title = plotstate.color.value
 
         def update_cmap():
             if pfig is not None:
                 fig_widget: BokehModel = sl.get_widget(pfig)
-                fig_model: plot = fig_widget._model
+                fig_model: Plot = fig_widget._model
                 mapper.palette = plotstate.colormap.value
 
         def update_flip():
             if pfig is not None:
                 fig_widget: BokehModel = sl.get_widget(pfig)
-                fig_model: plot = fig_widget._model
+                fig_model: Plot = fig_widget._model
                 # TODO: catagorical support
-                fig_model.x_range.start = (df[plotstate.x.value].min()[()]
+                fig_model.x_range.start = (dff[plotstate.x.value].min()[()]
                                            if not plotstate.flipx.value else
-                                           df[plotstate.x.value].max()[()])
-                fig_model.x_range.end = (df[plotstate.x.value].max()[()]
+                                           dff[plotstate.x.value].max()[()])
+                fig_model.x_range.end = (dff[plotstate.x.value].max()[()]
                                          if not plotstate.flipx.value else
-                                         df[plotstate.x.value].min()[()])
-                fig_model.y_range.start = (df[plotstate.y.value].min()[()]
+                                         dff[plotstate.x.value].min()[()])
+                fig_model.y_range.start = (dff[plotstate.y.value].min()[()]
                                            if not plotstate.flipy.value else
-                                           df[plotstate.y.value].max()[()])
-                fig_model.y_range.end = (df[plotstate.y.value].max()[()]
+                                           dff[plotstate.y.value].max()[()])
+                fig_model.y_range.end = (dff[plotstate.y.value].max()[()]
                                          if not plotstate.flipy.value else
-                                         df[plotstate.y.value].min()[()])
+                                         dff[plotstate.y.value].min()[()])
                 fig_model.x_range.flipped = plotstate.flipx.value
                 fig_model.y_range.flipped = plotstate.flipy.value
 
-        def update_log():
+        def update_filter():
             if pfig is not None:
-                fig_widget: BokehModel = sl.get_widget(pfig)
+                current = len(source.data["x"])
+                x = dff[plotstate.x.value].values
+                y = dff[plotstate.y.value].values
+                source.data = dict(
+                    x=np.log10(x) if plotstate.logx.value else x,
+                    y=np.log10(y) if plotstate.logy.value else y,
+                    z=dff[plotstate.color.value].values,
+                    sdss_id=dff["L"].values,
+                )
+                for k, v in source.data.items():
+                    print(k, len(v))
 
-        sl.use_effect(update_x, dependencies=[plotstate.x.value])
-        sl.use_effect(update_y, dependencies=[plotstate.y.value])
+        def apply_theme():
+            print("running applier")
+            if pfig is not None:
+                p.document.theme = DARKTHEME if dark else LIGHTTHEME
+
+        sl.use_effect(update_filter, dependencies=[filter])
+        sl.use_effect(update_x,
+                      dependencies=[plotstate.x.value, plotstate.logx.value])
+        sl.use_effect(update_y,
+                      dependencies=[plotstate.y.value, plotstate.logy.value])
         sl.use_effect(update_color, dependencies=[plotstate.color.value])
         sl.use_effect(update_cmap, dependencies=[plotstate.colormap.value])
-        # sl.use_effect(
-        #    update_log,
-        #    dependencies=[plotstate.logx.value, plotstate.logy.value])
         sl.use_effect(
             update_flip,
             dependencies=[plotstate.flipx.value, plotstate.flipy.value])
+        sl.use_effect(apply_theme, dependencies=[dark, pfig, counter.value])
 
     pfig = FigureBokeh(p,
                        dependencies=[p],

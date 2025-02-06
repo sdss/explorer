@@ -24,6 +24,7 @@ from bokeh.models import (
     ColorBar,
     HoverTool,
     Scatter,
+    ExamineTool,
     TapTool,
     PanTool,
     ResetTool,
@@ -61,7 +62,8 @@ def add_all_tools(p: Plot, tooltips: Optional[str] = None):
     box_select = BoxSelectTool()
     lasoo = LassoSelectTool()
     reset = ResetTool()
-    tools = [hover, wz, pan, boxzoom, box_select, lasoo, reset]
+    examine = ExamineTool()
+    tools = [pan, boxzoom, box_select, lasoo, examine, hover, wz, reset]
     p.add_tools(*tools)
     p.toolbar.active_scroll = wz
     p.toolbar.autohide = True
@@ -92,8 +94,8 @@ def get_yaxis_type(plotstate) -> Callable:
 
 def generate_axes(plotstate):
     """Generates axes and corresponding grids for plots"""
-    xaxis = get_xaxis_type(plotstate)(axis_label=plotstate.x.value)
-    yaxis = get_yaxis_type(plotstate)(axis_label=plotstate.y.value)
+    xaxis = get_xaxis_type(plotstate)(axis_label=generate_xlabel(plotstate))
+    yaxis = get_yaxis_type(plotstate)(axis_label=generate_ylabel(plotstate))
     grid_x = Grid(dimension=0, ticker=xaxis.ticker)
     grid_y = Grid(dimension=1, ticker=yaxis.ticker)
     return xaxis, yaxis, grid_x, grid_y
@@ -141,6 +143,18 @@ def get_yscale(plotstate) -> CategoricalScale | LogScale | LinearScale:
         return LogScale()
     else:
         return LinearScale()
+
+
+def generate_xlabel(plotstate) -> str:
+    """Generates a x-axis label."""
+    cond = plotstate.logx.value and not check_categorical(plotstate.x.value)
+    return f"{'log(' if cond else ''}{plotstate.x.value}{')' if cond else ''}"
+
+
+def generate_ylabel(plotstate) -> str:
+    """Generates a y-axis label."""
+    cond = plotstate.logy.value and not check_categorical(plotstate.y.value)
+    return f"{'log(' if cond else ''}{plotstate.y.value}{')' if cond else ''}"
 
 
 def generate_plot(plotstate):
