@@ -158,7 +158,7 @@ def generate_ylabel(plotstate) -> str:
 
 
 def generate_plot(plotstate):
-    """Generates basic plot object with menu, with object bindings"""
+    """Generates basic plot object with context menu, with object bindings"""
     # create menu
     menu = BokehMenu()
     menu.styles = {"color": "black", "font-size": "16px"}
@@ -184,9 +184,15 @@ def generate_plot(plotstate):
     )
     name = "menu-propogate"
     items = [
-        ActionItem(label="Propagate selection to new subset",
-                   disabled=True,
-                   name=name),  # TODO
+        ActionItem(label="View table of selected targets",
+                   disable=True,
+                   name="menu-table"),
+        ActionItem(
+            label="Propagate selection to new subset",
+            disabled=True,
+            name="menu-propogate",
+        ),
+        ActionItem(label="Clear selection", disabled=True, name="menu-clear"),
         ActionItem(
             label="Reset plot",
             action=CustomJS(args=dict(p=p), code="""p.reset.emit()"""),
