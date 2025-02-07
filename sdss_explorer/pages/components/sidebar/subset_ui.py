@@ -1,5 +1,6 @@
 """Main user-facing subset components"""
 
+from typing import List, Union, Tuple
 import solara as sl
 import vaex as vx
 import numpy as np
@@ -94,42 +95,23 @@ def SubsetCard(key: str) -> ValueElement:
     print("------SUBSET------")
     print(subset)
 
-    async def fetch_progress():
-        # with vx.progress.tree("rich", title="Summary card"):
-        async with df.executor.auto_execute():
-            # progress bar logic
-            if isinstance(filter, vx.Expression):
-                # filter from plots or self
-                dff = df[filter]
-            else:
-                # not filtered at all
-                dff = df
-
-            @vx.delayed
-            def check(a, b):
-                return a < b
-
-            length = df.count(delay=True)
-            filtered_length = dff.count(delay=True)
-
-            filtered = await check(filtered_length, length)
-            denom = max(await length, 1)
-            progress = await filtered_length / denom * 100
-        return filtered, f"{len(dff):,}", progress
-
-    result = sl.lab.use_task(fetch_progress,
-                             dependencies=[filter, df],
-                             prefer_threaded=False)
-
-    if result.finished:
-        if not result.value[0]:
-            opaque = True
-        else:
-            opaque = False
+    # progress bar logic
+    if isinstance(filter, vx.Expression):
+        # filter from plots or self
+        dff = df[filter]
     else:
-        opaque = False
+        # not filtered at all
+        dff = df
 
-    print(len(df))
+    def check(a, b):
+        return a < b
+
+    length = df.count()[()]
+    filtered_length = dff.count()[()]
+
+    filtered = filtered_length < length
+    denom = max(length, 1)
+    progress = filtered_length / denom * 100
 
     with rv.ExpansionPanel() as main:
         with rv.ExpansionPanelHeader():
@@ -141,17 +123,15 @@ def SubsetCard(key: str) -> ValueElement:
                     children=[
                         rv.Icon(
                             children=["mdi-filter"],
-                            style_="opacity:e0.1" if opaque else "",
+                            style_="opacity:e0.1" if not filtered else "",
                         ),
-                        result.value[1] if result.finished else "",
+                        f"{filtered_length:,}",
                     ],
                 )
 
         with rv.ExpansionPanelContent():
             # filter bar
             with sl.Column(gap="12px"):
-                sl.ProgressLinear(
-                    value=result.value[2] if result.finished else 100,
-                    color="blue")
+                sl.ProgressLinear(value=progress, color="blue")
                 SubsetOptions(key, lambda: SubsetState.remove_subset(key))
     return main

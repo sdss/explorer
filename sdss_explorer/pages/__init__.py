@@ -4,7 +4,6 @@ import logging
 from urllib.parse import parse_qs
 from os import getenv
 
-from pandas.core.frame import console
 import solara as sl
 import numpy as np
 import vaex as vx
@@ -176,8 +175,10 @@ def Page():
                 except Exception as e:
                     logger.debug(f"failed query params on subset parsing: {e}")
 
-                subset_data["df"]: vx.DataFrame = State.df.value[State.df.value[
-                    f"(dataset == '{subset_data.get('dataset')}'"]].extract()
+                subset_data["df"]: vx.DataFrame = (State.df.value[
+                    State.df.
+                    value[f"(pipeline=='{subset_data.get('dataset')}')"]].copy(
+                    ).extract())
 
                 # generate subset and update
                 subsets = {"s0": Subset(**subset_data)}

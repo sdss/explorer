@@ -13,7 +13,7 @@ import reacton.ipyvuetify as rv
 import solara as sl
 from reacton.core import ValueElement
 
-from ...dataclass import Alert, State, SubsetState, use_subset
+from ...dataclass import Alert, State, SubsetState, use_subset, VCData
 from ..textfield import InputTextExposed
 from .autocomplete import AutocompleteSelect, SingleAutocomplete
 from .glossary import Help
@@ -227,6 +227,7 @@ def ExprEditor(key: str, invert) -> ValueElement:
 @sl.component()
 def DatasetSelect(key: str, dataset, set_dataset) -> ValueElement:
     """Select box for pipeline, also sets columns on dataset change."""
+    subset = SubsetState.subsets.value[key]
     df = State.df.value
 
     def fetch() -> list:
@@ -241,7 +242,7 @@ def DatasetSelect(key: str, dataset, set_dataset) -> ValueElement:
         dfg = State.df.value
 
         # WARNING: this needs to be shallow copied EVERY TIME, else you get
-        # weird errors with the vaex chunking because the cache becomes invalidated
+        # weird errors with the vaex chunking because the caches becomes invalidated
         #
         newdf = dfg[dfg[f"(pipeline=='{dataset}')"]].copy().extract()
         newdf = newdf.materialize()
@@ -250,7 +251,17 @@ def DatasetSelect(key: str, dataset, set_dataset) -> ValueElement:
             SubsetState.update_subset(key, df=newdf)
         return newdf
 
+    # use memo so this runs and BLOCKS other tasks
     sl.use_memo(update_dataframe, dependencies=[df, dataset])
+
+    def ensure_vc():
+        """Ensures all Virtual columns are in and/or removed from current df."""
+        sdf = subset.df
+        for name, expr in VCData.columns.value.items():
+            if name not in sdf.get_column_names():
+                sdf.add_virtual_column(name, expr)
+
+    sl.lab.use_task(ensure_vc, dependencies=[subset.df, VCData.columns.value])
 
     def update_columns():
         pass
@@ -343,58 +354,55 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
     # Carton Mapper thread
     def update_cm():
         # fail on no mapping
-        if df is not None:
-            if mapping is None:
-                Alert.update(
-                    "Mappings file not found! Please contact server admins.",
-                    color="warning",
+        if mapping is None:
+            Alert.update(
+                "Mappings file not found! Please contact server admins.",
+                color="warning",
+            )
+            return
+
+        # mapper + cartons
+        logger.info(f"MAPPER: {mapper}")
+        logger.info(f"CARTON: {carton}")
+        start = timer()
+        if len(mapper) != 0 or len(carton) != 0:
+            # mask
+            if len(mapper) == 0:
+                mask = mapping["alt_name"].isin(carton).values
+            elif len(carton) == 0:
+                mask = mapping["mapper"].isin(mapper).values
+            else:
+                mask = operator_map[combotype](
+                    mapping["mapper"].isin(mapper).values,
+                    mapping["alt_name"].isin(carton).values,
                 )
-                return
 
-            # mapper + cartons
-            logger.info(f"MAPPER: {mapper}")
-            logger.info(f"CARTON: {carton}")
-            start = timer()
-            if len(mapper) != 0 or len(carton) != 0:
-                # mask
-                if len(mapper) == 0:
-                    mask = mapping["alt_name"].isin(carton).values
-                elif len(carton) == 0:
-                    mask = mapping["mapper"].isin(mapper).values
-                else:
-                    mask = operator_map[combotype](
-                        mapping["mapper"].isin(mapper).values,
-                        mapping["alt_name"].isin(carton).values,
-                    )
+            # determine active bits via mask and get flag_number & offset
+            # NOTE: hardcoded nbits as 8, and nflags as 57
+            bits = np.arange(len(mapping))[mask]
+            num, offset = np.divmod(bits, 8)
+            setbits = 57 > num  # ensure bits in flags
 
-                # determine active bits via mask and get flag_number & offset
-                # NOTE: hardcoded nbits as 8, and nflags as 57
-                bits = np.arange(len(mapping))[mask]
-                num, offset = np.divmod(bits, 8)
-                setbits = 57 > num  # ensure bits in flags
+            # construct hashmap for each unique flag
+            filters = np.zeros(57, dtype="uint8")
+            unique_nums, indices = np.unique(num[setbits], return_inverse=True)
+            for i, unique in enumerate(unique_nums):
+                offsets = 1 << offset[setbits][indices == i]
+                filters[unique] = np.bitwise_or.reduce(offsets)
 
-                # construct hashmap for each unique flag
-                filters = np.zeros(57, dtype="uint8")
-                unique_nums, indices = np.unique(num[setbits],
-                                                 return_inverse=True)
-                for i, unique in enumerate(unique_nums):
-                    offsets = 1 << offset[setbits][indices == i]
-                    filters[unique] = np.bitwise_or.reduce(offsets)
+            cmp_filter = df.func.check_flags(df["sdss5_target_flags"], filters)
+        else:
+            cmp_filter = None
 
-                cmp_filter = df.func.check_flags(df["sdss5_target_flags"],
-                                                 filters)
-            else:
-                cmp_filter = None
+        # invert if requested
+        if invert.value:
+            set_cmfilter(~cmp_filter)
+        else:
+            set_cmfilter(cmp_filter)
 
-            # invert if requested
-            if invert.value:
-                set_cmfilter(~cmp_filter)
-            else:
-                set_cmfilter(cmp_filter)
+        logger.info(f"CM filter took {timer() - start:.4f} seconds")
 
-            logger.info(f"CM filter took {timer() - start:.4f} seconds")
-
-            return cmp_filter
+        return cmp_filter
 
     result = sl.lab.use_task(update_cm,
                              dependencies=[df, mapper, carton, invert.value])
