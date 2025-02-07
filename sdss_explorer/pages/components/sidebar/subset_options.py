@@ -83,7 +83,7 @@ def RenameSubsetButton(key: str) -> ValueElement:
     def rename_handler():
         if SubsetState.rename_subset(key, newname=newname):
             rename.set(False)
-            set_newname('')
+            set_newname("")
 
     with sl.Tooltip("Rename this subset"):
         sl.Button(

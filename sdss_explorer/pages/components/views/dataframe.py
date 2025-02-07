@@ -31,7 +31,7 @@ def Loading() -> None:
 @sl.component()
 def TableView(del_func: Callable):
     """Shows the table view, loading lazily via solara components."""
-    df = State.df.value
+    df = Subset.df
     filter, set_filter = sl.use_cross_filter(id(df), name="filter-tableview")
     column, set_column = sl.use_state(cast(Optional[str], None))
     order, set_order = sl.use_state(cast(bool, None))

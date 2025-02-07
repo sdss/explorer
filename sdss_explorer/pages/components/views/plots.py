@@ -177,6 +177,7 @@ class PlotState:
 
         # valid_columns = SubsetState.subsets.value[
         #    self.subset.value].columns + list(VCData.columns.value.keys())
+        # TODO: fetch from subset and have it updated via datasetselect json read
         valid_columns = State.df.value.get_column_names(virtual=False) + list(
             VCData.columns.value.keys())
 
@@ -289,7 +290,7 @@ def show_plot(plottype, del_func, **kwargs):
 @sl.component()
 def ScatterPlot(plotstate):
     """Scattergl rendered scatter plot for single subset"""
-    df: vx.DataFrame = State.df.value
+    df: vx.DataFrame = SubsetState.subsets.value[plotstate.subset.value].df
     dark = use_dark_effective()
     filter, set_filter = use_subset(id(df), plotstate.subset, "scatter")
     relayout, set_relayout = sl.use_state({})
@@ -603,7 +604,7 @@ def ScatterPlot(plotstate):
 @sl.component()
 def HistogramPlot(plotstate):
     """Histogram plot for single subset"""
-    df: vx.DataFrame = State.df.value
+    df: vx.DataFrame = SubsetState.subsets.value[plotstate.subset.value].df
     xcol = plotstate.x.value
     nbins = plotstate.nbins.value
     filter, set_filter = use_subset(id(df), plotstate.subset, "histogram")
@@ -854,7 +855,7 @@ def HistogramPlot(plotstate):
 @sl.component()
 def HeatmapPlot(plotstate):
     """2D Histogram plot (Heatmap) for single subset"""
-    df = State.df.value
+    df: vx.DataFrame = SubsetState.subsets.value[plotstate.subset.value].df
     filter, set_filter = use_subset(id(df), plotstate.subset,
                                     "filter-aggregated")
     dark = use_dark_effective()
@@ -1174,7 +1175,7 @@ def HeatmapPlot(plotstate):
 @sl.component()
 def SkymapPlot(plotstate):
     """Sky projection plot of stars for a single subset."""
-    df = State.df.value
+    df: vx.DataFrame = SubsetState.subsets.value[plotstate.subset.value].df
     filter, set_filter = use_subset(id(df), plotstate.subset, "filter-skyplot")
     dark = use_dark_effective()
     relayout, set_relayout = sl.use_state({})
@@ -1469,7 +1470,7 @@ def SkymapPlot(plotstate):
 @sl.component()
 def StatisticsTable(state):
     """Statistics description view for the dataset."""
-    df = State.df.value
+    df: vx.DataFrame = SubsetState.subsets.value[state.subset].df
     filter, set_filter = use_subset(id(df), state.subset, name="statsview")
     columns, set_columns = state.columns.value, state.columns.set
 

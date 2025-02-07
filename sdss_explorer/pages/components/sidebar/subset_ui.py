@@ -82,25 +82,55 @@ def SubsetMenu() -> ValueElement:
 @sl.component()
 def SubsetCard(key: str) -> ValueElement:
     """Holds filter update info, card structure, and calls to options"""
-    df = State.df.value
-    filter, _set_filter = use_subset(id(df), key, "subset-summary")
     subset = SubsetState.subsets.value[key]
+    df = subset.df
+    if df is None:
+        df = State.df.value
+    filter, _set_filter = use_subset(id(df), key, "subset-summary")
     name = subset.name
     dataset = subset.dataset
+    print("------STATE------")
+    print(State)
+    print("------SUBSET------")
+    print(subset)
 
-    dfp = df[df[f"(pipeline == '{dataset}')"]]
+    async def fetch_progress():
+        # with vx.progress.tree("rich", title="Summary card"):
+        async with df.executor.auto_execute():
+            # progress bar logic
+            if isinstance(filter, vx.Expression):
+                # filter from plots or self
+                dff = df[filter]
+            else:
+                # not filtered at all
+                dff = df
 
-    # progress bar logic
-    if isinstance(filter, vx.Expression):
-        # filter from plots or self
-        dff = df[filter]
+            @vx.delayed
+            def check(a, b):
+                return a < b
+
+            length = df.count(delay=True)
+            filtered_length = dff.count(delay=True)
+
+            filtered = await check(filtered_length, length)
+            denom = max(await length, 1)
+            progress = await filtered_length / denom * 100
+        return filtered, f"{len(dff):,}", progress
+
+    result = sl.lab.use_task(fetch_progress,
+                             dependencies=[filter, df],
+                             prefer_threaded=False)
+
+    if result.finished:
+        if not result.value[0]:
+            opaque = True
+        else:
+            opaque = False
     else:
-        # not filtered at all
-        dff = df
-    filtered = len(dff) < len(dfp)
-    denom = max(len(dfp), 1)
-    progress = len(dff) / denom * 100
-    summary = f"{len(dff):,}"
+        opaque = False
+
+    print(len(df))
+
     with rv.ExpansionPanel() as main:
         with rv.ExpansionPanelHeader():
             with sl.Row(gap="0px"):
@@ -111,15 +141,17 @@ def SubsetCard(key: str) -> ValueElement:
                     children=[
                         rv.Icon(
                             children=["mdi-filter"],
-                            style_="opacity:e0.1" if not filtered else "",
+                            style_="opacity:e0.1" if opaque else "",
                         ),
-                        summary,
+                        result.value[1] if result.finished else "",
                     ],
                 )
 
         with rv.ExpansionPanelContent():
             # filter bar
             with sl.Column(gap="12px"):
-                sl.ProgressLinear(value=progress, color="blue")
+                sl.ProgressLinear(
+                    value=result.value[2] if result.finished else 100,
+                    color="blue")
                 SubsetOptions(key, lambda: SubsetState.remove_subset(key))
     return main

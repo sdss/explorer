@@ -41,8 +41,8 @@ flagList = {
 def ExprEditor(key: str, invert) -> ValueElement:
     """Expression editor."""
     # state for expreditor
-    df = State.df.value
     subset = SubsetState.subsets.value[key]
+    df = subset.df
 
     _, set_expfilter = use_subset(id(df), key, "expr", write_only=True)
 
@@ -230,22 +230,32 @@ def DatasetSelect(key: str, dataset, set_dataset) -> ValueElement:
     df = State.df.value
 
     def fetch() -> list:
-        return State.df.value["pipeline"].unique()
+        """Get complete list of all pipelines for this release/datatype"""
+        return df["pipeline"].unique()
 
     pipelines = sl.use_memo(
         fetch, dependencies=[df, State._release.value, State._datatype.value])
 
-    # TODO: move this thread somewhere better
-    def update_columns():
-        """Guardrails column selection to only columns that are not all NaN"""
-        # TODO
-        SubsetState.update_subset(
-            key,
-            columns=df.get_column_names(),
-        )
-        return
+    def update_dataframe():
+        """Changes dataframe for given subset"""
+        dfg = State.df.value
 
-    sl.lab.use_task(update_columns, dependencies=[State.df.value, dataset])
+        # WARNING: this needs to be shallow copied EVERY TIME, else you get
+        # weird errors with the vaex chunking because the cache becomes invalidated
+        #
+        newdf = dfg[dfg[f"(pipeline=='{dataset}')"]].copy().extract()
+        newdf = newdf.materialize()
+
+        if dfg is not None:
+            SubsetState.update_subset(key, df=newdf)
+        return newdf
+
+    sl.use_memo(update_dataframe, dependencies=[df, dataset])
+
+    def update_columns():
+        pass
+
+    # sl.lab.use_task(update_columns, dependencies=[State.df.value, dataset])
 
     return SingleAutocomplete(
         label="Dataset",
@@ -258,8 +268,8 @@ def DatasetSelect(key: str, dataset, set_dataset) -> ValueElement:
 @sl.component()
 def FlagSelect(key: str, invert) -> ValueElement:
     """Select box with callback for filters."""
-    df = State.df.value
     subset = SubsetState.subsets.value[key]
+    df = subset.df
     _, set_flagfilter = use_subset(id(df), key, "flags", write_only=True)
     flags, set_flags = (
         subset.flags,
@@ -309,9 +319,9 @@ def FlagSelect(key: str, invert) -> ValueElement:
 @sl.component()
 def TargetingFiltersPanel(key: str, invert) -> ValueElement:
     """Holds expansion panels for complex filtering"""
-    df = State.df.value
     mapping = State.mapping.value
     subset = SubsetState.subsets.value[key]
+    df = subset.df
     _, set_cmfilter = use_subset(id(df), key, "cartonmapper", write_only=True)
     # handlers for mapper/carton/data/setflags
     mapper, set_mapper = (
@@ -333,74 +343,61 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
     # Carton Mapper thread
     def update_cm():
         # fail on no mapping
-        if mapping is None:
-            Alert.update(
-                "Mappings file not found! Please contact server admins.",
-                color="warning",
-            )
-            return
-
-        # create filtered version for efficient filtering
-        pipelineFilter = df[f"(pipeline=='{dataset}')"]
-        dff: vx.DataFrame = df[pipelineFilter]
-
-        # mapper + cartons
-        logger.info(f"MAPPER: {mapper}")
-        logger.info(f"CARTON: {carton}")
-        start = timer()
-        if len(mapper) != 0 or len(carton) != 0:
-            # mask
-            if len(mapper) == 0:
-                mask = mapping["alt_name"].isin(carton).values
-            elif len(carton) == 0:
-                mask = mapping["mapper"].isin(mapper).values
-            else:
-                mask = operator_map[combotype](
-                    mapping["mapper"].isin(mapper).values,
-                    mapping["alt_name"].isin(carton).values,
+        if df is not None:
+            if mapping is None:
+                Alert.update(
+                    "Mappings file not found! Please contact server admins.",
+                    color="warning",
                 )
+                return
 
-            # determine active bits via mask and get flag_number & offset
-            # NOTE: hardcoded nbits as 8, and nflags as 57
-            bits = np.arange(len(mapping))[mask]
-            num, offset = np.divmod(bits, 8)
-            setbits = 57 > num  # ensure bits in flags
+            # mapper + cartons
+            logger.info(f"MAPPER: {mapper}")
+            logger.info(f"CARTON: {carton}")
+            start = timer()
+            if len(mapper) != 0 or len(carton) != 0:
+                # mask
+                if len(mapper) == 0:
+                    mask = mapping["alt_name"].isin(carton).values
+                elif len(carton) == 0:
+                    mask = mapping["mapper"].isin(mapper).values
+                else:
+                    mask = operator_map[combotype](
+                        mapping["mapper"].isin(mapper).values,
+                        mapping["alt_name"].isin(carton).values,
+                    )
 
-            # construct hashmap for each unique flag
-            filters = np.zeros(57, dtype="uint8")
-            unique_nums, indices = np.unique(num[setbits], return_inverse=True)
-            for i, unique in enumerate(unique_nums):
-                offsets = 1 << offset[setbits][indices == i]
-                filters[unique] = np.bitwise_or.reduce(offsets)
+                # determine active bits via mask and get flag_number & offset
+                # NOTE: hardcoded nbits as 8, and nflags as 57
+                bits = np.arange(len(mapping))[mask]
+                num, offset = np.divmod(bits, 8)
+                setbits = 57 > num  # ensure bits in flags
 
-            cmp_filter = df.func.check_flags(df["sdss5_target_flags"], filters)
-            # generate another filtered frame based on the custom function
-            # dfcm: vx.Expression = dff[dff.func.check_flags(
-            #    dff["sdss5_target_flags"], filters)]["__target_flags_filter__"]
+                # construct hashmap for each unique flag
+                filters = np.zeros(57, dtype="uint8")
+                unique_nums, indices = np.unique(num[setbits],
+                                                 return_inverse=True)
+                for i, unique in enumerate(unique_nums):
+                    offsets = 1 << offset[setbits][indices == i]
+                    filters[unique] = np.bitwise_or.reduce(offsets)
 
-            ## regenerate the filter for the original dataframe
-            # cmp_filter = df["__target_flags_filter__"].isin(dfcm.values)
-        else:
-            cmp_filter = None
+                cmp_filter = df.func.check_flags(df["sdss5_target_flags"],
+                                                 filters)
+            else:
+                cmp_filter = None
 
-        # convert chosens to bool mask
-        if cmp_filter:
-            cmp_filter = operator_map[combotype](cmp_filter, pipelineFilter)
-        else:
-            cmp_filter = pipelineFilter
+            # invert if requested
+            if invert.value:
+                set_cmfilter(~cmp_filter)
+            else:
+                set_cmfilter(cmp_filter)
 
-        # invert if requested
-        if invert.value:
-            set_cmfilter(~cmp_filter)
-        else:
-            set_cmfilter(cmp_filter)
+            logger.info(f"CM filter took {timer() - start:.4f} seconds")
 
-        logger.info(f"CM filter took {timer() - start:.4f} seconds")
+            return cmp_filter
 
-        return cmp_filter
-
-    result = sl.lab.use_task(
-        update_cm, dependencies=[df, mapper, carton, dataset, invert.value])
+    result = sl.lab.use_task(update_cm,
+                             dependencies=[df, mapper, carton, invert.value])
 
     open, set_open = sl.use_state([])
     with rv.ExpansionPanels(flat=True,

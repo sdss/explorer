@@ -145,40 +145,44 @@ def Page():
             }
 
             # validate all subset properties
-            try:
-                if subset_data.get("dataset"):
-                    assert validate_pipeline(State.df.value,
-                                             subset_data.get("dataset"))
-                if subset_data.get("flags"):
-                    assert all({
-                        flag in list(flagList.keys())
-                        for flag in subset_data.get("flags")
-                    }), "flags failed"
-                if subset_data.get("mapper"):
-                    assert all(
-                        np.isin(
-                            subset_data.get("mapper"),
-                            State.mapping.value["mapper"].unique(),
-                            assume_unique=True,
-                        )), "mapper failed"
-                if subset_data.get("carton"):
-                    assert all(
-                        np.isin(
-                            subset_data.get("carton"),
-                            State.mapping.value["alt_name"].unique(),
-                            assume_unique=True,
-                        )), "carton failed"
+            if subset_data:
+                try:
+                    if subset_data.get("dataset"):
+                        assert validate_pipeline(State.df.value,
+                                                 subset_data.get("dataset"))
+                    if subset_data.get("flags"):
+                        assert all({
+                            flag in list(flagList.keys())
+                            for flag in subset_data.get("flags")
+                        }), "flags failed"
+                    if subset_data.get("mapper"):
+                        assert all(
+                            np.isin(
+                                subset_data.get("mapper"),
+                                State.mapping.value["mapper"].unique(),
+                                assume_unique=True,
+                            )), "mapper failed"
+                    if subset_data.get("carton"):
+                        assert all(
+                            np.isin(
+                                subset_data.get("carton"),
+                                State.mapping.value["alt_name"].unique(),
+                                assume_unique=True,
+                            )), "carton failed"
 
-                expr = subset_data.get("expression")
-                if expr:
-                    State.df.value.validate_expression(expr)
-            except Exception as e:
-                logger.debug(f"failed query params on subset parsing: {e}")
+                    expr = subset_data.get("expression")
+                    if expr:
+                        State.df.value.validate_expression(expr)
+                except Exception as e:
+                    logger.debug(f"failed query params on subset parsing: {e}")
 
-            # generate subset and update
-            subsets = {"s0": Subset(**subset_data)}
-            SubsetState.index.set(len(subsets))
-            SubsetState.subsets.set(subsets)
+                subset_data["df"]: vx.DataFrame = State.df.value[State.df.value[
+                    f"(dataset == '{subset_data.get('dataset')}'"]].extract()
+
+                # generate subset and update
+                subsets = {"s0": Subset(**subset_data)}
+                SubsetState.index.set(len(subsets))
+                SubsetState.subsets.set(subsets)
 
             # add plot if requested
             if "plottype" in query_params.keys():
