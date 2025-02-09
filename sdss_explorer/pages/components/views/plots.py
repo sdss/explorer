@@ -175,11 +175,8 @@ class PlotState:
         except:
             pass
 
-        # valid_columns = SubsetState.subsets.value[
-        #    self.subset.value].columns + list(VCData.columns.value.keys())
-        # TODO: fetch from subset and have it updated via datasetselect json read
-        valid_columns = State.df.value.get_column_names(virtual=False) + list(
-            VCData.columns.value.keys())
+        valid_columns = SubsetState.subsets.value.get(
+            self.subset.value).columns + list(VCData.columns.value.keys())
 
         # columnar resets for table
         if "stats" in self.plottype:
@@ -193,18 +190,22 @@ class PlotState:
         # columnar resets for plots
         else:
             if self.x.value not in valid_columns:
-                Alert.update("VC removed! Column reset to 'teff'",
-                             color="info")
-                self.x.value = "teff"
+                Alert.update(
+                    "Columns of subset changed! Column reset to 'g_mag'",
+                    color="info")
+                self.x.value = "g_mag"
             if self.plottype != "histogram":
                 if self.y.value not in valid_columns:
-                    Alert.update("VC removed! Column reset to 'logg'",
-                                 color="info")
-                    self.y.value = "logg"
+                    Alert.update(
+                        "Columns of subset changed! Column reset to 'snr'",
+                        color="info")
+                    self.y.value = "snr"
                 if self.color.value not in valid_columns:
-                    Alert.update("VC removed! Column reset to 'fe_h'",
-                                 color="info")
-                    self.color.value = "fe_h"
+                    Alert.update(
+                        "Columns of subset changed! Column reset to 'g_mag'",
+                        color="info",
+                    )
+                    self.color.value = "g_mag"
 
     def update_subset(self, name: str, b: bool = False):
         """Callback to update subset by name."""

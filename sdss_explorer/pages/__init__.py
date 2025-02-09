@@ -25,7 +25,7 @@ from .dataclass import (
     SubsetState,
     _datapath,
 )  # noqa: E402
-from .util import validate_release, validate_pipeline, setup_logging
+from .util import validate_release, validate_pipeline, setup_logging  # noqa: E402
 from .components.sidebar import Sidebar  # noqa: E402
 from .components.sidebar.glossary import HelpBlurb  # noqa: E402
 from .components.sidebar.subset_filters import flagList  # noqa: E402
@@ -43,6 +43,8 @@ def on_start():
     State._uuid.set(sl.get_session_id())
     State._kernel_id.set(sl.get_kernel_id())
     State._subset_store.set(SubsetStore())
+
+    # start logger
     setup_logging(
         log_path=getenv("VAEX_HOME", "./"),
         console_log_level=logging.INFO if DEV else logging.CRITICAL,
@@ -58,7 +60,7 @@ def on_start():
     # NOTE: https://github.com/widgetti/solara/issues/774
 
     def on_shutdown():
-        """On kernel shutdown function, helps to clear memory."""
+        """On kernel shutdown function, helps to clear memory of dataframes."""
         if State.df.value:
             State.df.value.close()
         logger.info(f"culled kernel! :: {State.kernel_id}")
@@ -78,7 +80,7 @@ def Page():
     router = sl.use_router()
 
     def initialize():
-        """Run once at launch after first render, reading query parameters and instantiating app as needed."""
+        """Reads query params and sets initial dataframe state. Adds subset or plot as requested from query params."""
         """
         Expected format is:
             app properties:
@@ -103,21 +105,27 @@ def Page():
         query_params = parse_qs(router.search, keep_blank_values=True)
         query_params = {k: v[0] for k, v in query_params.items()}
 
+        ## DATAFRAME SETUP
         # setup dataframe (non-optional step)
-        release: str = query_params.pop("release", "dr19")
+        release: str = query_params.pop("release", "ipl3")
         datatype: str = query_params.pop("datatype", "star")
         try:
-            assert validate_release(_datapath(), release), "release invalid"
+            assert validate_release(_datapath(), release), 1
             if not ((datatype == "star") or (datatype == "visit")):
                 datatype = "star"  # force reassignment if bad; ensures no load failure
 
             # set the release and datatype
             State._release.set(release)
             State._datatype.set(datatype)
-            State.load_dataset()  # this changes State.df.value
+            # this changes State.df.value & State.columns.value
+            load_success = State.load_dataset()
+            assert load_success, 2
         except Exception as e:
-            # TODO: logging
-            logger.debug(f"invalid query params on release/datatype: {e}")
+            if e == 1:
+                logger.debug("Invalid query params on release/datatype")
+            elif e == 2:
+                logger.critical("Failed to load dataset and columns!")
+            return  # early return, no point in continuing
 
         # set valid pipeline when not set properly with visit spec
         if (datatype == "visit") & ("dataset" not in query_params.keys()):
@@ -170,22 +178,31 @@ def Page():
                             )), "carton failed"
 
                     expr = subset_data.get("expression")
+                    expr = expr.replace(".and.", " & ").replace(".or.", " | ")
                     if expr:
                         State.df.value.validate_expression(expr)
                 except Exception as e:
-                    logger.debug(f"failed query params on subset parsing: {e}")
+                    logger.debug(f"Failed query params on subset parsing: {e}")
 
-                subset_data["df"]: vx.DataFrame = (State.df.value[
-                    State.df.
-                    value[f"(pipeline=='{subset_data.get('dataset')}')"]].copy(
-                    ).extract())
+                # set first subset dataframe and columns
+                try:
+                    subset_data["df"]: vx.DataFrame = (State.df.value[
+                        State.df.
+                        value[f"(pipeline=='{subset_data.get('dataset')}')"]].
+                                                       copy().extract())
+                    subset_data["columns"] = State.columns.value[
+                        subset_data.get("dataset")]
 
-                # generate subset and update
-                subsets = {"s0": Subset(**subset_data)}
-                SubsetState.index.set(len(subsets))
-                SubsetState.subsets.set(subsets)
+                    # generate subset and update
+                    subsets = {"s0": Subset(**subset_data)}
+                    SubsetState.index.set(len(subsets))
+                    SubsetState.subsets.set(subsets)
+                except TypeError as e:
+                    logger.critical(
+                        f"Unexpected error! All loaders passed but columns or df is None: {e}"
+                    )
 
-            # add plot if requested
+            # add plot if requested; only done if subset is valid
             if "plottype" in query_params.keys():
                 try:
                     columns = State.df.value.get_column_names()
@@ -195,16 +212,13 @@ def Page():
                             # TODO: update to ensure in the specific dataset
                             assert col in columns
                     plottype = query_params.pop("plottype")
-                    print(query_params)
                     add_view(plottype, **query_params)
                 except Exception as e:
-                    # TODO: do we want logging/alerts here logging here
-                    logger.debug(f"failed query params on plot parsing: {e}")
-                    return
+                    logger.debug(f"Failed query params on plot parsing: {e}")
 
         return
 
-    # create unique user app state
+    # read query params
     sl.use_effect(initialize, [])
 
     # PAGE TITLE

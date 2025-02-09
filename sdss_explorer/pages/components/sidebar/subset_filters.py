@@ -243,15 +243,16 @@ def DatasetSelect(key: str, dataset, set_dataset) -> ValueElement:
 
         # WARNING: this needs to be shallow copied EVERY TIME, else you get
         # weird errors with the vaex chunking because the caches becomes invalidated
-        #
         newdf = dfg[dfg[f"(pipeline=='{dataset}')"]].copy().extract()
-        newdf = newdf.materialize()
+        newdf = newdf.materialize()  # ensure thing works
 
-        if dfg is not None:
-            SubsetState.update_subset(key, df=newdf)
+        if (dfg is not None) and (State.columns.value is not None):
+            SubsetState.update_subset(key,
+                                      df=newdf,
+                                      columns=State.columns.value[dataset])
         return newdf
 
-    # use memo so this runs and BLOCKS other tasks
+    # use memo so this runs and BLOCKS other tasks; this needs to run BEFORE everything else.
     sl.use_memo(update_dataframe, dependencies=[df, dataset])
 
     def ensure_vc():
@@ -262,11 +263,6 @@ def DatasetSelect(key: str, dataset, set_dataset) -> ValueElement:
                 sdf.add_virtual_column(name, expr)
 
     sl.lab.use_task(ensure_vc, dependencies=[subset.df, VCData.columns.value])
-
-    def update_columns():
-        pass
-
-    # sl.lab.use_task(update_columns, dependencies=[State.df.value, dataset])
 
     return SingleAutocomplete(
         label="Dataset",

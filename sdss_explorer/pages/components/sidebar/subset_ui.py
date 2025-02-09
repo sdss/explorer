@@ -89,11 +89,6 @@ def SubsetCard(key: str) -> ValueElement:
         df = State.df.value
     filter, _set_filter = use_subset(id(df), key, "subset-summary")
     name = subset.name
-    dataset = subset.dataset
-    print("------STATE------")
-    print(State)
-    print("------SUBSET------")
-    print(subset)
 
     # progress bar logic
     if isinstance(filter, vx.Expression):
