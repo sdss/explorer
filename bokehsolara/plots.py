@@ -429,6 +429,12 @@ def ScatterPlot():
 
         source.selected.on_change("indices", on_select)
 
+        def on_reset(event):
+            print("I HAVE RESET!!!")
+            print(event.model)
+
+        p.on_event("reset", on_reset)
+
         return p, mapper, menu, cb
 
     p, mapper, menu, cb = sl.use_memo(

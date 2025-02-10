@@ -130,14 +130,14 @@ def generate_plot(plotstate):
     p = Plot(
         context_menu=menu,
         toolbar_location="above",
-        x_range=DataRange1d()
-        if not check_categorical(plotstate.x.value) else FactorRange(),
+        x_range=DataRange1d(),
         x_scale=LinearScale(),
-        y_range=DataRange1d()
-        if not check_categorical(plotstate.y.value) else FactorRange(),
+        y_range=DataRange1d(),
         y_scale=LinearScale(),
         # height_policy='max', # NOTE: doesn't work
         width_policy="max",
+        reset_policy=
+        "event_only",  # NOTE: we handle resets ourselves bc changing scales crashes it
         output_backend=
         "webgl",  # for performance, will fallback to HTML5 if unsupported
         lod_factor=20000,
