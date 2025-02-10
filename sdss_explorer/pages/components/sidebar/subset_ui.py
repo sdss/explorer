@@ -98,11 +98,24 @@ def SubsetCard(key: str) -> ValueElement:
         # not filtered at all
         dff = df
 
-    def check(a, b):
-        return a < b
+    def get_lengths():
+        length = df.count()[()]
 
-    length = df.count()[()]
-    filtered_length = dff.count()[()]
+        # BUG: this bypassses the AssertionError on chunks
+        try:
+            filtered_length_promise = dff.count(delay=True)
+            dff.execute()
+            filtered_length = filtered_length_promise.get()[()]
+        except AssertionError as e:
+            from ...dataclass import Alert
+
+            Alert.update(color="error", message="Failed to retrieve n rows!")
+            filtered_length = 0
+
+        return length, filtered_length
+
+    length, filtered_length = sl.use_memo(get_lengths,
+                                          dependencies=[dff, filter])
 
     filtered = filtered_length < length
     denom = max(length, 1)
