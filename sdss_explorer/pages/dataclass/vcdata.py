@@ -19,7 +19,7 @@ class VCList:
 
         State.df.value.add_virtual_column(name, expression)
         for subset in SubsetState.subsets.value.values():
-            if name not in subset.df.get_column_names():
+            if name not in subset.df.virtual_columns.keys():
                 subset.df.add_virtual_column(name, expression)
 
     def delete_column(self, name):
@@ -32,7 +32,7 @@ class VCList:
         # now delete_virtual_column
         State.df.value.delete_virtual_column(name)
         for subset in SubsetState.subsets.value.values():
-            if name in subset.df.get_column_names():
+            if name in subset.df.virtual_columns.keys():
                 subset.df.delete_virtual_column(name)
 
     def __repr__(self) -> str:

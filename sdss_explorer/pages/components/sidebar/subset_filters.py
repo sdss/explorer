@@ -254,13 +254,12 @@ def DatasetSelect(key: str, dataset, set_dataset) -> ValueElement:
 
     # use memo so this runs and BLOCKS other tasks; this needs to run BEFORE everything else.
     sl.use_memo(update_dataframe, dependencies=[df, dataset])
-    print(subset.df.virtual_columns)
 
     def ensure_vc():
         """Ensures all Virtual columns are in and/or removed from current df."""
         sdf = subset.df
         for name, expr in VCData.columns.value.items():
-            if name not in sdf.get_column_names():
+            if name not in sdf.virtual_columns.keys():
                 sdf.add_virtual_column(name, expr)
 
     sl.lab.use_task(ensure_vc, dependencies=[subset.df, VCData.columns.value])
