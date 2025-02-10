@@ -71,34 +71,17 @@ def add_all_tools(p: Plot, tooltips: Optional[str] = None):
     return tools
 
 
-def get_xaxis_type(plotstate) -> Callable:
-    """Retrieves correct axis type function for data"""
-    if check_categorical(plotstate.x.value):
-        return CategoricalAxis
-    elif plotstate.logx.value:
-        return LogAxis
-    else:
-        return LinearAxis
-
-
-def get_yaxis_type(plotstate) -> Callable:
-    """Retrieves correct axis type function for data"""
-    if check_categorical(plotstate.y.value) and (plotstate.plottype
-                                                 != "histogram"):
-        return CategoricalAxis
-    elif plotstate.logy.value:
-        return LogAxis
-    else:
-        return LinearAxis
-
-
-def generate_axes(plotstate):
+def generate_axes(plotstate, p: Plot):
     """Generates axes and corresponding grids for plots"""
-    xaxis = get_xaxis_type(plotstate)(axis_label=generate_xlabel(plotstate))
-    yaxis = get_yaxis_type(plotstate)(axis_label=generate_ylabel(plotstate))
-    grid_x = Grid(dimension=0, ticker=xaxis.ticker)
-    grid_y = Grid(dimension=1, ticker=yaxis.ticker)
-    return xaxis, yaxis, grid_x, grid_y
+    xaxis = LinearAxis(axis_label=generate_xlabel(plotstate))
+    yaxis = LinearAxis(axis_label=generate_ylabel(plotstate))
+    grid_x = Grid(dimension=0, ticker=xaxis.ticker, visible=True)
+    grid_y = Grid(dimension=1, ticker=yaxis.ticker, visible=True)
+    p.add_layout(xaxis, "below")
+    p.add_layout(yaxis, "left")
+    p.add_layout(grid_x, "center")
+    p.add_layout(grid_y, "center")
+    return p
 
 
 def generate_color_mapper_bar(plotstate, z):
@@ -125,26 +108,6 @@ def generate_color_mapper_bar(plotstate, z):
     return mapper, cb
 
 
-def get_xscale(plotstate) -> CategoricalScale | LogScale | LinearScale:
-    """Helper function to get correct scale"""
-    if check_categorical(plotstate.x.value):
-        return CategoricalScale()
-    elif plotstate.logx.value:
-        return LogScale()
-    else:
-        return LinearScale()
-
-
-def get_yscale(plotstate) -> CategoricalScale | LogScale | LinearScale:
-    """Helper function to get correct scale"""
-    if check_categorical(plotstate.y.value):
-        return CategoricalScale()
-    elif plotstate.logy.value:
-        return LogScale()
-    else:
-        return LinearScale()
-
-
 def generate_xlabel(plotstate) -> str:
     """Generates a x-axis label."""
     cond = plotstate.logx.value and not check_categorical(plotstate.x.value)
@@ -169,10 +132,10 @@ def generate_plot(plotstate):
         toolbar_location="above",
         x_range=DataRange1d()
         if not check_categorical(plotstate.x.value) else FactorRange(),
-        x_scale=get_xscale(plotstate),
+        x_scale=LinearScale(),
         y_range=DataRange1d()
         if not check_categorical(plotstate.y.value) else FactorRange(),
-        y_scale=get_yscale(plotstate),
+        y_scale=LinearScale(),
         # height_policy='max', # NOTE: doesn't work
         width_policy="max",
         output_backend=

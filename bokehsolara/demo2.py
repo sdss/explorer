@@ -52,92 +52,20 @@ from plot_utils import (
     generate_plot,
 )
 from plot_themes import darkprops as props
-from state import plotstate
+from state import plotstate, df
 from bokeh.io import show
+from plots import ScatterPlot
 
 
 @sl.component()
 def Page():
-    df = vx.example()[:300]
-    z = df[plotstate.color.value].values
-    # generate source objects
-    source = sl.use_memo(
-        lambda: ColumnDataSource(
-            data={
-                "x": df[plotstate.x.value].values,
-                "y": df[plotstate.y.value].values,
-                "z": z,
-                "sdss_id": df["L"].values,  # temp
-            }),
-        dependencies=[],
-    )
-
-    # generate main Plot glyph
-    p, menu = generate_plot(plotstate)
-    # generate axes
-    p = generate_axes(plotstate, p)
-
-    # generate scatter points
-    mapper, cb = generate_color_mapper_bar(plotstate, z)
-    glyph = Scatter(
-        x="x",
-        y="y",
-        size=8,
-        marker="circle",
-        fill_color={
-            "field": "z",
-            "transform": mapper
-        },
-    )
-    gr = p.add_glyph(source, glyph)
-
-    p.add_layout(cb, "right")
-
-    # create hovertool, bound to figure object
-    TOOLTIPS = (f"""
-    <div>
-    {plotstate.x.value}: $snap_x
-    {plotstate.y.value}: $snap_x
-    {plotstate.color.value}: @z
-    sdss_id: @sdss_id
-    </div>\n""" + """
-    <style>
-    div.bk-tooltip-content > div > div:not(:first-child) {
-        display:none !important;
-    } 
-    </style>
-    """)
-
-    tools = add_all_tools(p, tooltips=TOOLTIPS)
-
-    # add double click to open target page
-    cb = CustomJS(
-        args=dict(source=source),
-        code="""console.log('Tap');
-        console.log(source.inspected.indices);
-        window.open(`https://data.sdss.org/zora/target/${source.data.sdss_id[source.inspected.indices[0]]}`, '_blank').focus();
-        """,
-    )
-    tap = TapTool(
-        behavior="inspect",
-        callback=cb,
-        gesture="doubletap",
-    )
-    p.add_tools(tap)
     output_notebook(hide_banner=True)
     active = sl.use_reactive(False)
 
     with sl.GridFixed(columns=1):
         with sl.Card(elevation=0):
             if active.value:
-                FigureBokeh(
-                    p,
-                    dependencies=[
-                        plotstate.x.value,
-                        plotstate.y.value,
-                        plotstate.color.value,
-                    ],
-                )
+                ScatterPlot()
     with sl.Card(margin=0):
         sl.Button(label="spawn", on_click=lambda *ignore: active.set(True))
         with sl.Columns([1, 1]):

@@ -353,7 +353,7 @@ def ScatterPlot():
         return (f"""
         <div>
         {plotstate.x.value}: $snap_x
-        {plotstate.y.value}: $snap_x
+        {plotstate.y.value}: $snap_y
         {plotstate.color.value}: @z
         sdss_id: @sdss_id
         </div>\n""" + """
@@ -364,19 +364,22 @@ def ScatterPlot():
         </style>
         """)
 
-    def create_figure():
-        """Creates figure with relevant objects"""
-        p, menu = generate_plot(plotstate)
-        source = ColumnDataSource(
+    source = sl.use_memo(
+        lambda: ColumnDataSource(
             data={
                 "x": dff[plotstate.x.value].values,
                 "y": dff[plotstate.y.value].values,
                 "z": dff[plotstate.color.value].values,
                 "sdss_id": dff["L"].values,  # temp
-            })
-        # generate axes
-        xaxis, yaxis, xgrid, ygrid = generate_axes(plotstate)
+            }),
+        dependencies=[],
+    )
 
+    def create_figure():
+        """Creates figure with relevant objects"""
+        p, menu = generate_plot(plotstate)
+        # generate and add axes
+        p = generate_axes(plotstate, p)
 
         # generate scatter points
         mapper, cb = generate_color_mapper_bar(
@@ -424,9 +427,9 @@ def ScatterPlot():
 
         source.selected.on_change("indices", on_select)
 
-        return p, source, mapper, menu, cb
+        return p, mapper, menu, cb
 
-    p, source, mapper, menu, cb = sl.use_memo(
+    p, mapper, menu, cb = sl.use_memo(
         create_figure,
         dependencies=[],
     )
@@ -439,11 +442,9 @@ def ScatterPlot():
             if pfig is not None:
                 fig_widget: BokehModel = sl.get_widget(pfig)
                 fig_model: plot = fig_widget._model
-                exprx = dff[plotstate.x.value]
-                if check_categorical(exprx):
 
                 x = dff[plotstate.x.value].values
-                source.data["x"] = np.log10(x) if plotstate.logx.value else x
+                source.data["x"] = x
 
                 # replace grid and axes objects
                 p.below[0].axis_label = generate_xlabel(plotstate)
@@ -455,7 +456,7 @@ def ScatterPlot():
                 fig_widget: BokehModel = sl.get_widget(pfig)
                 fig_model: plot = fig_widget._model
                 y = dff[plotstate.y.value].values
-                source.data["y"] = np.log10(y) if plotstate.logy.value else y
+                source.data["y"] = y
                 p.left[0].axis_label = generate_ylabel(plotstate)
 
         def update_color():
@@ -519,26 +520,35 @@ def ScatterPlot():
                     sdss_id=dff["L"].values,
                 )
 
-        def apply_theme():
+        def update_log():
             if pfig is not None:
-                p.document.theme = DARKTHEME if dark else LIGHTTHEME
+                if plotstate.logx.value:
+                    p.x_scale = LogScale()
+                else:
+                    p.x_scale = LinearScale()
+                if plotstate.logy.value:
+                    p.y_scale = LogScale()
+                else:
+                    p.y_scale = LinearScale()
 
         sl.use_effect(update_filter, dependencies=[filter])
-        sl.use_effect(update_x,
-                      dependencies=[plotstate.x.value, plotstate.logx.value])
-        sl.use_effect(update_y,
-                      dependencies=[plotstate.y.value, plotstate.logy.value])
+        sl.use_effect(update_x, dependencies=[plotstate.x.value])
+        sl.use_effect(update_y, dependencies=[plotstate.y.value])
         sl.use_effect(update_color, dependencies=[plotstate.color.value])
         sl.use_effect(update_cmap, dependencies=[plotstate.colormap.value])
         sl.use_effect(
+            update_log,
+            dependencies=[plotstate.logx.value, plotstate.logy.value])
+        sl.use_effect(
             update_flip,
             dependencies=[plotstate.flipx.value, plotstate.flipy.value])
-        sl.use_effect(apply_theme, dependencies=[dark, pfig, counter.value])
 
-    pfig = FigureBokeh(p,
-                       dependencies=[],
-                       dark_theme=DARKTHEME,
-                       light_theme=LIGHTTHEME)
+    pfig = FigureBokeh(
+        p,
+        dependencies=[],
+        dark_theme=DARKTHEME,
+        light_theme=LIGHTTHEME,
+    )
 
     add_effects(pfig)
     return pfig

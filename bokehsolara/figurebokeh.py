@@ -1,49 +1,15 @@
-import os
-from typing import Callable, Optional, cast
+from typing import Callable
 
-import ipyvuetify as v
-import ipywidgets as widgets
-import numpy as np
-import reacton as r
-import reacton.ipyvuetify as rv
 import solara as sl
-import traitlets as t
-import vaex as vx
-import xarray
-from bokeh.io import output_notebook, curdoc, push_notebook
-from bokeh.io.doc import set_curdoc
-from bokeh.events import Reset
-from bokeh.models import BoxSelectTool, ColorBar, LinearColorMapper, HoverTool, SetValue
-from bokeh.models import CustomJS
-from bokeh.palettes import __palettes__ as colormaps
-from bokeh.models.ui import ActionItem, Menu as BokehMenu
-from bokeh.plotting import ColumnDataSource, figure
-from bokeh.models import Plot
+from bokeh.io import curdoc
+from bokeh.models import Plot, Model
 from bokeh.themes import Theme
 from jupyter_bokeh import BokehModel
-from solara.components.file_drop import FileInfo
-from solara.lab import Menu
 
 
 @sl.component_vue("bokeh_loaded.vue")
 def BokehLoaded(loaded: bool, on_loaded: Callable[[bool], None]):
     pass
-
-
-@sl.component
-def PlotBokeh(fig: Plot | figure):
-    loaded = sl.use_reactive(False)
-    output_notebook(hide_banner=True)
-    BokehLoaded(loaded=loaded.value, on_loaded=loaded.set)
-    foo = BokehModel(model=fig)
-    if loaded.value:
-        foo.element(model=fig)
-        return foo
-
-
-def on_ready(event):
-    print(event)
-    print("Document is ready!")
 
 
 def FigureBokeh(
@@ -67,25 +33,6 @@ def FigureBokeh(
                 # pause until all updates complete
                 fig_model.hold_render = True
 
-                # if the figure is regenerated, the tool callbacks will break. we have no idea whic
-                # fig_model.remove_tools(*fig_model.toolbar.tools)
-                # fig_model.add_tools(*fig.toolbar.tools)
-
-                ## this fixes if a user sets default tools in the toolbar
-                ## NOTE: not exactly perfect; will reset it to whatever the default init was
-                ##     (i.e. default LMB was pan, switch to box select, will reset back to pan after rerender)
-                # for active in [
-                #        "active_drag",
-                #        "active_inspect",
-                #        "active_multi",
-                #        "active_scroll",
-                #        "active_tap",
-                # ]:
-                #    attr = getattr(fig_model.toolbar, active)
-                #    newattr = getattr(fig.toolbar, active)
-                #    if attr != "auto":
-                #        setattr(fig_model.toolbar, active, newattr)
-
                 # extend renderer set and cull previous
                 length = len(fig_model.renderers)
                 fig_model.renderers.extend(fig.renderers)
@@ -102,14 +49,6 @@ def FigureBokeh(
                         fig_model.hold_render = False
                     setattr(fig_model, place, attr[length:])
 
-            # WARNING: just breaks
-            # fig_widget._model.renderers = fig.renderers
-
-            # WARNING: instead of orphaning, this gives it two parents, which we do not want
-            # fig_widget._model = fig
-
-            # WARNING: this does above but also render bundle; leads to widget KeyError on close/shutdown
-            # fig_widget.update_from_model(fig)
             return
 
         def update_theme():
