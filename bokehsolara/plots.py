@@ -380,8 +380,16 @@ def ScatterPlot():
         p, menu = generate_plot(plotstate)
         # generate and add axes
         p = generate_axes(plotstate, p)
-        p.extra_x_scales = {"lin": LinearScale(), "log": LogScale()}
-        p.extra_y_scales = {"lin": LinearScale(), "log": LogScale()}
+        p.extra_x_scales = {
+            "lin": LinearScale(),
+            "log": LogScale(),
+            "cat": CategoricalScale(),
+        }
+        p.extra_y_scales = {
+            "lin": LinearScale(),
+            "log": LogScale(),
+            "cat": CategoricalScale(),
+        }
 
         # generate scatter points
         mapper, cb = generate_color_mapper_bar(
