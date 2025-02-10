@@ -360,7 +360,12 @@ def ScatterPlot(plotstate):
         x = dff[plotstate.x.value].values
         y = dff[plotstate.y.value].values
         c = dff[plotstate.color.value].values
-        ids = dff["sdss_id"].values
+
+        # BUG: this fixes a bug where vaex Asserts a chunk error
+        try:
+            ids = dff["sdss_id"].values
+        except AssertionError:
+            ids = dff.extract()["sdss_id"].values
         figure = go.Figure(
             data=go.Scattergl(
                 x=x,
@@ -449,10 +454,22 @@ def ScatterPlot(plotstate):
 
         def update_data():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
+            x = dff[plotstate.x.value].values
+            y = dff[plotstate.y.value].values
+            if len(dff) > 0:
+                # BUG: this fixes a bug where vaex Asserts a chunk error
+                try:
+                    ids = dff["sdss_id"].values
+                except AssertionError:
+                    ids = dff.extract()["sdss_id"].values
+            else:
+                x = []
+                y = []
+                ids = []
             fig_widget.update_traces(
-                x=dff[plotstate.x.value].values,
-                y=dff[plotstate.y.value].values,
-                customdata=dff["sdss_id"].values,
+                x=x,
+                y=y,
+                customdata=ids,
                 hovertemplate=(f"<b>{plotstate.x.value}</b>:" +
                                " %{x:.6f}<br>" +
                                f"<b>{plotstate.y.value}</b>:" +
@@ -504,11 +521,14 @@ def ScatterPlot(plotstate):
                 return
 
             # scale by log if wanted
-            c = dff[plotstate.color.value].values
-            if plotstate.colorlog.value == "log1p":
-                c = np.log1p(c)
-            elif plotstate.colorlog.value == "log10":
-                c = np.log10(c)
+            if len(dff) > 0:
+                c = dff[plotstate.color.value].values
+                if plotstate.colorlog.value == "log1p":
+                    c = np.log1p(c)
+                elif plotstate.colorlog.value == "log10":
+                    c = np.log10(c)
+            else:
+                c = []
 
             fig_widget.update_traces(
                 marker=dict(
@@ -1262,7 +1282,11 @@ def SkymapPlot(plotstate):
         lon = dff["ra"].values
         lat = dff["dec"].values
         c = dff[plotstate.color.value].values
-        ids = dff["sdss_id"].values
+        # BUG: this fixes a bug where vaex Asserts a chunk error
+        try:
+            ids = dff["sdss_id"].values
+        except AssertionError:
+            ids = dff.extract()["sdss_id"].values
 
         figure = go.Figure(
             data=go.Scattergeo(
@@ -1352,16 +1376,24 @@ def SkymapPlot(plotstate):
 
             # update main trace
             if plotstate.geo_coords.value == "celestial":
-                lon = "ra"
-                lat = "dec"
+                loncol = "ra"
+                latcol = "dec"
             else:
-                lon = "l"
-                lat = "b"
+                loncol = "l"
+                latcol = "b"
+
+            lon = dff[loncol].values
+            lat = dff[latcol].values
+            # BUG: this fixes a bug where vaex Asserts a chunk error
+            try:
+                ids = dff["sdss_id"].values
+            except AssertionError:
+                ids = dff.extract()["sdss_id"].values
 
             fig_widget.update_traces(
-                lon=dff[lon].values,
-                lat=dff[lat].values,
-                customdata=dff["sdss_id"].values,
+                lon=lon,
+                lat=lat,
+                customdata=ids,
                 selector=dict(type="scattergeo", name=""),
             )
 
@@ -1471,7 +1503,7 @@ def SkymapPlot(plotstate):
 @sl.component()
 def StatisticsTable(state):
     """Statistics description view for the dataset."""
-    df: vx.DataFrame = SubsetState.subsets.value[state.subset].df
+    df: vx.DataFrame = SubsetState.subsets.value[state.subset.value].df
     filter, set_filter = use_subset(id(df), state.subset, name="statsview")
     columns, set_columns = state.columns.value, state.columns.set
 
