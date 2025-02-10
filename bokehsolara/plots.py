@@ -380,6 +380,8 @@ def ScatterPlot():
         p, menu = generate_plot(plotstate)
         # generate and add axes
         p = generate_axes(plotstate, p)
+        p.extra_x_scales = {"lin": LinearScale(), "log": LogScale()}
+        p.extra_y_scales = {"lin": LinearScale(), "log": LogScale()}
 
         # generate scatter points
         mapper, cb = generate_color_mapper_bar(
@@ -523,13 +525,13 @@ def ScatterPlot():
         def update_log():
             if pfig is not None:
                 if plotstate.logx.value:
-                    p.x_scale = LogScale()
+                    p.x_scale = p.extra_x_scales["log"]
                 else:
-                    p.x_scale = LinearScale()
+                    p.x_scale = p.extra_x_scales["lin"]
                 if plotstate.logy.value:
-                    p.y_scale = LogScale()
+                    p.y_scale = p.extra_x_scales["log"]
                 else:
-                    p.y_scale = LinearScale()
+                    p.y_scale = p.extra_x_scales["lin"]
 
         sl.use_effect(update_filter, dependencies=[filter])
         sl.use_effect(update_x, dependencies=[plotstate.x.value])
@@ -549,6 +551,8 @@ def ScatterPlot():
         dark_theme=DARKTHEME,
         light_theme=LIGHTTHEME,
     )
+    print(p.x_range.start, p.x_range.end)
+    print(p.y_range.start, p.y_range.end)
 
     add_effects(pfig)
     return pfig
