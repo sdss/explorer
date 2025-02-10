@@ -298,7 +298,7 @@ def FlagSelect(key: str, invert) -> ValueElement:
             # Determine the final concatenated filter
             if filters:
                 # Join the filters with ")&(" and wrap them in outer parentheses
-                concat_filter = f"(({'&)('.join(filters)}))"
+                concat_filter = f"(({')&('.join(filters)}))"
                 concat_filter = df[concat_filter]
                 if invert.value:
                     concat_filter = ~concat_filter
