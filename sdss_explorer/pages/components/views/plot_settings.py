@@ -20,6 +20,7 @@ def show_settings(type, state):
         dependencies=[
             len(SubsetState.subsets.value),
             SubsetState.subsets.value,
+            VCData.columns.value,
             subset.dataset,
         ],
     )

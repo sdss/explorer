@@ -2,6 +2,7 @@
 
 import solara as sl
 from .state import State
+from .subsets import SubsetState
 
 
 class VCList:
@@ -15,14 +16,24 @@ class VCList:
         columns = self.columns.value.copy()
         columns.update({name: expression})
         self.columns.set(columns)
+
         State.df.value.add_virtual_column(name, expression)
+        for subset in SubsetState.subsets.value.values():
+            if name not in subset.df.get_column_names():
+                subset.df.add_virtual_column(name, expression)
 
     def delete_column(self, name):
         """Remove a virtual column from the DataFrame."""
-        State.df.value.delete_virtual_column(name)
+        # trigger plot resets FIRST
         columns = self.columns.value.copy()
         columns.pop(name)
         self.columns.set(columns)
+
+        # now delete_virtual_column
+        State.df.value.delete_virtual_column(name)
+        for subset in SubsetState.subsets.value.values():
+            if name in subset.df.get_column_names():
+                subset.df.delete_virtual_column(name)
 
     def __repr__(self) -> str:
         return str(dict(self.columns.value))
