@@ -25,7 +25,6 @@ async def export_to_csv(data: DataFrameData):
             filepath=filepath,
             download_url=file_url,
             row_count=len(df),
-            column_count=len(df.columns),
         )
 
     except Exception as e:
