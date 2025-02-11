@@ -329,6 +329,7 @@ def HeatmapPlot():
     return pfig
 
 
+@sl.component
 def ScatterPlot():
     filter, set_filter = sl.use_cross_filter(id(df), name="scatter")
     dark = sl.lab.use_dark_effective()
@@ -457,11 +458,13 @@ def ScatterPlot():
             # update CDS
             fig_widget: BokehModel = sl.get_widget(pfig)
             if isinstance(fig_widget, BokehModel):
-                x = dff[plotstate.x.value].values
-                source.data["x"] = x
+                fig_model = fig_widget._model
+                with fig_model.hold(render=True):
+                    x = dff[plotstate.x.value].values
+                    fig_model.renderers[0].data_source.data["x"] = x
 
-                # replace grid and axes objects
-                p.below[0].axis_label = generate_xlabel(plotstate)
+                    # replace grid and axes objects
+                    fig_model.below[0].axis_label = generate_xlabel(plotstate)
 
         def update_y():
             # TODO: ensure no catagorical data failure
@@ -469,22 +472,22 @@ def ScatterPlot():
             fig_widget: BokehModel = sl.get_widget(pfig)
             if isinstance(fig_widget, BokehModel):
                 fig_model: plot = fig_widget._model
-                y = dff[plotstate.y.value].values
-                source.data["y"] = y
-                p.left[0].axis_label = generate_ylabel(plotstate)
+                with fig_model.hold(render=True):
+                    y = dff[plotstate.y.value].values
+                    fig_model.renderers[0].data_source.data["y"] = y
+                    fig_model.left[0].axis_label = generate_ylabel(plotstate)
 
         def update_color():
             # TODO: ensure no catagorical data failure
             fig_widget: BokehModel = sl.get_widget(pfig)
             if isinstance(fig_widget, BokehModel):
                 fig_model: Plot = fig_widget._model
-                fig_model.hold_render = True
-                z = dff[plotstate.color.value].values
-                z = np.log10(z) if plotstate.colorlog.value else z
-                source.data["z"] = z
-                mapper.update(low=z.min(), high=z.max())
-                fig_model.hold_render = False
-                cb.title = plotstate.color.value
+                with fig_model.hold(render=True):
+                    z = dff[plotstate.color.value].values
+                    z = np.log10(z) if plotstate.colorlog.value else z
+                    fig_model.renderers[0].data_source.data["z"] = z
+                    mapper.update(low=z.min(), high=z.max())
+                    cb.title = plotstate.color.value
 
         def update_cmap():
             fig_widget: BokehModel = sl.get_widget(pfig)
@@ -524,26 +527,35 @@ def ScatterPlot():
                 fig_model.y_range.flipped = plotstate.flipy.value
 
         def update_filter():
-            fig_widget: BokehModel = sl.get_widget(pfig)
-            if isinstance(fig_widget, BokehModel):
-                x = dff[plotstate.x.value].values
-                y = dff[plotstate.y.value].values
-                source.data = dict(
-                    x=np.log10(x) if plotstate.logx.value else x,
-                    y=np.log10(y) if plotstate.logy.value else y,
-                    z=dff[plotstate.color.value].values,
-                    sdss_id=dff["L"].values,
-                )
+            if pfig is not None:
+                fig_widget: BokehModel = sl.get_widget(pfig)
+                if isinstance(fig_widget, BokehModel):
+                    fig_model = fig_widget._model
+                    x = dff[plotstate.x.value].values
+                    y = dff[plotstate.y.value].values
+                    fig_model.renderers[0].data_source.data = dict(
+                        x=np.log10(x) if plotstate.logx.value else x,
+                        y=np.log10(y) if plotstate.logy.value else y,
+                        z=dff[plotstate.color.value].values,
+                        sdss_id=dff["L"].values,
+                    )
+                    source.data = dict(
+                        x=np.log10(x) if plotstate.logx.value else x,
+                        y=np.log10(y) if plotstate.logy.value else y,
+                        z=dff[plotstate.color.value].values,
+                        sdss_id=dff["L"].values,
+                    )
 
         def update_log():
             fig_widget: BokehModel = sl.get_widget(pfig)
             if isinstance(fig_widget, BokehModel):
+                fig_model = fig_widget._model
                 if plotstate.logx.value:
-                    p.x_scale = p.extra_x_scales["log"]
+                    fig_model.x_scale = fig_model.extra_x_scales["log"]
                 else:
-                    p.x_scale = p.extra_x_scales["lin"]
+                    p.x_scale = fig_model.extra_x_scales["lin"]
                 if plotstate.logy.value:
-                    p.y_scale = p.extra_x_scales["log"]
+                    p.y_scale = fig_model.extra_x_scales["log"]
                 else:
                     p.y_scale = p.extra_x_scales["lin"]
 
@@ -565,8 +577,6 @@ def ScatterPlot():
         dark_theme=DARKTHEME,
         light_theme=LIGHTTHEME,
     )
-    print(p.x_range.start, p.x_range.end)
-    print(p.y_range.start, p.y_range.end)
 
     add_effects(pfig)
     return pfig

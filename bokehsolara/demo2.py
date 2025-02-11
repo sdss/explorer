@@ -59,15 +59,16 @@ from plots import ScatterPlot
 
 @sl.component()
 def Page():
-    output_notebook(hide_banner=True)
     active = sl.use_reactive(False)
+    output_notebook(hide_banner=True)
 
     with sl.GridFixed(columns=1):
         with sl.Card(elevation=0):
             if active.value:
                 ScatterPlot()
     with sl.Card(margin=0):
-        sl.Button(label="spawn", on_click=lambda *ignore: active.set(True))
+        sl.Button(label="spawn",
+                  on_click=lambda *ignore: active.set(not active.value))
         with sl.Columns([1, 1]):
             sl.Select(
                 label="x",

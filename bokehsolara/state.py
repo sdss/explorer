@@ -21,7 +21,7 @@ from jupyter_bokeh import BokehModel
 from solara.components.file_drop import FileInfo
 from solara.lab import Menu
 
-df = vx.example()[:50_000]
+df = vx.example()[:100]
 df["category"] = np.array(
     ["foo" if i < len(df) // 2 else "bar" for i in range(len(df))])
 df = df.materialize("category")

@@ -1,7 +1,8 @@
 from typing import Callable
 
 import solara as sl
-from bokeh.io import curdoc
+import time as t
+from bokeh.io import curdoc, output_notebook
 from bokeh.models import Plot, Model
 from bokeh.themes import Theme
 from jupyter_bokeh import BokehModel
@@ -15,25 +16,21 @@ def BokehLoaded(loaded: bool, on_loaded: Callable[[bool], None]):
 @sl.component
 def FigureBokeh(
     fig,
-    dependencies=None,
     light_theme: str | Theme = "light_minimal",
     dark_theme: str | Theme = "dark_minimal",
+    dependencies=None,
 ):
     loaded = sl.use_reactive(False)
     dark = sl.lab.use_dark_effective()
-    fig_key = sl.use_uuid4([])
     BokehLoaded(loaded=loaded.value, on_loaded=loaded.set)
-    if loaded.value:
-        fig_element = BokehModel.element(model=fig).key(
-            fig_key)  # TODO: since it isnt hashable it needs a unique key
+    fig_element = BokehModel.element(model=fig)
 
-        def update_data():
-            fig_widget: BokehModel = sl.get_widget(fig_element)
-            fig_model: Plot = fig_widget._model  # base class for figure
-            if fig != fig_model:  # don't do on first startup
-                # pause until all updates complete
-                fig_model.hold_render = True
-
+    def update_data():
+        fig_widget: BokehModel = sl.get_widget(fig_element)
+        fig_model: Plot = fig_widget._model  # base class for figure
+        if fig != fig_model:  # don't do on first startup
+            # pause until all updates complete
+            with fig_model.hold(render=True):
                 # extend renderer set and cull previous
                 length = len(fig_model.renderers)
                 fig_model.renderers.extend(fig.renderers)
@@ -46,26 +43,25 @@ def FigureBokeh(
                     newattr = getattr(fig, place)
                     length = len(attr)
                     attr.extend(newattr)
-                    if place == "right":
-                        fig_model.hold_render = False
                     setattr(fig_model, place, attr[length:])
 
-            return
+    def update_theme():
+        # NOTE: using bokeh.io.curdoc and this model._document prop will point to the same object
+        fig_widget: BokehModel = sl.get_widget(fig_element)
+        if dark:
+            fig_widget._document.theme = dark_theme
+        else:
+            fig_widget._document.theme = light_theme
 
-        def update_theme():
-            # NOTE: using bokeh.io.curdoc and this model._document prop will point to the same object
-            fig_widget: BokehModel = sl.get_widget(fig_element)
-            doc = curdoc()
-            if dark:
-                doc.theme = dark_theme
-                fig_widget._document.theme = dark_theme
-            else:
-                doc.theme = light_theme
-                fig_widget._document.theme = light_theme
+    sl.use_effect(update_data, dependencies or fig)
+    sl.use_effect(update_theme, [dark, loaded.value])
 
-        sl.use_effect(update_data, dependencies or fig)
-        sl.use_effect(update_theme, [dark, loaded.value])
+    if loaded.value:
+        t.sleep(0.5)  # FORCE LOCKOUT for theme rendering
+        return fig_element
     else:
-        with sl.Card(margin=0, elevation=0) as main:
+        # NOTE: the returned object will be a v.Sheet until Bokeh is loaded
+        # BUG: this will show the JS error temporarily before loading
+        with sl.Card(margin=0, elevation=0):
             with sl.Row(justify="center"):
                 sl.SpinnerSolara(size="200px")
