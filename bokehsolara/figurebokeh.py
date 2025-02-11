@@ -56,12 +56,17 @@ def FigureBokeh(
     sl.use_effect(update_data, dependencies or fig)
     sl.use_effect(update_theme, [dark, loaded.value])
 
+    def set_init_theme():
+        curdoc().theme = dark_theme if dark else light_theme
+
+    sl.use_memo(set_init_theme, dependencies=[])
+
     if loaded.value:
-        t.sleep(0.5)  # FORCE LOCKOUT for theme rendering
+        # t.sleep(0.5)  # FORCE LOCKOUT for theme rendering
         return fig_element
-    else:
-        # NOTE: the returned object will be a v.Sheet until Bokeh is loaded
-        # BUG: this will show the JS error temporarily before loading
-        with sl.Card(margin=0, elevation=0):
-            with sl.Row(justify="center"):
-                sl.SpinnerSolara(size="200px")
+    # else:
+    #    # NOTE: the returned object will be a v.Sheet until Bokeh is loaded
+    #    # BUG: this will show the JS error or even the figure itself temporarily before loading
+    #    with sl.Card(margin=0, elevation=0):
+    #        with sl.Row(justify="center"):
+    #            sl.SpinnerSolara(size="200px")
