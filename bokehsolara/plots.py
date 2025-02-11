@@ -11,6 +11,7 @@ import numpy as np
 import reacton as r
 import reacton.ipyvuetify as rv
 import solara as sl
+import ipyvuetify as ipv
 import traitlets as t
 import vaex as vx
 import xarray
@@ -328,7 +329,6 @@ def HeatmapPlot():
     return pfig
 
 
-@sl.component()
 def ScatterPlot():
     filter, set_filter = sl.use_cross_filter(id(df), name="scatter")
     dark = sl.lab.use_dark_effective()
@@ -455,10 +455,8 @@ def ScatterPlot():
         def update_x():
             # TODO: ensure no catagorical data failure
             # update CDS
-            if pfig is not None:
-                fig_widget: BokehModel = sl.get_widget(pfig)
-                fig_model: plot = fig_widget._model
-
+            fig_widget: BokehModel = sl.get_widget(pfig)
+            if isinstance(fig_widget, BokehModel):
                 x = dff[plotstate.x.value].values
                 source.data["x"] = x
 
@@ -468,8 +466,8 @@ def ScatterPlot():
         def update_y():
             # TODO: ensure no catagorical data failure
             # update CDS
-            if pfig is not None:
-                fig_widget: BokehModel = sl.get_widget(pfig)
+            fig_widget: BokehModel = sl.get_widget(pfig)
+            if isinstance(fig_widget, BokehModel):
                 fig_model: plot = fig_widget._model
                 y = dff[plotstate.y.value].values
                 source.data["y"] = y
@@ -477,8 +475,8 @@ def ScatterPlot():
 
         def update_color():
             # TODO: ensure no catagorical data failure
-            if pfig is not None:
-                fig_widget: BokehModel = sl.get_widget(pfig)
+            fig_widget: BokehModel = sl.get_widget(pfig)
+            if isinstance(fig_widget, BokehModel):
                 fig_model: Plot = fig_widget._model
                 fig_model.hold_render = True
                 z = dff[plotstate.color.value].values
@@ -489,14 +487,14 @@ def ScatterPlot():
                 cb.title = plotstate.color.value
 
         def update_cmap():
-            if pfig is not None:
-                fig_widget: BokehModel = sl.get_widget(pfig)
+            fig_widget: BokehModel = sl.get_widget(pfig)
+            if isinstance(fig_widget, BokehModel):
                 fig_model: Plot = fig_widget._model
                 mapper.palette = plotstate.colormap.value
 
         def update_flip():
-            if pfig is not None:
-                fig_widget: BokehModel = sl.get_widget(pfig)
+            fig_widget: BokehModel = sl.get_widget(pfig)
+            if isinstance(fig_widget, BokehModel):
                 fig_model: Plot = fig_widget._model
                 # TODO: catagorical support
 
@@ -526,7 +524,8 @@ def ScatterPlot():
                 fig_model.y_range.flipped = plotstate.flipy.value
 
         def update_filter():
-            if pfig is not None:
+            fig_widget: BokehModel = sl.get_widget(pfig)
+            if isinstance(fig_widget, BokehModel):
                 x = dff[plotstate.x.value].values
                 y = dff[plotstate.y.value].values
                 source.data = dict(
@@ -537,7 +536,8 @@ def ScatterPlot():
                 )
 
         def update_log():
-            if pfig is not None:
+            fig_widget: BokehModel = sl.get_widget(pfig)
+            if isinstance(fig_widget, BokehModel):
                 if plotstate.logx.value:
                     p.x_scale = p.extra_x_scales["log"]
                 else:

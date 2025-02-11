@@ -12,6 +12,7 @@ def BokehLoaded(loaded: bool, on_loaded: Callable[[bool], None]):
     pass
 
 
+@sl.component
 def FigureBokeh(
     fig,
     dependencies=None,
@@ -64,10 +65,7 @@ def FigureBokeh(
 
         sl.use_effect(update_data, dependencies or fig)
         sl.use_effect(update_theme, [dark, loaded.value])
-        return fig_element
     else:
-        # NOTE: we don't return this as to not break effect callbacks outside this function; reacton a
         with sl.Card(margin=0, elevation=0) as main:
-            # NOTE: the card expands to fit space
             with sl.Row(justify="center"):
                 sl.SpinnerSolara(size="200px")
