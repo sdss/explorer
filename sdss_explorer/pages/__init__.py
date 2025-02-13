@@ -127,9 +127,12 @@ def Page():
                 logger.critical("Failed to load dataset and columns!")
             return  # early return, no point in continuing
 
-        # set valid pipeline when not set properly with visit spec
-        if (datatype == "visit") & ("dataset" not in query_params.keys()):
-            query_params.update({"dataset": "apogeenet"})
+        # set the valid pipeline when not set properly with visit spec
+        if "dataset" not in query_params.keys():
+            if datatype == "visit":
+                query_params.update({"dataset": "thepayne"})
+            else:
+                query_params.update({"dataset": "best"})
 
         # parse subset/plot initializes
         if len(query_params) > 0:
