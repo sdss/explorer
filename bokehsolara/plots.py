@@ -21,6 +21,7 @@ from bokeh.models.scales import LinearScale, LogScale, CategoricalScale
 from bokeh.models import (
     BoxSelectTool,
     ColorBar,
+    FactorRange,
     HoverTool,
     Scatter,
     TapTool,
@@ -42,6 +43,7 @@ from solara.lab import Menu
 
 from plot_utils import (
     add_all_tools,
+    calculate_range,
     generate_axes,
     generate_color_mapper_bar,
     generate_plot,
@@ -59,7 +61,8 @@ colormaps = [x for x in colormaps if "256" in x]
 index_context = sl.create_context(0)
 # https://docs.bokeh.org/en/latest/docs/user_guide/interaction/js_callbacks.html#customjs-for-topics-events
 
-from plot_themes import LIGHTTHEME, DARKTHEME, darkprops, lightprops
+from plot_themes import LIGHTTHEME, DARKTHEME
+from plot_effects import add_effects
 
 
 def get_data():
@@ -384,12 +387,22 @@ def ScatterPlot():
         p.extra_x_scales = {
             "lin": LinearScale(),
             "log": LogScale(),
-            "cat": CategoricalScale(),
+            # "cat": CategoricalScale(),
         }
         p.extra_y_scales = {
             "lin": LinearScale(),
             "log": LogScale(),
-            "cat": CategoricalScale(),
+            # "cat": CategoricalScale(),
+        }
+        p.extra_x_ranges = {
+            "lin": DataRange1d(),
+            "log": DataRange1d(),
+            # "cat": FactorRange("foo", "bar"),
+        }
+        p.extra_y_ranges = {
+            "lin": DataRange1d(),
+            "log": DataRange1d(),
+            # "cat": FactorRange("foo", "bar"),
         }
 
         # generate scatter points
@@ -426,21 +439,30 @@ def ScatterPlot():
             visible=False,
         )
         p.add_tools(tap)
+        items = [
+            p.select(name="menu-propogate")[0],
+            p.select(name="menu-table")[0],
+            p.select(name="menu-clear")[0],
+        ]
 
         # source on selection effect
         def on_select(attr, old, new):
-            item = p.select(name="menu-propogate")[0]
-            if len(new) == 0:
-                # disable button
-                item.update(disabled=True)
-            else:
-                item.update(disabled=False)
+            for item in items:
+                if len(new) == 0:
+                    # disable button
+                    item.update(disabled=True)
+                else:
+                    item.update(disabled=False)
 
         source.selected.on_change("indices", on_select)
 
         def on_reset(event):
-            print("I HAVE RESET!!!")
-            print(event.model)
+            """Range resets"""
+            newx = calculate_range(plotstate, dff, col="x")
+            newy = calculate_range(plotstate, dff, col="y")
+            with p.hold(render=True):
+                p.x_range.update(start=newx[0], end=newx[1])
+                p.y_range.update(start=newy[0], end=newy[1])
 
         p.on_event("reset", on_reset)
 
@@ -451,132 +473,13 @@ def ScatterPlot():
         dependencies=[],
     )
 
-    def add_effects(pfig):
-
-        def update_x():
-            # TODO: ensure no catagorical data failure
-            # update CDS
-            fig_widget: BokehModel = sl.get_widget(pfig)
-            if isinstance(fig_widget, BokehModel):
-                fig_model = fig_widget._model
-                with fig_model.hold(render=True):
-                    x = dff[plotstate.x.value].values
-                    fig_model.renderers[0].data_source.data["x"] = x
-
-                    # replace grid and axes objects
-                    fig_model.below[0].axis_label = generate_xlabel(plotstate)
-
-        def update_y():
-            # TODO: ensure no catagorical data failure
-            # update CDS
-            fig_widget: BokehModel = sl.get_widget(pfig)
-            if isinstance(fig_widget, BokehModel):
-                fig_model: plot = fig_widget._model
-                with fig_model.hold(render=True):
-                    y = dff[plotstate.y.value].values
-                    fig_model.renderers[0].data_source.data["y"] = y
-                    fig_model.left[0].axis_label = generate_ylabel(plotstate)
-
-        def update_color():
-            # TODO: ensure no catagorical data failure
-            fig_widget: BokehModel = sl.get_widget(pfig)
-            if isinstance(fig_widget, BokehModel):
-                fig_model: Plot = fig_widget._model
-                with fig_model.hold(render=True):
-                    z = dff[plotstate.color.value].values
-                    z = np.log10(z) if plotstate.colorlog.value else z
-                    fig_model.renderers[0].data_source.data["z"] = z
-                    mapper.update(low=z.min(), high=z.max())
-                    cb.title = plotstate.color.value
-
-        def update_cmap():
-            fig_widget: BokehModel = sl.get_widget(pfig)
-            if isinstance(fig_widget, BokehModel):
-                fig_model: Plot = fig_widget._model
-                mapper.palette = plotstate.colormap.value
-
-        def update_flip():
-            fig_widget: BokehModel = sl.get_widget(pfig)
-            if isinstance(fig_widget, BokehModel):
-                fig_model: Plot = fig_widget._model
-                # TODO: catagorical support
-
-                # bokeh uses 1/20th of range as padding
-                xrange = abs(dff[plotstate.x.value].min()[()] -
-                             dff[plotstate.x.value].max()[()])
-                xpad = xrange / 20
-                yrange = abs(dff[plotstate.y.value].min()[()] -
-                             dff[plotstate.y.value].max()[()])
-                ypad = yrange / 20
-
-                fig_model.x_range.start = (dff[plotstate.x.value].min()[
-                    ()] if not plotstate.flipx.value else dff[
-                        plotstate.x.value].max()[()]) - (
-                            xpad if not plotstate.flipx.value else -xpad)
-                fig_model.x_range.end = (dff[plotstate.x.value].max()[
-                    ()] if not plotstate.flipx.value else dff[
-                        plotstate.x.value].min()[()]) + (
-                            xpad if not plotstate.flipx.value else -xpad)
-                fig_model.y_range.start = (dff[plotstate.y.value].min()[()]
-                                           if not plotstate.flipy.value else
-                                           dff[plotstate.y.value].max()[()])
-                fig_model.y_range.end = (dff[plotstate.y.value].max()[()]
-                                         if not plotstate.flipy.value else
-                                         dff[plotstate.y.value].min()[()])
-                fig_model.x_range.flipped = plotstate.flipx.value
-                fig_model.y_range.flipped = plotstate.flipy.value
-
-        def update_filter():
-            if pfig is not None:
-                fig_widget: BokehModel = sl.get_widget(pfig)
-                if isinstance(fig_widget, BokehModel):
-                    fig_model = fig_widget._model
-                    x = dff[plotstate.x.value].values
-                    y = dff[plotstate.y.value].values
-                    fig_model.renderers[0].data_source.data = dict(
-                        x=np.log10(x) if plotstate.logx.value else x,
-                        y=np.log10(y) if plotstate.logy.value else y,
-                        z=dff[plotstate.color.value].values,
-                        sdss_id=dff["L"].values,
-                    )
-                    source.data = dict(
-                        x=np.log10(x) if plotstate.logx.value else x,
-                        y=np.log10(y) if plotstate.logy.value else y,
-                        z=dff[plotstate.color.value].values,
-                        sdss_id=dff["L"].values,
-                    )
-
-        def update_log():
-            fig_widget: BokehModel = sl.get_widget(pfig)
-            if isinstance(fig_widget, BokehModel):
-                fig_model = fig_widget._model
-                if plotstate.logx.value:
-                    fig_model.x_scale = fig_model.extra_x_scales["log"]
-                else:
-                    p.x_scale = fig_model.extra_x_scales["lin"]
-                if plotstate.logy.value:
-                    p.y_scale = fig_model.extra_x_scales["log"]
-                else:
-                    p.y_scale = p.extra_x_scales["lin"]
-
-        sl.use_effect(update_filter, dependencies=[filter])
-        sl.use_effect(update_x, dependencies=[plotstate.x.value])
-        sl.use_effect(update_y, dependencies=[plotstate.y.value])
-        sl.use_effect(update_color, dependencies=[plotstate.color.value])
-        sl.use_effect(update_cmap, dependencies=[plotstate.colormap.value])
-        sl.use_effect(
-            update_log,
-            dependencies=[plotstate.logx.value, plotstate.logy.value])
-        sl.use_effect(
-            update_flip,
-            dependencies=[plotstate.flipx.value, plotstate.flipy.value])
-
     pfig = FigureBokeh(
         p,
         dependencies=[],
         dark_theme=DARKTHEME,
         light_theme=LIGHTTHEME,
     )
+    print(p.x_range.start, p.x_range.end)
 
-    add_effects(pfig)
+    add_effects(pfig, plotstate, dff, filter, layout)
     return pfig

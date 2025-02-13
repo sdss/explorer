@@ -130,10 +130,6 @@ def generate_plot(plotstate):
     p = Plot(
         context_menu=menu,
         toolbar_location="above",
-        x_range=DataRange1d(),
-        x_scale=LinearScale(),
-        y_range=DataRange1d(),
-        y_scale=LinearScale(),
         # height_policy='max', # NOTE: doesn't work
         width_policy="max",
         reset_policy=
@@ -166,8 +162,35 @@ def generate_plot(plotstate):
     return p, menu
 
 
-def calculate_range(plotstate, df, col, start, end):
+def calculate_range(plotstate, df, col: str = "x") -> tuple[float, float]:
     """Fetches a new reset-like start/end value based on the flip, log, and column"""
-    pass
-    # expr = df[col] if
-    # range = abs(.min()[()] - df[col].max()[()])
+    # bug checking and now get actual stuff
+    assert col in ("x", "y")
+    colVar = plotstate.x.value if col == "x" else plotstate.y.value
+    flipVar = plotstate.flipx.value if col == "x" else plotstate.flipy.value
+    log = plotstate.logx.value if col == "x" else plotstate.logy.value
+
+    expr = df[colVar]
+    if check_categorical(expr):
+        start = 0
+        end = 1
+    else:
+        if log:
+            expr = df[df[colVar] > 0][colVar]
+        try:
+            limits = expr.minmax()
+        except Exception:
+            # TODO: logger debug stride bug
+            limits = abs(expr.min()[()], expr.max()[()])
+
+        # bokeh uses 10% of range as padding by default
+        datarange = abs(limits[1] - limits[0])
+        pad = datarange / 20
+        start = limits[0] - pad
+        end = limits[1] + pad
+        print("setting range", start, end)
+
+    if not flipVar:
+        return start, end
+    else:
+        return end, start
