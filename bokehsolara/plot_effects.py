@@ -1,6 +1,8 @@
 """Main function for plot effects"""
 
+from bokeh.models.formatters import CustomJSTickFormatter
 from bokeh.models.plots import Plot
+from bokeh.models import BasicTickFormatter, LogTickFormatter
 import numpy as np
 import reacton.ipyvuetify as rv
 import solara as sl
@@ -10,6 +12,7 @@ from plot_utils import (
     calculate_range,
     generate_xlabel,
     generate_ylabel,
+    map_categorical_data,
 )
 from util import check_categorical
 
@@ -25,16 +28,27 @@ def add_effects(pfig: rv.ValueElement, plotstate, dff, filter, layout) -> None:
         if isinstance(fig_widget, BokehModel):
             fig_model = fig_widget._model
             if check_categorical(plotstate.x.value):
-                fig_model.x_scale = fig_model.extra_x_scales["cat"]
-                fig_model.x_range.start = 0
-                fig_model.x_range.end = 2
-            elif plotstate.logx.value:
-                fig_model.x_scale = fig_model.extra_x_scales["log"]
+                mapping, x = map_categorical_data(dff[plotstate.x.value])
+                reverseMapping = {v: k for k, v in mapping.items()}
+                x = x.values
+                cjs = """
+                var mapper = new Object(mapping);
+                return mapper.get(tick) || ""
+                """
+                fig_model.below[0].formatter = CustomJSTickFormatter(
+                    args=dict(mapping=reverseMapping), code=cjs)
             else:
-                fig_model.x_scale = fig_model.extra_x_scales["lin"]
-            x = dff[plotstate.x.value].values
-            fig_model.renderers[0].data_source.data["x"] = x
-            fig_model.below[0].axis_label = generate_xlabel(plotstate)
+                x = dff[plotstate.x.value].values
+                fig_model.below[0].formatter = (BasicTickFormatter()
+                                                if not plotstate.logx.value
+                                                else LogTickFormatter())
+            newrange = calculate_range(plotstate, dff, col="x")
+            with fig_model.hold(render=True):
+                fig_model.renderers[0].data_source.data["x"] = x  # set data
+                fig_model.below[0].axis_label = generate_xlabel(
+                    plotstate)  # set label
+                fig_model.x_range.update(start=newrange[0],
+                                         end=newrange[1])  # update range
 
     def update_y():
         # TODO: ensure no catagorical data failure

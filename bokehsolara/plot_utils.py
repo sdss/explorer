@@ -5,7 +5,6 @@ from bokeh.models.grids import Grid
 from bokeh.models.plots import Plot
 from bokeh.models.ranges import DataRange1d, FactorRange
 from bokeh.models.tools import WheelZoomTool
-import ipyvuetify as v
 import ipywidgets as widgets
 import numpy as np
 import reacton as r
@@ -172,8 +171,7 @@ def calculate_range(plotstate, df, col: str = "x") -> tuple[float, float]:
 
     expr = df[colVar]
     if check_categorical(expr):
-        start = 0
-        end = 1
+        limits = (0, expr.nunique() - 1)
     else:
         if log:
             expr = df[df[colVar] > 0][colVar]
@@ -183,14 +181,25 @@ def calculate_range(plotstate, df, col: str = "x") -> tuple[float, float]:
             # TODO: logger debug stride bug
             limits = abs(expr.min()[()], expr.max()[()])
 
-        # bokeh uses 10% of range as padding by default
-        datarange = abs(limits[1] - limits[0])
-        pad = datarange / 20
-        start = limits[0] - pad
-        end = limits[1] + pad
-        print("setting range", start, end)
+    # bokeh uses 10% of range as padding by default
+    datarange = abs(limits[1] - limits[0])
+    pad = datarange / 20
+    start = limits[0] - pad
+    end = limits[1] + pad
+    print("setting range", start, end)
 
     if not flipVar:
         return start, end
     else:
         return end, start
+
+
+def map_categorical_data(
+    expr: vx.Expression, ) -> tuple[dict[str | bool, int], vx.Expression]:
+    """Helper function to construct a hashmap for categorical data expressions."""
+    n: int = expr.nunique()
+    factors: list[str | bool] = expr.unique()
+
+    datamap = {k: v for (k, v) in zip(factors, range(n))}
+
+    return datamap, expr.map(datamap)
