@@ -28,15 +28,10 @@ def add_effects(pfig: rv.ValueElement, plotstate, dff, filter, layout) -> None:
         if isinstance(fig_widget, BokehModel):
             fig_model = fig_widget._model
             if check_categorical(plotstate.x.value):
-                mapping, x = map_categorical_data(dff[plotstate.x.value])
-                reverseMapping = {v: k for k, v in mapping.items()}
+                x, mapping, formatter = map_categorical_data(
+                    dff[plotstate.x.value])
                 x = x.values
-                cjs = """
-                var mapper = new Object(mapping);
-                return mapper.get(tick) || ""
-                """
-                fig_model.below[0].formatter = CustomJSTickFormatter(
-                    args=dict(mapping=reverseMapping), code=cjs)
+                fig_model.below[0].formatter = formatter
             else:
                 x = dff[plotstate.x.value].values
                 fig_model.below[0].formatter = (BasicTickFormatter()
@@ -124,9 +119,8 @@ def add_effects(pfig: rv.ValueElement, plotstate, dff, filter, layout) -> None:
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model = fig_widget._model
-            if check_categorical(plotstate.x.value):
-                fig_model.x_scale = fig_model.extra_x_scales["cat"]
-            elif plotstate.logx.value:
+            if plotstate.logx.value and not check_categorical(
+                    plotstate.x.value):
                 fig_model.x_scale = fig_model.extra_x_scales["log"]
             else:
                 fig_model.x_scale = fig_model.extra_x_scales["lin"]

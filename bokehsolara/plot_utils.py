@@ -19,6 +19,7 @@ from bokeh.models.scales import LinearScale, LogScale, CategoricalScale
 from bokeh.models import (
     BoxSelectTool,
     BoxZoomTool,
+    CustomJSTickFormatter,
     LassoSelectTool,
     ColorBar,
     HoverTool,
@@ -195,11 +196,20 @@ def calculate_range(plotstate, df, col: str = "x") -> tuple[float, float]:
 
 
 def map_categorical_data(
-    expr: vx.Expression, ) -> tuple[dict[str | bool, int], vx.Expression]:
+    expr: vx.Expression,
+) -> tuple[vx.Expression, dict[str | bool, int], CustomJSTickFormatter]:
     """Helper function to construct a hashmap for categorical data expressions."""
     n: int = expr.nunique()
     factors: list[str | bool] = expr.unique()
 
     datamap = {k: v for (k, v) in zip(factors, range(n))}
+    reverseMapping = {v: k for k, v in datamap.items()}
+    cjs = """
+    var mapper = new Object(mapping);
+    return mapper.get(tick) || ""
+    """
 
-    return datamap, expr.map(datamap)
+    formatter = CustomJSTickFormatter(args=dict(mapping=reverseMapping),
+                                      code=cjs)
+
+    return expr.map(datamap), datamap, formatter
