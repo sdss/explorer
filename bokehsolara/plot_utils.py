@@ -204,11 +204,12 @@ def map_categorical_data(
 
     datamap = {k: v for (k, v) in zip(factors, range(n))}
     reverseMapping = {v: k for k, v in datamap.items()}
+
+    # make a tick formatter so we know how to label things
     cjs = """
     var mapper = new Object(mapping);
     return mapper.get(tick) || ""
     """
-
     formatter = CustomJSTickFormatter(args=dict(mapping=reverseMapping),
                                       code=cjs)
 
