@@ -1,38 +1,47 @@
 # Explorer
 
-The SDSS Parameter Explorer is a custom data visualization application developed for SDSS-V's DR19, built using `solara`, `plotly` and `vaex`. It is designed to specifically interface with custom SDSS summary parquet files, providing filtered access, statistics, and visualization to the Astra parameters of `sdss5db`.
+The SDSS Parameter Explorer is a custom data visualization application developed for SDSS-V's Data Release 19, built using `solara`, `plotly` and `vaex`. It is designed to specifically interface with custom SDSS datafiles, providing filtered access, statistics, and visualization to the parameter data products from SDSS-V.
 
 ## Installation
-
-Ensure that a new virtual environment is created prior to installation
-```
-python3.10 -m venv venv
-pip install solara=1.30.0 vaex pandas
-```
-or for Anaconda distributions, run:
-```
-conda create -c conda-forge -n sdss-explorer python=3.10 solara=1.30.0 vaex
-```
-
-To install in this `venv`, run one of the following:
 
 To just install it tracking `main`, run:
 ```
 pip install git+https://www.github.com/sdss/explorer.git@main
 ```
-or, to have a local copy for development on your machine, clone and install as an editable package via `pip`:
+or, to have a local copy on your machine, clone and install as an editable package via `pip`:
 ```
 git clone https://www.github.com/sdss/explorer.git ./sdss-explorer
 cd sdss-explorer
 pip install -e . 
 ```
 
-### Data files
-Currently, the dashboard uses custom parquet versions of the Astra allStar summary files from each pipeline. You can download the parquet files from [here](https://data.sdss5.org/sas/sdsswork/users/u6054929/). These are proprietary SDSS data files, and should not be shared outside the collaboration.
+## Development
 
-The app uses two files:
-- `ipl3-partial.parquet` :: a parquet of 3 allStar parameter files (APOGEENet, ASPCAP, The Cannon) -- to be expanded upon with more
-- `mappings.parquet` :: a converted version of the `bitmappings.csv` used in [sdss/semaphore](https://github.com/sdss/semaphore), for creating filters for cartons and mappers
+We recommend using [uv](https://docs.astral.sh/uv/) to install this project directly for development.
+
+```bash
+git clone https://www.github.com/sdss/explorer.git ./sdss-explorer
+cd sdss-explorer
+uv sync
+uv pip install -e . 
+```
+
+Otherwise, install like any other package:
+
+```bash
+git clone https://www.github.com/sdss/explorer.git ./sdss-explorer
+cd sdss-explorer
+python -m .venv venv # ensure you're using python 3.10
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install -e .
+```
+
+
+### Data files
+Explorer uses stacked, custom HDF5 renders of the [astra](https://github.com/sdss/astra) summary files for each data release. You can download the HDF5 from [here](https://data.sdss5.org/sas/sdsswork/users/u6054929/). These are proprietary SDSS data files, and should not be shared outside the collaboration.
+
+It additionally uses a custom parquet render of the mappings used in [semaphore](https://github.com/sdss/semaphore)
 
 ## Starting the server
 To run, the environment variables must be exported to the shell environment. These are:
@@ -42,39 +51,37 @@ To run, the environment variables must be exported to the shell environment. The
  - `VAEX_HOME` :: path to store `vaex` cache and lock files during runtime. Defaults on startup to `$HOME/.vaex`.
 
 ### Cache setup
-The Explorer utilizes a hybrid memory cache of 1GB per worker and disk cache of total 10GB. To set these up, use the following environment variables on runtime:
+The Explorer can utilize a hybrid memory and disk cache . To set these up, use the following environment variables on runtime:
  - `VAEX_CACHE="memory,disk"`
  - `VAEX_CACHE_DISK_SIZE_LIMIT="10GB"`
  - `VAEX_CACHE_MEMORY_SIZE_LIMIT="1GB`
 
- These are automatically set when using the bundled shell scripts.
-
+These are automatically set when using the bundled shell scripts.
 
 
 ## Deployment
 
 ### Solara Server deployment (starlette)
 
-One can run using Solara's starlette deployment by using:
-```
-solara run explorer.pages --theme-variant dark
+```bash
+solara run explorer.pages
 ```
 
 This will start _purely_ the app in development refresh mode on a uvicorn instance. To run in production mode, add `--production` to the above command.
 
 ### Bundled shell scripts
 This repo comes bundled with shell scripts to run the application via `solara`. They don't particularly do anything different to just running it manually. To ensure they work, make the scripts executable:
-```
+```bash
 chmod +x run.sh run_production.sh
 ```
 
 To run using the provided shell scripts, use one of:
-```
-./run.sh
+```bash
+./run.sh # runs development mode
 ```
 or
-```
-./run_production.sh
+```bash
+./run_production.sh # runs in production mode; no auto-refresh
 ```
 
 ### Valis
