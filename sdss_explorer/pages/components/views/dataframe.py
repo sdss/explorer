@@ -18,7 +18,6 @@ from solara.lab import Menu, use_dark_effective
 from solara.lab.hooks.dataframe import use_df_column_names
 
 from ...dataclass import State, Subset, SubsetState
-from ..sidebar.autocomplete import AutocompleteSelect, SingleAutocomplete
 
 
 @sl.component()

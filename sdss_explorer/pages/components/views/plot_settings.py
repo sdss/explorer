@@ -263,12 +263,11 @@ def StatisticsTableMenu(state, columns, name, names):
     """Settings menu for Statistics Table view."""
     with sl.Columns([2, 1]):
         AutocompleteSelect(
-            state.columns.value,
-            state.columns.set,
-            df=SubsetState.subsets.value[state.subset.value].columns +
+            label="Column",
+            value=state.columns.value,
+            on_value=state.columns.set,
+            values=SubsetState.subsets.value[state.subset.value].columns +
             list(VCData.columns.value.keys()),
-            expr="column",
-            field="Column",
             multiple=True,
         )
 

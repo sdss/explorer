@@ -314,11 +314,10 @@ def FlagSelect(key: str, invert) -> ValueElement:
                     dependencies=[flags, subset.dataset, invert.value])
 
     return AutocompleteSelect(
-        flags,
-        set_flags,
-        df=list(flagList.keys()),
-        expr="foobar",
-        field="Quick Flags",
+        label="Quick Flags",
+        value=flags,
+        on_value=set_flags,
+        values=list(flagList.keys()),
         multiple=True,
     )
 
@@ -429,20 +428,16 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
                 else:
                     with sl.Column(gap="2px"):
                         AutocompleteSelect(
-                            mapper,
-                            set_mapper,
-                            df=State.mapping.value,
-                            expr="mapper",
-                            field="Mapper",
-                            multiple=True,
+                            label="Mapper",
+                            value=mapper,
+                            on_value=set_mapper,
+                            values=State.mapping.value["mapper"].unique(),
                         )
                         AutocompleteSelect(
-                            carton,
-                            set_carton,
-                            df=State.mapping.value,
-                            expr="alt_name",
-                            field="Carton",
-                            multiple=True,
+                            label="Carton",
+                            value=carton,
+                            on_value=set_carton,
+                            values=State.mapping.value["alt_name"].unique(),
                         )
                         FlagSelect(key, invert)
 
