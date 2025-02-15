@@ -1,0 +1,23 @@
+site_name: Explorer documentation
+theme:
+  name: material
+plugins:
+  - mkapi
+nav:
+  - Home: index.md
+  - Developer Guide:
+    - Index: guide/index.md
+    - Layout: guide/codebase.md
+    - Data files: guide/datafiles.md
+    - Guardrailing: guide/guardrailing.md
+  - Reference: 
+    - API: reference/api.md
+    - Dataclass: reference/dataclass.md
+  - About: 
+    - Description: about.md
+    - License: license.md
+markdown_extensions:
+  - toc:
+      permalink: "#"
+      separator: "_"
+      baselevel: 2
