@@ -9,54 +9,56 @@ import solara as sl
 from jupyter_bokeh import BokehModel
 
 from plot_utils import (
-    calculate_range,
-    generate_xlabel,
-    generate_ylabel,
-    map_categorical_data,
+    change_formatter,
+    fetch_data,
+    reset_range,
+    update_label,
+    update_mapping,
 )
 from util import check_categorical
+from state import df
 
 __all__ = ["add_effects"]
 
 
-# TODO: check if dff + plotstate synced????
+def update_axis(
+    plotstate,
+    fig_model,
+    dff,
+    axis: str = "x",
+):
+    """Direct and complete axis update."""
+    # get all attributes of plotstate + fig_model
+    assert axis in ("x", "y"), f"expected axis x or y but got {axis}"
+    col = getattr(plotstate, axis).value  # column name
+    if check_categorical(col):
+        # update before datafetch
+        update_mapping(plotstate, axis=axis)
+    colData = fetch_data(plotstate, dff, axis=axis).values
+    with fig_model.hold(render=True):
+        change_formatter(plotstate, fig_model,
+                         axis=axis)  # change to cat if needed
+        fig_model.renderers[0].data_source.data[axis] = colData  # set data
+        update_label(plotstate, fig_model, axis=axis)
+        reset_range(plotstate, fig_model, dff, axis=axis)
+
+
 def add_effects(pfig: rv.ValueElement, plotstate, dff, filter, layout) -> None:
 
     def update_x():
-        # TODO: ensure no catagorical data failure
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model = fig_widget._model
-            if check_categorical(plotstate.x.value):
-                x, mapping, formatter = map_categorical_data(
-                    dff[plotstate.x.value])
-                x = x.values
-                fig_model.below[0].formatter = formatter
-            else:
-                x = dff[plotstate.x.value].values
-                fig_model.below[0].formatter = (BasicTickFormatter()
-                                                if not plotstate.logx.value
-                                                else LogTickFormatter())
-            newrange = calculate_range(plotstate, dff, col="x")
-            with fig_model.hold(render=True):
-                fig_model.renderers[0].data_source.data["x"] = x  # set data
-                fig_model.below[0].axis_label = generate_xlabel(
-                    plotstate)  # set label
-                fig_model.x_range.update(start=newrange[0],
-                                         end=newrange[1])  # update range
+            update_axis(plotstate, fig_model, dff, "x")
 
     def update_y():
-        # TODO: ensure no catagorical data failure
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
-            y = dff[plotstate.y.value].values
-            fig_model.renderers[0].data_source.data["y"] = y
-            fig_model.left[0].axis_label = generate_ylabel(plotstate)
+            update_axis(plotstate, fig_model, dff, "y")
 
     def update_color():
         """Color data column change update"""
-        # TODO: ensure no catagorical data failure
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
@@ -75,10 +77,8 @@ def add_effects(pfig: rv.ValueElement, plotstate, dff, filter, layout) -> None:
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
-            # TODO: catagorical support
-            newrange = calculate_range(plotstate, dff, col="x")
-            fig_model.x_range.update(start=newrange[0], end=newrange[1])
-
+            # TODO: should we rest both ranges?
+            reset_range(plotstate, fig_model, dff, axis="x")
             fig_model.x_range.flipped = plotstate.flipx.value
 
     def update_flipy():
@@ -86,10 +86,8 @@ def add_effects(pfig: rv.ValueElement, plotstate, dff, filter, layout) -> None:
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
-            # TODO: catagorical support
-            newrange = calculate_range(plotstate, dff, col="y")
-            fig_model.y_range.update(start=newrange[0], end=newrange[1])
-
+            # TODO: should we rest both ranges?
+            reset_range(plotstate, fig_model, dff, axis="y")
             fig_model.y_range.flipped = plotstate.flipx.value
 
     def update_cmap():
@@ -105,8 +103,8 @@ def add_effects(pfig: rv.ValueElement, plotstate, dff, filter, layout) -> None:
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
             # TODO: categorical support with jittering
-            x = dff[plotstate.x.value].values
-            y = dff[plotstate.y.value].values
+            x = fetch_data(plotstate, dff, axis="x")
+            y = fetch_data(plotstate, dff, axis="y")
             fig_model.renderers[0].data_source.data = dict(
                 x=x,
                 y=y,
@@ -124,10 +122,9 @@ def add_effects(pfig: rv.ValueElement, plotstate, dff, filter, layout) -> None:
                 fig_model.x_scale = fig_model.extra_x_scales["log"]
             else:
                 fig_model.x_scale = fig_model.extra_x_scales["lin"]
-            fig_model.below[0].axis_label = generate_xlabel(plotstate)
-            # TODO: fix tickers
-            newrange = calculate_range(plotstate, dff, col="x")
-            fig_model.x_range.update(start=newrange[0], end=newrange[1])
+            change_formatter(plotstate, fig_model, axis="x")
+            update_label(plotstate, fig_model, axis="x")
+            reset_range(plotstate, fig_model, dff, axis="x")
 
     def update_logy():
         """Y-axis log scale callback"""
@@ -139,10 +136,9 @@ def add_effects(pfig: rv.ValueElement, plotstate, dff, filter, layout) -> None:
                 fig_model.y_scale = fig_model.extra_y_scales["log"]
             else:
                 fig_model.y_scale = fig_model.extra_y_scales["lin"]
-            fig_model.left[0].axis_label = generate_ylabel(plotstate)
-            # TODO: fix tickers
-            newrange = calculate_range(plotstate, dff, col="y")
-            fig_model.y_range.update(start=newrange[0], end=newrange[1])
+            change_formatter(plotstate, fig_model, axis="y")
+            update_label(plotstate, fig_model, axis="y")
+            reset_range(plotstate, fig_model, dff, axis="y")
 
     def update_height():
         """Height linking callback, because auto-sizing doesn't work"""

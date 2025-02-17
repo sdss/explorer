@@ -51,6 +51,8 @@ class plotstate:
     color = sl.reactive("FeH")
     colormap = sl.reactive("Inferno256")
     colorlog = sl.reactive(cast(str, None))
+    xmapping = dict(foo="bar")
+    ymapping = dict(foo="bar")
     nbins = sl.reactive(101)
     menu_item_id = sl.reactive(cast(str, None))
     last_hovered_id = sl.reactive(cast(int, None))

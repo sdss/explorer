@@ -47,8 +47,6 @@ from plot_utils import (
     generate_axes,
     generate_color_mapper_bar,
     generate_plot,
-    generate_xlabel,
-    generate_ylabel,
 )
 from state import plotstate, df, GridState
 from figurebokeh import FigureBokeh
@@ -348,7 +346,7 @@ def ScatterPlot():
                 break
 
     sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
-    if filter:
+    if filter is not None:
         dff = df[filter]
     else:
         dff = df
@@ -383,7 +381,7 @@ def ScatterPlot():
         """Creates figure with relevant objects"""
         p, menu = generate_plot(plotstate)
         # generate and add axes
-        p = generate_axes(plotstate, p)
+        generate_axes(plotstate, p)
         p.extra_x_scales = {
             "lin": LinearScale(),
             "log": LogScale(),
@@ -458,8 +456,8 @@ def ScatterPlot():
 
         def on_reset(event):
             """Range resets"""
-            newx = calculate_range(plotstate, dff, col="x")
-            newy = calculate_range(plotstate, dff, col="y")
+            newx = calculate_range(plotstate, dff, "x")
+            newy = calculate_range(plotstate, dff, "y")
             with p.hold(render=True):
                 p.x_range.update(start=newx[0], end=newx[1])
                 p.y_range.update(start=newy[0], end=newy[1])

@@ -106,6 +106,7 @@ def ExprEditor() -> ValueElement:
 
             # create expression as str
             expr = "(" + "".join(subexpressions) + ")"
+            print(expr)
 
             # set filter corresponding to inverts & exit
             set_expfilter(df[expr])
