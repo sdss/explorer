@@ -1,49 +1,26 @@
-"""Main function for plot effects"""
+"""Main functions for plot effects"""
 
-from bokeh.models.formatters import CustomJSTickFormatter
 from bokeh.models.plots import Plot
-from bokeh.models import BasicTickFormatter, LogTickFormatter
 import numpy as np
 import reacton.ipyvuetify as rv
 import solara as sl
 from jupyter_bokeh import BokehModel
 
-from plot_utils import (
+from plot_actions import (
     change_formatter,
     fetch_data,
     reset_range,
     update_label,
-    update_mapping,
+    update_axis,
 )
+from state import PlotState
 from util import check_categorical
-from state import df
 
 __all__ = ["add_effects"]
 
 
-def update_axis(
-    plotstate,
-    fig_model,
-    dff,
-    axis: str = "x",
-):
-    """Direct and complete axis update."""
-    # get all attributes of plotstate + fig_model
-    assert axis in ("x", "y"), f"expected axis x or y but got {axis}"
-    col = getattr(plotstate, axis).value  # column name
-    if check_categorical(col):
-        # update before datafetch
-        update_mapping(plotstate, axis=axis)
-    colData = fetch_data(plotstate, dff, axis=axis).values
-    with fig_model.hold(render=True):
-        change_formatter(plotstate, fig_model,
-                         axis=axis)  # change to cat if needed
-        fig_model.renderers[0].data_source.data[axis] = colData  # set data
-        update_label(plotstate, fig_model, axis=axis)
-        reset_range(plotstate, fig_model, dff, axis=axis)
-
-
-def add_effects(pfig: rv.ValueElement, plotstate, dff, filter, layout) -> None:
+def add_effects(pfig: rv.ValueElement, plotstate: PlotState, dff, filter,
+                layout) -> None:
 
     def update_x():
         fig_widget: BokehModel = sl.get_widget(pfig)
@@ -68,7 +45,7 @@ def add_effects(pfig: rv.ValueElement, plotstate, dff, filter, layout) -> None:
                 fig_model.renderers[0].data_source.data["z"] = z
                 fig_model.renderers[0].glyph.fill_color
                 fig_model.right[
-                    0].color_mapper.palette = plotstate.colormap.value
+                    0].color_mapper.palette = plotstate.colorscale.value
                 # TODO: fancy title based on bintype
                 fig_model.right[0].title = plotstate.color.value
 
@@ -95,7 +72,8 @@ def add_effects(pfig: rv.ValueElement, plotstate, dff, filter, layout) -> None:
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
-            fig_model.right[0].color_mapper.palette = plotstate.colormap.value
+            fig_model.right[
+                0].color_mapper.palette = plotstate.colorscale.value
 
     def update_filter():
         """Complete filter update"""
@@ -106,8 +84,8 @@ def add_effects(pfig: rv.ValueElement, plotstate, dff, filter, layout) -> None:
             x = fetch_data(plotstate, dff, axis="x")
             y = fetch_data(plotstate, dff, axis="y")
             fig_model.renderers[0].data_source.data = dict(
-                x=x,
-                y=y,
+                x=x.values,
+                y=y.values,
                 z=dff[plotstate.color.value].values,
                 sdss_id=dff["L"].values,
             )
@@ -146,13 +124,14 @@ def add_effects(pfig: rv.ValueElement, plotstate, dff, filter, layout) -> None:
         if isinstance(fig_widget, BokehModel):
             fig_model = fig_widget._model
             fig_model.height = layout["h"] * 45 - 90
+            print(fig_model.height)
 
     sl.use_effect(update_filter, dependencies=[filter])
     sl.use_effect(update_height, dependencies=[layout["h"]])
     sl.use_effect(update_x, dependencies=[plotstate.x.value])
     sl.use_effect(update_y, dependencies=[plotstate.y.value])
     sl.use_effect(update_color, dependencies=[plotstate.color.value])
-    sl.use_effect(update_cmap, dependencies=[plotstate.colormap.value])
+    sl.use_effect(update_cmap, dependencies=[plotstate.colorscale.value])
     sl.use_effect(update_flipx, dependencies=[plotstate.flipx.value])
     sl.use_effect(update_flipy, dependencies=[plotstate.flipy.value])
     sl.use_effect(update_logx, dependencies=[plotstate.logx.value])

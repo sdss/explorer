@@ -52,7 +52,7 @@ from plot_utils import (
     generate_plot,
 )
 from plot_themes import darkprops as props
-from state import plotstate, df
+from state import PlotState, df
 from bokeh.io import show
 from plots import ScatterPlot
 

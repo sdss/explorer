@@ -21,7 +21,7 @@ from jupyter_bokeh import BokehModel
 from solara.components.file_drop import FileInfo
 from solara.lab import Menu
 
-from state import plotstate, df, GridState
+from state import PlotState, df, GridState
 from plots import ScatterPlot, HeatmapPlot
 from plot_themes import DARKTHEME, LIGHTTHEME
 
@@ -53,6 +53,7 @@ GridDraggableToolbar = r.core.ComponentWidget(GridLayout)
 # @sl.component
 def show_plot(plottype, remover, *args, **kwargs):
     dark = sl.lab.use_dark_effective()
+    plotstate = PlotState(plottype=plottype, current_key=0, **kwargs)
     with rv.Card(
             class_="grey darken-3" if dark else "grey lighten-3",
             style_="width: 100%; height: 100%",
@@ -61,9 +62,9 @@ def show_plot(plottype, remover, *args, **kwargs):
             with sl.Column(
                     classes=["grey darken-3" if dark else "grey lighten-3"]):
                 if plottype == "heatmap":
-                    HeatmapPlot()
+                    HeatmapPlot(plotstate)
                 else:
-                    ScatterPlot()
+                    ScatterPlot(plotstate)
                 btn = sl.Button(
                     icon_name="mdi-settings",
                     outlined=False,
@@ -88,16 +89,17 @@ def show_plot(plottype, remover, *args, **kwargs):
                                 value=plotstate.color,
                                 values=df.get_column_names(),
                             )
-                            sl.Select(
-                                label="bintype",
-                                value=plotstate.bintype,
-                                values=[
-                                    "count", "mean", "min", "max", "median"
-                                ],
-                            )
+                            if plottype == "heatmap":
+                                sl.Select(
+                                    label="bintype",
+                                    value=plotstate.bintype,
+                                    values=[
+                                        "count", "mean", "min", "max", "median"
+                                    ],
+                                )
                         sl.Select(
-                            label="bintype",
-                            value=plotstate.colormap,
+                            label="color",
+                            value=plotstate.colorscale,
                             values=colormaps,
                         )
                         with sl.Columns([1, 1]):

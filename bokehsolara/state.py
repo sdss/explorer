@@ -33,29 +33,10 @@ def gen_tooltips(state):
     tooltips = []
     tooltips.append((state.x.value, "$x"))
     tooltips.append((state.y.value, "$y"))
-    if plotstate.type.value == "heatmap":
+    if state.plottype.value == "heatmap":
         tooltips.append((state.bintype.value, "@z"))
 
     return tooltips
-
-
-class plotstate:
-    plottype = sl.reactive("heatmap")
-    x = sl.reactive("x")
-    y = sl.reactive("y")
-    logx = sl.reactive(False)
-    logy = sl.reactive(False)
-    flipx = sl.reactive(False)
-    flipy = sl.reactive(False)
-    bintype = sl.reactive("mean")
-    color = sl.reactive("FeH")
-    colormap = sl.reactive("Inferno256")
-    colorlog = sl.reactive(cast(str, None))
-    xmapping = dict(foo="bar")
-    ymapping = dict(foo="bar")
-    nbins = sl.reactive(101)
-    menu_item_id = sl.reactive(cast(str, None))
-    last_hovered_id = sl.reactive(cast(int, None))
 
 
 class GridState:
@@ -63,3 +44,89 @@ class GridState:
     objects = sl.reactive([])
     grid_layout = sl.reactive([])
     states = sl.reactive([])
+
+
+class PlotState:
+    """
+    Combination of reactive states which instantiate a specific plot's settings/properties.
+    Initializes based on keyword arguments.
+    """
+
+    def __init__(self, plottype, current_key, **kwargs):
+        # subset and type states
+        self.plottype = str(plottype)
+        self.subset = sl.use_reactive(current_key)
+
+        if "stats" in plottype:
+            self.columns = sl.use_reactive(["g_mag", "bp_mag"])
+        else:
+            # common plot settings
+            self.x = sl.use_reactive(kwargs.get("x", "x"))
+            self.flipx = sl.use_reactive(kwargs.get("flipx", ""))
+            self.flipy = sl.use_reactive(kwargs.get("flipy", ""))
+            self.xmapping = sl.use_reactive(kwargs.get("xmapping", {}))
+            self.ymapping = sl.use_reactive(kwargs.get("ymapping", {}))
+
+            # moderately unique plot parameters/settings
+            if plottype != "histogram":
+                self.y = sl.use_reactive(kwargs.get("y", "y"))
+                self.color = sl.use_reactive(kwargs.get("color", "FeH"))
+                self.colorscale = sl.use_reactive(
+                    kwargs.get("colorscale", "Inferno256"))
+            if plottype != "aggregated" and plottype != "skyplot":
+                self.logx = sl.use_reactive(kwargs.get("logx", ""))
+                self.logy = sl.use_reactive(kwargs.get("logy", ""))
+            if plottype in ["scatter", "skyplot"]:
+                self.colorlog = sl.use_reactive(
+                    kwargs.get("colorlog", cast(str, None)))
+
+            # statistics settings
+            if plottype == "heatmap" or plottype == "histogram" or "delta" in plottype:
+                self.nbins = sl.use_reactive(200)
+                if plottype == "heatmap" or plottype == "delta2d":
+                    self.bintype = sl.use_reactive(
+                        kwargs.get("bintype", "mean"))
+                    self.binscale = sl.use_reactive(
+                        kwargs.get("binscale", None))
+                else:
+                    self.bintype = sl.use_reactive(
+                        kwargs.get("bintype", "count"))
+
+            # skyplot settings
+            if plottype == "skyplot":
+                self.geo_coords = sl.use_reactive(
+                    kwargs.get("coords", "celestial"))
+                self.projection = sl.use_reactive(
+                    kwargs.get("projection", "hammer"))
+
+            # delta view settings
+            if "delta" in plottype:
+                # NOTE: view can only be created when there are 2 subsets
+                self.subset_b = sl.use_reactive(current_key)
+            # all lookup data for plottypes
+            # TODO: move this lookup data elsewhere to reduce the size of the plotstate objects
+        self.Lookup = dict(
+            norms=[
+                None, "percent", "probability", "density",
+                "probability density"
+            ],
+            bintypes=["count", "mean", "median", "sum", "min", "max", "mode"],
+            colorscales=colormaps,
+            binscales=[None, "log1p", "log10"],
+            projections=[
+                "albers",
+                "aitoff",
+                "azimuthal equal area",
+                "equal earth",
+                "hammer",
+                "mollweide",
+                "mt flat polar quartic",
+            ],
+        )
+
+    def swap_axes(self):
+        # saves current to p and q
+        p = self.x.value
+        q = self.y.value
+        self.x.value = q
+        self.y.value = p

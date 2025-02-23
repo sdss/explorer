@@ -1,45 +1,22 @@
-import os
-from typing import Callable, Optional, cast
+"""Individual plot viewcards"""
 
-from bokeh.models.grids import Grid
-from bokeh.models.plots import Plot
-from bokeh.models.ranges import DataRange1d
-from bokeh.models.tools import WheelZoomTool
-import ipyvuetify as v
-import ipywidgets as widgets
+from reacton.ipyvuetify import ValueElement
 import numpy as np
-import reacton as r
-import reacton.ipyvuetify as rv
 import solara as sl
-import ipyvuetify as ipv
-import traitlets as t
-import vaex as vx
 import xarray
-from bokeh.io import output_notebook, curdoc, push_notebook
-from bokeh.events import DocumentReady, Reset
-from bokeh.models.scales import LinearScale, LogScale, CategoricalScale
 from bokeh.models import (
     BoxSelectTool,
-    ColorBar,
-    FactorRange,
     HoverTool,
     Scatter,
     TapTool,
 )
 from bokeh.models.mappers import (
-    LinearColorMapper,
-    LogColorMapper,
-    CategoricalColorMapper,
-)
-from bokeh.models import CustomJS, OpenURL
+    LinearColorMapper, )
+from bokeh.models import CustomJS
 from bokeh.palettes import __palettes__ as colormaps
 from bokeh.models.ui import ActionItem, Menu as BokehMenu
 from bokeh.plotting import ColumnDataSource, figure
-from bokeh.models.axes import CategoricalAxis, LogAxis, LinearAxis
-from bokeh.themes import Theme
 from jupyter_bokeh import BokehModel
-from solara.components.file_drop import FileInfo
-from solara.lab import Menu
 
 from plot_utils import (
     add_all_tools,
@@ -48,9 +25,8 @@ from plot_utils import (
     generate_color_mapper_bar,
     generate_plot,
 )
-from state import plotstate, df, GridState
+from state import PlotState, df, GridState
 from figurebokeh import FigureBokeh
-from util import check_categorical
 
 TOOLS = "pan,wheel_zoom,box_zoom,reset,save,examine"
 
@@ -260,6 +236,7 @@ def HeatmapPlot():
 
     # source on selection effect
     def on_select(attr, old, new):
+        # TODO: fix this
         print(attr)
         print(old)
         print(new)
@@ -331,7 +308,7 @@ def HeatmapPlot():
 
 
 @sl.component
-def ScatterPlot():
+def ScatterPlot(plotstate: PlotState) -> ValueElement:
     filter, set_filter = sl.use_cross_filter(id(df), name="scatter")
     dark = sl.lab.use_dark_effective()
     counter = sl.use_reactive(0)
@@ -382,26 +359,6 @@ def ScatterPlot():
         p, menu = generate_plot(plotstate)
         # generate and add axes
         generate_axes(plotstate, p)
-        p.extra_x_scales = {
-            "lin": LinearScale(),
-            "log": LogScale(),
-            # "cat": CategoricalScale(),
-        }
-        p.extra_y_scales = {
-            "lin": LinearScale(),
-            "log": LogScale(),
-            # "cat": CategoricalScale(),
-        }
-        p.extra_x_ranges = {
-            "lin": DataRange1d(),
-            "log": DataRange1d(),
-            # "cat": FactorRange("foo", "bar"),
-        }
-        p.extra_y_ranges = {
-            "lin": DataRange1d(),
-            "log": DataRange1d(),
-            # "cat": FactorRange("foo", "bar"),
-        }
 
         # generate scatter points
         mapper, cb = generate_color_mapper_bar(
@@ -477,7 +434,6 @@ def ScatterPlot():
         dark_theme=DARKTHEME,
         light_theme=LIGHTTHEME,
     )
-    print(p.x_range.start, p.x_range.end)
 
     add_effects(pfig, plotstate, dff, filter, layout)
     return pfig

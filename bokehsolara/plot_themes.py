@@ -1,3 +1,5 @@
+"""Plot themes"""
+
 from bokeh.themes import Theme
 
 __all__ = ["darkprops", "lightprops", "DARKTHEME", "LIGHTTHEME"]
@@ -13,6 +15,7 @@ darkprops = {
         "minor_tick_line_color": "#BDBDBD",  # grey-lighten-1
         "axis_line_color": "#BDBDBD",
         "major_label_text_color": "#FFFFFF",  # White for labels
+        "major_label_text_font_size": "11pt",
         "axis_label_text_color": "#FFFFFF",  # White for labels
         "axis_label_text_font_size": "16pt",
     },
@@ -31,6 +34,7 @@ darkprops = {
         "background_fill_color": "#424242",
         "title_text_color": "#FFFFFF",
         "major_label_text_color": "#FFFFFF",
+        "title_text_font_size": "16pt",
     },
     "Text": {
         "text_color": "#FFFFFF",
@@ -48,6 +52,7 @@ lightprops = {
         "minor_tick_line_color": "#616161",  # grey-darken-2
         "axis_line_color": "#616161",
         "major_label_text_color": "#212121",  # grey-darken-4
+        "major_label_text_font_size": "11pt",
         "axis_label_text_color": "#212121",  # grey-darken-4
         "axis_label_text_font_size": "16pt",
     },
@@ -66,6 +71,7 @@ lightprops = {
         "background_fill_color": "#EEEEEE",
         "title_text_color": "#212121",
         "major_label_text_color": "#212121",
+        "title_text_font_size": "16pt",
     },
     "Text": {
         "text_color": "#212121",
