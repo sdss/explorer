@@ -173,8 +173,9 @@ def calculate_range(plotstate, df, axis: str = "x") -> tuple[float, float]:
     if check_categorical(expr):
         limits = (0, expr.nunique() - 1)
     else:
-        if log:
-            expr = df[df[col] > 0][col]
+        if log:  # limit to > 0 for log mapping
+            expr = np.log10(df[df[col] > 0]
+                            [col])  # TODO: may cause assertion error crashes
         try:
             limits = expr.minmax()
         except RuntimeError:
@@ -186,6 +187,9 @@ def calculate_range(plotstate, df, axis: str = "x") -> tuple[float, float]:
     pad = datarange / 20
     start = limits[0] - pad
     end = limits[1] + pad
+    if log:
+        start = 10**start
+        end = 10**end
 
     if not flip:
         return start, end
@@ -244,7 +248,7 @@ def fetch_data(plotstate, dff, axis: str = "x") -> vx.Expression:
         mapping = getattr(plotstate, f"{axis}mapping")  # categorical datamap
         colData = dff[col].map(mapping)
     else:
-        colData = dff[col]
+        colData = dff[col].values
     return colData
 
 
