@@ -42,7 +42,7 @@ def load_dataframe(
     """Loads base dataframe and applies dataset filter IMMEDIATELY to reduce memory usage"""
     dataroot_dir = get_datapath()
     if dataroot_dir:
-        logger.info("opening dataframe")
+        logger.debug("opening dataframe")
         cols = load_columns(release, datatype, dataset)
         # TODO: when we change the filegenerator, fix this here
         validCols = [
@@ -56,7 +56,7 @@ def load_dataframe(
                 f"explorerAll{datatype.capitalize()}-{VASTRA}.hdf5",
             ))
         dff = df[df[f"pipeline == '{dataset}'"]].extract()
-        logger.info("loaded dataframe!")
+        logger.debug("loaded dataframe!")
         return dff, validCols
     else:
         logger.critical("Cannot load df!")

@@ -7,6 +7,7 @@ from http import HTTPStatus
 from functools import partial
 from timeit import default_timer as timer
 
+import vaex.logging
 from fastapi import BackgroundTasks
 from typing import Dict
 from uuid import UUID, uuid4
@@ -17,6 +18,8 @@ from explorer_server.logging import setup_logging
 from explorer_server.filter import filter_dataframe
 
 setup_logging()
+
+vaex.logging.remove_handler()  # dump handler
 
 logger = logging.getLogger("explorerdownload")
 

@@ -1,4 +1,5 @@
 import os
+import logging
 from uuid import UUID
 import operator
 from functools import reduce
@@ -11,6 +12,8 @@ from sdss_explorer.filter_functions import (
     filter_expression,
 )
 
+logger = logging.getLogger("explorerdownload")
+
 SCRATCH = os.getenv("EXPLORER_SCRATCH", default="./scratch")
 
 
@@ -22,22 +25,25 @@ def filter_dataframe(uuid: UUID, release: str, datatype: str, dataset: str,
         raise Exception("dataframe/columns oad failed")
     filters = list()
 
+    # generic unpack
     name = kwargs.get("name", "A")
-
-    # generic
     combotype = kwargs.get("combotype", "AND")
     invert = kwargs.get("invert", False)
+    expression = kwargs.get("expression", "")
+    carton = kwargs.get("carton", None)
+    mapper = kwargs.get("mapper", None)
+    flags = kwargs.get("flags", None)
+    # show console
+    logger.info(f"{uuid}: requests {release}/{datatype}/{dataset}")
+    logger.info(
+        f"{uuid}: requests {expression} with {carton} {mapper} {flags}")
 
     # expression, etc
-    expression = kwargs.get("expression", "")
     if expression:
         filters.append(
             filter_expression(dff, columns, expression, invert=invert))
 
     # process list-like data
-    carton = kwargs.get("carton", None)
-    mapper = kwargs.get("mapper", None)
-    flags = kwargs.get("flags", None)
     if carton:
         carton = carton.split(",")
     if mapper:

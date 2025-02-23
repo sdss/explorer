@@ -56,4 +56,4 @@ if __name__ == "__main__":
             p = Process(target=send_req, args=(params, ))
             p.start()
             print(f"Started process {i}", )
-        time.sleep(60)
+        time.sleep(20)
