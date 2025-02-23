@@ -1,21 +1,28 @@
 import os
 from uuid import UUID
-import numpy as np
 import operator
 from functools import reduce
+from datetime import datetime
 
 from .dataframe import load_dataframe, mappings
-from sdss_explorer.filter_functions import filter_carton_mapper, filter_flags
+from sdss_explorer.filter_functions import (
+    filter_carton_mapper,
+    filter_flags,
+    filter_expression,
+)
 
-SCRATCH = os.getenv("EXPLORER_SCRATCH",
-                    default="/home/riley/projects/sdss_dashboard/scratch")
+SCRATCH = os.getenv("EXPLORER_SCRATCH", default="./scratch")
 
 
 def filter_dataframe(uuid: UUID, release: str, datatype: str, dataset: str,
                      **kwargs):
     """Filters dataframe based on public functions from Explorer"""
-    dff = load_dataframe(release, datatype, dataset)
+    dff, columns = load_dataframe(release, datatype, dataset)
+    if (dff is None) or (columns is None):
+        raise Exception("dataframe/columns oad failed")
     filters = list()
+
+    name = kwargs.get("name", "A")
 
     # generic
     combotype = kwargs.get("combotype", "AND")
@@ -24,8 +31,10 @@ def filter_dataframe(uuid: UUID, release: str, datatype: str, dataset: str,
     # expression, etc
     expression = kwargs.get("expression", "")
     if expression:
-        filters.append(dff[expression])
+        filters.append(
+            filter_expression(dff, columns, expression, invert=invert))
 
+    # process list-like data
     carton = kwargs.get("carton", None)
     mapper = kwargs.get("mapper", None)
     flags = kwargs.get("flags", None)
@@ -39,26 +48,35 @@ def filter_dataframe(uuid: UUID, release: str, datatype: str, dataset: str,
         cmp_filter = filter_carton_mapper(
             dff,
             mappings,
+            carton,
+            mapper,
             combotype=combotype,
             invert=invert,
         )
         filters.append(cmp_filter)
     if flags:
-        flagfilter = filter_flags(dff, dataset, invert=invert)
+        flagfilter = filter_flags(dff, flags, dataset, invert=invert)
         filters.append(flagfilter)
 
     # concat all and go!
     if filters:
-        totalfilter = reduce(operator.__and__, filters)
-        dfe = dff[totalfilter].extract()
+        totalfilter = reduce(operator.__and__,
+                             [f for f in filters if f is not None])
+        dfe = dff[totalfilter]
     else:
         dfe = dff
+    dfe = dfe[columns].extract()
+    if len(dfe) == 0:
+        print(uuid)
+        print(dataset, datatype)
+        print(carton, mapper)
+        print([filter.__str__() for filter in filters])
+        raise Exception("attempting to export 0 rows")
 
     # make directory and pass back after successful export
     os.makedirs(os.path.join(SCRATCH, str(uuid)), exist_ok=True)
-    filepath = os.path.join(SCRATCH, str(uuid), "subsettest.parquet")
+    currentTime = "{date:%Y-%m-%d_%H:%M:%S}".format(date=datetime.now())
+    filepath = os.path.join(SCRATCH, str(uuid),
+                            f"subset-{name}-{currentTime}.parquet")
     dfe.export_parquet(filepath)
     return filepath
-
-
-("aspcap", "apogeenet", "spall")[np.random.randint(0, 3)]

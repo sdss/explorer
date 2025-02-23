@@ -27,14 +27,18 @@ mappings = vx.open(os.path.join(get_datapath(), "mappings.parquet"))
 def load_columns(release: str, datatype: str, dataset: str):
     """Loads the given columns for a release and datatype"""
     with open(
-            os.path.join(EXPLORER_DATAPATH, "ipl3",
-                         f"columnsAllStar-{VASTRA}.json")) as f:
+            os.path.join(
+                EXPLORER_DATAPATH,
+                release,
+                f"columnsAll{datatype.capitalize()}-{VASTRA}.json",
+            )) as f:
         columns = json.load(f)
     return columns[dataset]
 
 
-def load_dataframe(release: str, datatype: str,
-                   dataset: str) -> vx.DataFrame | None:
+def load_dataframe(
+        release: str, datatype: str,
+        dataset: str) -> tuple[vx.DataFrame | None, list[str] | None]:
     """Loads base dataframe and applies dataset filter IMMEDIATELY to reduce memory usage"""
     dataroot_dir = get_datapath()
     if dataroot_dir:
@@ -51,9 +55,9 @@ def load_dataframe(release: str, datatype: str,
                 release,
                 f"explorerAll{datatype.capitalize()}-{VASTRA}.hdf5",
             ))
-        dff = df[df[f"pipeline == '{dataset}'"]][validCols].extract()
+        dff = df[df[f"pipeline == '{dataset}'"]].extract()
         logger.info("loaded dataframe!")
-        return dff
+        return dff, validCols
     else:
         logger.critical("Cannot load df!")
-        return
+        return None, None
