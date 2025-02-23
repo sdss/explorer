@@ -1,5 +1,6 @@
 """Main user-facing subset components"""
 
+from typing import List, Union, Tuple
 import solara as sl
 import vaex as vx
 import numpy as np
@@ -82,13 +83,12 @@ def SubsetMenu() -> ValueElement:
 @sl.component()
 def SubsetCard(key: str) -> ValueElement:
     """Holds filter update info, card structure, and calls to options"""
-    df = State.df.value
-    filter, _set_filter = use_subset(id(df), key, "subset-summary")
     subset = SubsetState.subsets.value[key]
+    df = subset.df
+    if df is None:
+        df = State.df.value
+    filter, _set_filter = use_subset(id(df), key, "subset-summary")
     name = subset.name
-    dataset = subset.dataset
-
-    dfp = df[df[f"(pipeline == '{dataset}')"]]
 
     # progress bar logic
     if isinstance(filter, vx.Expression):
@@ -97,10 +97,30 @@ def SubsetCard(key: str) -> ValueElement:
     else:
         # not filtered at all
         dff = df
-    filtered = len(dff) < len(dfp)
-    denom = max(len(dfp), 1)
-    progress = len(dff) / denom * 100
-    summary = f"{len(dff):,}"
+
+    def get_lengths():
+        length = df.count()[()]
+
+        # BUG: this bypassses the AssertionError on chunks
+        try:
+            filtered_length_promise = dff.count(delay=True)
+            dff.execute()
+            filtered_length = filtered_length_promise.get()[()]
+        except AssertionError as e:
+            from ...dataclass import Alert
+
+            Alert.update(color="error", message="Failed to retrieve n rows!")
+            filtered_length = 0
+
+        return length, filtered_length
+
+    length, filtered_length = sl.use_memo(get_lengths,
+                                          dependencies=[dff, filter])
+
+    filtered = filtered_length < length
+    denom = max(length, 1)
+    progress = filtered_length / denom * 100
+
     with rv.ExpansionPanel() as main:
         with rv.ExpansionPanelHeader():
             with sl.Row(gap="0px"):
@@ -113,7 +133,7 @@ def SubsetCard(key: str) -> ValueElement:
                             children=["mdi-filter"],
                             style_="opacity:e0.1" if not filtered else "",
                         ),
-                        summary,
+                        f"{filtered_length:,}",
                     ],
                 )
 

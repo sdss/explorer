@@ -17,20 +17,43 @@ logger = logging.getLogger("sdss_explorer")
 if sl.server.settings.main.mode == "production":
     vx.logging.remove_handler()  # force remove handler on production instance
 
+VASTRA = "0.6.0"
 
-def _datapath():
+
+def _datapath() -> str | None:
     """fetches path to parquet files from envvar"""
-    datapath = os.getenv(
-        "EXPLORER_DATAPATH"
-    )  # NOTE: does not expect a slash at end of the envvar, can account for it in future
+    # NOTE: does not expect a slash at end of the envvar, can account for it in future
+    datapath = os.getenv("EXPLORER_DATAPATH", default=None)
     if datapath:
         return datapath
     else:
+        logger.critical("Datapath envvar is not set! App cannot function.")
         return None
 
 
+def load_column_json(release: str, datatype: str) -> dict | None:
+    """Load the pre-compiled column JSON for a given dataset."""
+    # get dataset name
+    datapath = _datapath()
+
+    # fail case for no envvar
+    if datapath is None:
+        return None
+
+    file = f"{release}/columnsAll{datatype.capitalize()}-{VASTRA}.json"
+
+    try:
+        with open(f"{datapath}/{file}") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        data = None
+        logger.critical(
+            f"Expected to find {file} for column lookup, didn't find it.")
+    return data
+
+
 def open_file(filename):
-    """Loader for files to ensure authorization/etc"""
+    """Vaex open wrapper for datafiles to ensure authorization/file finding."""
     # get dataset name
     datapath = _datapath()
 
@@ -39,32 +62,42 @@ def open_file(filename):
         return None
 
     # TODO: verify auth status when attempting to load a working group dataset
-
-    # fail case for no file found
     try:
         dataset = vx.open(f"{datapath}/{filename}")
+        dataset = dataset.shuffle(
+            random_state=42
+        )  # shuffle to ensure skyplot looks nice, constant seed for reproducibility
         return dataset
-    except Exception as e:  # noqa
-        # NOTE: this should deal with exception quietly; can be changed later if desired
-        logger.debug(f"Exception on dataload encountered: {e}")
+    except FileNotFoundError:
+        logger.critical(
+            f"Expected to find {filename} for dataframe, didn't find it.")
+        return None
+    except Exception as e:
+        logger.debug(f"caught exception on dataframe load: {e}")
         return None
 
 
 def load_datamodel() -> pd.DataFrame | None:
-    """Loader for datamodel"""
-    # TODO: replace with a real datamodel from the real things
+    """Loads a given compiled datamodel, used in conjunction with the column glossary"""
     datapath = _datapath()
     # no datapath
     if datapath is None:
         return None
 
     # no fail found
+    # TODO: replace with a real datamodel from the real things
+    file = "ipl3_partial.json"
     try:
-        with open(f"{_datapath()}/ipl3_partial.json") as f:
+        with open(f"{_datapath()}/{file}") as f:
             data = json.load(f).values()
             f.close()
-        return pd.DataFrame(data)
-    except Exception:
+        return pd.DataFrame(data)  # TODO: back to vaex
+    except FileNotFoundError as e:
+        logger.critical(
+            f"Expected to find {file} for column glossary datamodel, didn't find it: {e}"
+        )
+    except Exception as e:
+        logger.debug(f"caught exception on datamodel loader: {e}")
         return None
 
 
@@ -72,16 +105,19 @@ class StateData:
     """Holds app-wide state variables"""
 
     def __init__(self):
-        # global, read-only reactives, dont care
-        self.mapping = sl.reactive(open_file("mappings.parquet"))
-        self.datamodel = sl.reactive(load_datamodel())
+        # globally shared, read only files
+        self.mapping = sl.reactive(
+            open_file("mappings.parquet"))  # mappings for bitmasks
+        self.datamodel = sl.reactive(load_datamodel())  # datamodel spec
 
-        # these force load
-        self._release = sl.reactive("dr19")
-        self._datatype = sl.reactive("star")
+        # app settings, underscored to hide prop
+        self._release = sl.reactive(cast(str, None))  # TODO: dr19
+        self._datatype = sl.reactive(cast(str, None))
 
-        # adaptively rerendered
-        self.df = sl.reactive(cast(vx.DataFrame, None))
+        # adaptively rerendered on changes; set on startup in app root
+        self.df = sl.reactive(cast(vx.DataFrame, None))  # main datafile
+        self.columns = sl.reactive(cast(
+            dict, None))  # column glossary for guardrailing
 
         # user-binded instances
         # NOTE: this approach allows UUID + subsetstore to be read-only
@@ -91,7 +127,7 @@ class StateData:
 
     def load_dataset(self,
                      release: Optional[str] = None,
-                     datatype: Optional[str] = None) -> None:
+                     datatype: Optional[str] = None) -> bool:
         # use attributes if not manually overridden
         if not release:
             release = self.release
@@ -101,58 +137,53 @@ class StateData:
         # start with standard open operation
         # TODO: redux version via envvar?
         df = open_file(
-            f"{release}/explorerAll{datatype.capitalize()}-0.6.0.hdf5")
+            f"{release}/explorerAll{datatype.capitalize()}-{VASTRA}.hdf5")
+        columns = load_column_json(release, datatype)
 
-        if df is None:
+        if (df is None) and (columns is None):
             logger.critical(
-                "No dataset loaded, ensure all options are setup (files, envvars)"
+                "Part of dataset load failed! ensure everything is setup (files, envvars)"
             )
-            return
+            return False
 
-        # shuffle to ensure skyplot looks nice, constant seed for reproducibility
-        # df = df.shuffle(random_state=42)
-
-        # create inaccessible indices column for target flags filtering
-
-        # force materialization of target_flags column to maximize the performance
-        # NOTE: embedded in a worker process, we will eat up significant memory with this command
-        #  this is because all workers will materialize the column
-        # TODO: to minimize this, we could add --preload option to solara or FastAPI runner, so that it forks the workers from the base instance.
-        # NOTE: vaex has an add_column method, but as stated above, it will overload our worker process.
-        #  for more info, see: https://vaex.io/docs/guides/performance.html
-        df = df.materialize()
-
+        # set reactives
         self.df.set(df)
+        self.columns.set(columns)
 
-        return
+        return True
 
     @property
     def release(self):
+        """Current release of app (dr19, etc)"""
         return str(self._release.value)
 
     @property
     def datatype(self):
+        """Current datatype of app (star or visit)"""
         return str(self._datatype.value)
 
     @property
     def uuid(self):
+        """User ID; Solara Session ID"""
         return str(self._uuid.value)
 
     @property
     def kernel_id(self):
+        """Virtual kernel ID"""
         return str(self._kernel_id.value)
 
     @property
     def subset_store(self):
+        """Internal subset backend"""
         return self._subset_store.value
 
     def __repr__(self) -> str:
-        """Show relevant properties of class as string"""
+        """Show relevant properties of class as string."""
         return "\n".join(
             f"{k:15}: {v}" for k, v in {
                 "uuid": self.uuid,
                 "kernel_id": self.kernel_id,
-                "df": hex(id(self.df.value)),
+                "df": hex(id(self.df.value)),  # dataframe mem address
                 "subset_backend": hex(id(self.subset_store)),
                 "release": self.release,
                 "datatype": self.datatype,

@@ -13,7 +13,7 @@ import reacton.ipyvuetify as rv
 import solara as sl
 from reacton.core import ValueElement
 
-from ...dataclass import Alert, State, SubsetState, use_subset
+from ...dataclass import Alert, State, SubsetState, use_subset, VCData
 from ..textfield import InputTextExposed
 from .autocomplete import AutocompleteSelect, SingleAutocomplete
 from .glossary import Help
@@ -41,8 +41,8 @@ flagList = {
 def ExprEditor(key: str, invert) -> ValueElement:
     """Expression editor."""
     # state for expreditor
-    df = State.df.value
     subset = SubsetState.subsets.value[key]
+    df = subset.df
 
     _, set_expfilter = use_subset(id(df), key, "expr", write_only=True)
 
@@ -155,7 +155,7 @@ def ExprEditor(key: str, invert) -> ValueElement:
             return False
 
     result: sl.Result[bool] = sl.lab.use_task(
-        update_expr, dependencies=[expression, invert.value])
+        update_expr, dependencies=[expression, subset.dataset, invert.value])
     if result.finished:
         if result.value:
             errorFound = False
@@ -227,25 +227,42 @@ def ExprEditor(key: str, invert) -> ValueElement:
 @sl.component()
 def DatasetSelect(key: str, dataset, set_dataset) -> ValueElement:
     """Select box for pipeline, also sets columns on dataset change."""
+    subset = SubsetState.subsets.value[key]
     df = State.df.value
 
     def fetch() -> list:
-        return State.df.value["pipeline"].unique()
+        """Get complete list of all pipelines for this release/datatype"""
+        return df["pipeline"].unique()
 
     pipelines = sl.use_memo(
         fetch, dependencies=[df, State._release.value, State._datatype.value])
 
-    # TODO: move this thread somewhere better
-    def update_columns():
-        """Guardrails column selection to only columns that are not all NaN"""
-        # TODO
-        SubsetState.update_subset(
-            key,
-            columns=df.get_column_names(),
-        )
-        return
+    def update_dataframe():
+        """Changes dataframe for given subset"""
+        dfg = State.df.value
 
-    sl.lab.use_task(update_columns, dependencies=[State.df.value, dataset])
+        # WARNING: this needs to be shallow copied EVERY TIME, else you get
+        # weird errors with the vaex chunking because the caches becomes invalidated
+        newdf = dfg[dfg[f"(pipeline=='{dataset}')"]].copy().extract()
+        newdf = newdf.materialize()  # ensure thing works
+
+        if (dfg is not None) and (State.columns.value is not None):
+            SubsetState.update_subset(key,
+                                      df=newdf,
+                                      columns=State.columns.value[dataset])
+        return newdf
+
+    # use memo so this runs and BLOCKS other tasks; this needs to run BEFORE everything else.
+    sl.use_memo(update_dataframe, dependencies=[df, dataset])
+
+    def ensure_vc():
+        """Ensures all Virtual columns are in and/or removed from current df."""
+        sdf = subset.df
+        for name, expr in VCData.columns.value.items():
+            if name not in sdf.virtual_columns.keys():
+                sdf.add_virtual_column(name, expr)
+
+    sl.lab.use_task(ensure_vc, dependencies=[subset.df, VCData.columns.value])
 
     return SingleAutocomplete(
         label="Dataset",
@@ -258,8 +275,8 @@ def DatasetSelect(key: str, dataset, set_dataset) -> ValueElement:
 @sl.component()
 def FlagSelect(key: str, invert) -> ValueElement:
     """Select box with callback for filters."""
-    df = State.df.value
     subset = SubsetState.subsets.value[key]
+    df = subset.df
     _, set_flagfilter = use_subset(id(df), key, "flags", write_only=True)
     flags, set_flags = (
         subset.flags,
@@ -281,7 +298,7 @@ def FlagSelect(key: str, invert) -> ValueElement:
             # Determine the final concatenated filter
             if filters:
                 # Join the filters with ")&(" and wrap them in outer parentheses
-                concat_filter = f"(({'&)('.join(filters)}))"
+                concat_filter = f"(({')&('.join(filters)}))"
                 concat_filter = df[concat_filter]
                 if invert.value:
                     concat_filter = ~concat_filter
@@ -309,9 +326,9 @@ def FlagSelect(key: str, invert) -> ValueElement:
 @sl.component()
 def TargetingFiltersPanel(key: str, invert) -> ValueElement:
     """Holds expansion panels for complex filtering"""
-    df = State.df.value
     mapping = State.mapping.value
     subset = SubsetState.subsets.value[key]
+    df = subset.df
     _, set_cmfilter = use_subset(id(df), key, "cartonmapper", write_only=True)
     # handlers for mapper/carton/data/setflags
     mapper, set_mapper = (
@@ -339,10 +356,6 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
                 color="warning",
             )
             return
-
-        # create filtered version for efficient filtering
-        pipelineFilter = df[f"(pipeline=='{dataset}')"]
-        dff: vx.DataFrame = df[pipelineFilter]
 
         # mapper + cartons
         logger.info(f"MAPPER: {mapper}")
@@ -374,20 +387,8 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
                 filters[unique] = np.bitwise_or.reduce(offsets)
 
             cmp_filter = df.func.check_flags(df["sdss5_target_flags"], filters)
-            # generate another filtered frame based on the custom function
-            # dfcm: vx.Expression = dff[dff.func.check_flags(
-            #    dff["sdss5_target_flags"], filters)]["__target_flags_filter__"]
-
-            ## regenerate the filter for the original dataframe
-            # cmp_filter = df["__target_flags_filter__"].isin(dfcm.values)
         else:
             cmp_filter = None
-
-        # convert chosens to bool mask
-        if cmp_filter:
-            cmp_filter = operator_map[combotype](cmp_filter, pipelineFilter)
-        else:
-            cmp_filter = pipelineFilter
 
         # invert if requested
         if invert.value:
@@ -399,8 +400,8 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
 
         return cmp_filter
 
-    result = sl.lab.use_task(
-        update_cm, dependencies=[df, mapper, carton, dataset, invert.value])
+    result = sl.lab.use_task(update_cm,
+                             dependencies=[df, mapper, carton, invert.value])
 
     open, set_open = sl.use_state([])
     with rv.ExpansionPanels(flat=True,

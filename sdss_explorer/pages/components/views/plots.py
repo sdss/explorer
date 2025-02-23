@@ -175,10 +175,8 @@ class PlotState:
         except:
             pass
 
-        # valid_columns = SubsetState.subsets.value[
-        #    self.subset.value].columns + list(VCData.columns.value.keys())
-        valid_columns = State.df.value.get_column_names(virtual=False) + list(
-            VCData.columns.value.keys())
+        valid_columns = SubsetState.subsets.value.get(
+            self.subset.value).columns + list(VCData.columns.value.keys())
 
         # columnar resets for table
         if "stats" in self.plottype:
@@ -192,18 +190,22 @@ class PlotState:
         # columnar resets for plots
         else:
             if self.x.value not in valid_columns:
-                Alert.update("VC removed! Column reset to 'teff'",
-                             color="info")
-                self.x.value = "teff"
+                Alert.update(
+                    "Columns of subset changed! Column reset to 'g_mag'",
+                    color="info")
+                self.x.value = "g_mag"
             if self.plottype != "histogram":
                 if self.y.value not in valid_columns:
-                    Alert.update("VC removed! Column reset to 'logg'",
-                                 color="info")
-                    self.y.value = "logg"
+                    Alert.update(
+                        "Columns of subset changed! Column reset to 'snr'",
+                        color="info")
+                    self.y.value = "snr"
                 if self.color.value not in valid_columns:
-                    Alert.update("VC removed! Column reset to 'fe_h'",
-                                 color="info")
-                    self.color.value = "fe_h"
+                    Alert.update(
+                        "Columns of subset changed! Column reset to 'g_mag'",
+                        color="info",
+                    )
+                    self.color.value = "g_mag"
 
     def update_subset(self, name: str, b: bool = False):
         """Callback to update subset by name."""
@@ -289,7 +291,7 @@ def show_plot(plottype, del_func, **kwargs):
 @sl.component()
 def ScatterPlot(plotstate):
     """Scattergl rendered scatter plot for single subset"""
-    df: vx.DataFrame = State.df.value
+    df: vx.DataFrame = SubsetState.subsets.value[plotstate.subset.value].df
     dark = use_dark_effective()
     filter, set_filter = use_subset(id(df), plotstate.subset, "scatter")
     relayout, set_relayout = sl.use_state({})
@@ -358,7 +360,12 @@ def ScatterPlot(plotstate):
         x = dff[plotstate.x.value].values
         y = dff[plotstate.y.value].values
         c = dff[plotstate.color.value].values
-        ids = dff["sdss_id"].values
+
+        # BUG: this fixes a bug where vaex Asserts a chunk error
+        try:
+            ids = dff["sdss_id"].values
+        except AssertionError:
+            ids = dff.extract()["sdss_id"].values
         figure = go.Figure(
             data=go.Scattergl(
                 x=x,
@@ -447,10 +454,22 @@ def ScatterPlot(plotstate):
 
         def update_data():
             fig_widget: FigureWidget = sl.get_widget(fig_element)
+            x = dff[plotstate.x.value].values
+            y = dff[plotstate.y.value].values
+            if len(dff) > 0:
+                # BUG: this fixes a bug where vaex Asserts a chunk error
+                try:
+                    ids = dff["sdss_id"].values
+                except AssertionError:
+                    ids = dff.extract()["sdss_id"].values
+            else:
+                x = []
+                y = []
+                ids = []
             fig_widget.update_traces(
-                x=dff[plotstate.x.value].values,
-                y=dff[plotstate.y.value].values,
-                customdata=dff["sdss_id"].values,
+                x=x,
+                y=y,
+                customdata=ids,
                 hovertemplate=(f"<b>{plotstate.x.value}</b>:" +
                                " %{x:.6f}<br>" +
                                f"<b>{plotstate.y.value}</b>:" +
@@ -502,11 +521,14 @@ def ScatterPlot(plotstate):
                 return
 
             # scale by log if wanted
-            c = dff[plotstate.color.value].values
-            if plotstate.colorlog.value == "log1p":
-                c = np.log1p(c)
-            elif plotstate.colorlog.value == "log10":
-                c = np.log10(c)
+            if len(dff) > 0:
+                c = dff[plotstate.color.value].values
+                if plotstate.colorlog.value == "log1p":
+                    c = np.log1p(c)
+                elif plotstate.colorlog.value == "log10":
+                    c = np.log10(c)
+            else:
+                c = []
 
             fig_widget.update_traces(
                 marker=dict(
@@ -603,7 +625,7 @@ def ScatterPlot(plotstate):
 @sl.component()
 def HistogramPlot(plotstate):
     """Histogram plot for single subset"""
-    df: vx.DataFrame = State.df.value
+    df: vx.DataFrame = SubsetState.subsets.value[plotstate.subset.value].df
     xcol = plotstate.x.value
     nbins = plotstate.nbins.value
     filter, set_filter = use_subset(id(df), plotstate.subset, "histogram")
@@ -854,7 +876,7 @@ def HistogramPlot(plotstate):
 @sl.component()
 def HeatmapPlot(plotstate):
     """2D Histogram plot (Heatmap) for single subset"""
-    df = State.df.value
+    df: vx.DataFrame = SubsetState.subsets.value[plotstate.subset.value].df
     filter, set_filter = use_subset(id(df), plotstate.subset,
                                     "filter-aggregated")
     dark = use_dark_effective()
@@ -1174,7 +1196,7 @@ def HeatmapPlot(plotstate):
 @sl.component()
 def SkymapPlot(plotstate):
     """Sky projection plot of stars for a single subset."""
-    df = State.df.value
+    df: vx.DataFrame = SubsetState.subsets.value[plotstate.subset.value].df
     filter, set_filter = use_subset(id(df), plotstate.subset, "filter-skyplot")
     dark = use_dark_effective()
     relayout, set_relayout = sl.use_state({})
@@ -1260,7 +1282,11 @@ def SkymapPlot(plotstate):
         lon = dff["ra"].values
         lat = dff["dec"].values
         c = dff[plotstate.color.value].values
-        ids = dff["sdss_id"].values
+        # BUG: this fixes a bug where vaex Asserts a chunk error
+        try:
+            ids = dff["sdss_id"].values
+        except AssertionError:
+            ids = dff.extract()["sdss_id"].values
 
         figure = go.Figure(
             data=go.Scattergeo(
@@ -1350,16 +1376,24 @@ def SkymapPlot(plotstate):
 
             # update main trace
             if plotstate.geo_coords.value == "celestial":
-                lon = "ra"
-                lat = "dec"
+                loncol = "ra"
+                latcol = "dec"
             else:
-                lon = "l"
-                lat = "b"
+                loncol = "l"
+                latcol = "b"
+
+            lon = dff[loncol].values
+            lat = dff[latcol].values
+            # BUG: this fixes a bug where vaex Asserts a chunk error
+            try:
+                ids = dff["sdss_id"].values
+            except AssertionError:
+                ids = dff.extract()["sdss_id"].values
 
             fig_widget.update_traces(
-                lon=dff[lon].values,
-                lat=dff[lat].values,
-                customdata=dff["sdss_id"].values,
+                lon=lon,
+                lat=lat,
+                customdata=ids,
                 selector=dict(type="scattergeo", name=""),
             )
 
@@ -1469,7 +1503,7 @@ def SkymapPlot(plotstate):
 @sl.component()
 def StatisticsTable(state):
     """Statistics description view for the dataset."""
-    df = State.df.value
+    df: vx.DataFrame = SubsetState.subsets.value[state.subset.value].df
     filter, set_filter = use_subset(id(df), state.subset, name="statsview")
     columns, set_columns = state.columns.value, state.columns.set
 

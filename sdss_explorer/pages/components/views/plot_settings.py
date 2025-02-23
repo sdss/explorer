@@ -6,45 +6,47 @@ from solara.components.columns import Columns
 
 from sdss_explorer.pages.dataclass.vcdata import VCData
 
-from ...dataclass import State, SubsetState, Subset
+from ...dataclass import SubsetState, Subset
 from ..sidebar.autocomplete import SingleAutocomplete, AutocompleteSelect
 
 
 def show_settings(type, state):
     """Wrapper to case switch logic for menus"""
-    # plot controls
-    if type == "scatter":
-        return ScatterMenu(state)
-    elif type == "histogram":
-        return HistogramMenu(state)
-    elif type == "heatmap":
-        return HeatmapMenu(state)
-    elif type == "skyplot":
-        return SkymapMenu(state)
-    elif type == "delta2d":
-        return DeltaHeatmapMenu(state)
-    elif type == "stats":
-        return StatisticsTableMenu(state)
-
-
-@sl.component()
-def SkymapMenu(plotstate):
-    """Settings for SkymapPlot"""
-    columns = SubsetState.subsets.value[plotstate.subset.value].columns + list(
-        VCData.columns.value.keys())
+    subset = SubsetState.subsets.value.get(state.subset.value,
+                                           Subset(name="temp"))
+    columns = list(VCData.columns.value.keys()) + subset.columns
     sl.lab.use_task(
-        plotstate.reset_values,
+        state.reset_values,
         dependencies=[
             len(SubsetState.subsets.value),
             SubsetState.subsets.value,
+            VCData.columns.value,
+            subset.dataset,
         ],
     )
-
     name, names = (
-        SubsetState.subsets.value.get(plotstate.subset.value,
-                                      Subset(name="temp")).name,
+        subset.name,
         [ss.name for ss in SubsetState.subsets.value.values()],
     )
+
+    # specific plot controls
+    if type == "scatter":
+        return ScatterMenu(state, columns, name, names)
+    elif type == "histogram":
+        return HistogramMenu(state, columns, name, names)
+    elif type == "heatmap":
+        return HeatmapMenu(state, columns, name, names)
+    elif type == "skyplot":
+        return SkymapMenu(state, columns, name, names)
+    elif type == "delta2d":
+        return None  # DeltaHeatmapMenu(state, columns, name, names)
+    elif type == "stats":
+        return StatisticsTableMenu(state, columns, name, names)
+
+
+@sl.component()
+def SkymapMenu(plotstate, columns, name, names):
+    """Settings for SkymapPlot"""
 
     with sl.Columns([1, 1]):
         with Card(margin=0):
@@ -88,23 +90,8 @@ def SkymapMenu(plotstate):
 
 
 @sl.component()
-def ScatterMenu(plotstate):
+def ScatterMenu(plotstate, columns, name, names):
     """Settings for ScatterPlot"""
-    columns = SubsetState.subsets.value[plotstate.subset.value].columns + list(
-        VCData.columns.value.keys())
-    sl.lab.use_task(
-        plotstate.reset_values,
-        dependencies=[
-            len(SubsetState.subsets.value),
-            SubsetState.subsets.value,
-        ],
-    )
-
-    name, names = (
-        SubsetState.subsets.value.get(plotstate.subset.value,
-                                      Subset(name="temp")).name,
-        [ss.name for ss in SubsetState.subsets.value.values()],
-    )
     with sl.Card():
         SingleAutocomplete(
             label="Subset",
@@ -162,23 +149,8 @@ def ScatterMenu(plotstate):
 
 
 @sl.component()
-def HistogramMenu(plotstate):
+def HistogramMenu(plotstate, columns, name, names):
     """Settings for HistogramPlot"""
-    columns = SubsetState.subsets.value[plotstate.subset.value].columns + list(
-        VCData.columns.value.keys())
-    sl.lab.use_task(
-        plotstate.reset_values,
-        dependencies=[
-            len(SubsetState.subsets.value),
-            SubsetState.subsets.value,
-        ],
-    )
-
-    name, names = (
-        SubsetState.subsets.value.get(plotstate.subset.value,
-                                      Subset(name="temp")).name,
-        [ss.name for ss in SubsetState.subsets.value.values()],
-    )
 
     with sl.Card():
         SingleAutocomplete(
@@ -216,22 +188,8 @@ def HistogramMenu(plotstate):
 
 
 @sl.component()
-def HeatmapMenu(plotstate):
+def HeatmapMenu(plotstate, columns, name, names):
     """Settings for HeatmapPlot"""
-    columns = SubsetState.subsets.value[plotstate.subset.value].columns + list(
-        VCData.columns.value.keys())
-    sl.lab.use_task(
-        plotstate.reset_values,
-        dependencies=[
-            len(SubsetState.subsets.value),
-            SubsetState.subsets.value,
-        ],
-    )
-    name, names = (
-        SubsetState.subsets.value.get(plotstate.subset.value,
-                                      Subset(name="temp")).name,
-        [ss.name for ss in SubsetState.subsets.value.values()],
-    )
 
     with sl.Columns([1, 1]):
         with sl.Card():
@@ -301,21 +259,8 @@ def HeatmapMenu(plotstate):
 
 
 @sl.component()
-def StatisticsTableMenu(state):
+def StatisticsTableMenu(state, columns, name, names):
     """Settings menu for Statistics Table view."""
-    sl.lab.use_task(
-        state.reset_values,
-        dependencies=[
-            len(SubsetState.subsets.value),
-            SubsetState.subsets.value,
-        ],
-    )
-
-    name, names = (
-        SubsetState.subsets.value.get(state.subset.value,
-                                      Subset(name="temp")).name,
-        [ss.name for ss in SubsetState.subsets.value.values()],
-    )
     with sl.Columns([2, 1]):
         AutocompleteSelect(
             state.columns.value,
@@ -339,7 +284,8 @@ def StatisticsTableMenu(state):
 @sl.component()
 def DeltaHeatmapMenu(plotstate):
     """Settings for DeltaHeatmapPlot"""
-    columns = SubsetState.subsets.value[plotstate.subset.value].columns
+    columns = (list(VCData.columns.value.keys()) +
+               SubsetState.subsets.value[plotstate.subset.value].columns)
     sl.lab.use_task(
         plotstate.reset_values,
         dependencies=[

@@ -2,6 +2,7 @@
 
 import dataclasses
 import solara as sl
+import vaex as vx
 
 from .alert import Alert
 from .state import State
@@ -14,12 +15,25 @@ class Subset:
 
     name: str = "A"
     expression: str = ""
-    dataset: str = "best" if State._datatype.value is "star" else "apogeenet"
+    df: vx.DataFrame = State.df.value
+    dataset: str = "best" if State._datatype.value == "star" else "apogeenet"
     flags: list[str] = dataclasses.field(
         default_factory=lambda: ["purely non-flagged"])
     mapper: list[str] = dataclasses.field(default_factory=list)
     carton: list[str] = dataclasses.field(default_factory=list)
     columns: list[str] = dataclasses.field(default_factory=list)
+
+    def __repr__(self) -> str:
+        return "\n".join(
+            f"{k:15}: {v}" for k, v in {
+                "name": self.name,
+                "id": State.uuid,
+                "df": hex(id(self.df)),
+                "expression": self.expression,
+                "dataset": self.dataset,
+                "carton": self.carton,
+                "mapper": self.mapper,
+            }.items())
 
 
 class SubsetData:
