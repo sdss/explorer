@@ -7,6 +7,7 @@ import xarray
 from bokeh.models import (
     BoxSelectTool,
     HoverTool,
+    Rect,
     Scatter,
     TapTool,
 )
@@ -20,7 +21,9 @@ from jupyter_bokeh import BokehModel
 
 from plot_utils import (
     add_all_tools,
+    add_callbacks,
     calculate_range,
+    generate_tooltips,
     generate_axes,
     generate_color_mapper_bar,
     generate_plot,
@@ -36,282 +39,80 @@ index_context = sl.create_context(0)
 # https://docs.bokeh.org/en/latest/docs/user_guide/interaction/js_callbacks.html#customjs-for-topics-events
 
 from plot_themes import LIGHTTHEME, DARKTHEME
-from plot_effects import add_effects
-
-
-def get_data():
-    expr = (df[plotstate.x.value], df[plotstate.y.value])
-    expr_c = df[plotstate.color.value]
-    bintype = plotstate.bintype.value
-    try:
-        limits = [
-            df.minmax(plotstate.x.value),
-            df.minmax(plotstate.y.value),
-        ]
-    except:
-        # NOTE: empty tuple acts as index for the 0th of 0D array
-        limits = [
-            [
-                df.min(plotstate.x.value)[()],
-                df.max(plotstate.x.value)[()],
-            ],
-            [
-                df.min(plotstate.y.value)[()],
-                df.max(plotstate.y.value)[()],
-            ],
-        ]
-
-    if bintype == "count":
-        z = df.count(
-            binby=expr,
-            limits=limits,
-            shape=plotstate.nbins.value,
-            array_type="xarray",
-            delay=True,
-        )
-    elif bintype == "sum":
-        z = df.sum(
-            expr_c,
-            binby=expr,
-            limits=limits,
-            shape=plotstate.nbins.value,
-            array_type="xarray",
-            delay=True,
-        )
-    elif bintype == "mean":
-        z = df.mean(
-            expr_c,
-            binby=expr,
-            limits=limits,
-            shape=plotstate.nbins.value,
-            array_type="xarray",
-            delay=True,
-        )
-    elif bintype == "median":
-        z = df.median_approx(
-            expr_c,
-            binby=expr,
-            limits=limits,
-            shape=plotstate.nbins.value,
-            delay=True,
-        )
-    elif bintype == "mode":
-        z = df.mode(
-            expression=expr_c,
-            binby=expr,
-            limits=limits,
-            shape=plotstate.nbins.value,
-            delay=True,
-        )
-    elif bintype == "min":
-        z = df.min(
-            expression=expr_c,
-            binby=expr,
-            limits=limits,
-            shape=plotstate.nbins.value,
-            array_type="xarray",
-            delay=True,
-        )
-    elif bintype == "max":
-        z = df.max(
-            expression=expr_c,
-            binby=expr,
-            limits=limits,
-            shape=plotstate.nbins.value,
-            array_type="xarray",
-            delay=True,
-        )
-    else:
-        raise ValueError("no assigned bintype for aggregated")
-    df.execute()
-    z = z.get()
-    if bintype == "median":
-        # convert to xarray
-        z = xarray.DataArray(
-            z,
-            coords={
-                plotstate.x.value:
-                df.bin_centers(
-                    expression=expr[0],
-                    limits=limits[0],
-                    shape=plotstate.nbins.value,
-                ),
-                plotstate.y.value:
-                df.bin_centers(
-                    expression=expr[1],
-                    limits=limits[1],
-                    shape=plotstate.nbins.value,
-                ),
-            },
-        )
-
-    # change 0 to nan for coloring purposes
-    if bintype == "count":
-        z = z.where(np.abs(z) != 0, np.nan)
-
-    x_edges = z.coords[plotstate.x.value].values
-    y_edges = z.coords[plotstate.x.value].values
-    return z, x_edges, y_edges, limits
+from plot_effects import add_scatter_effects, add_heatmap_effects
+from plot_actions import aggregate_data
 
 
 @sl.component()
-def HeatmapPlot():
-    return sl.Card()
+def HeatmapPlot(plotstate: PlotState) -> ValueElement:
+    filter, set_filter = sl.use_cross_filter(id(df), name="scatter")
+    i = sl.use_context(index_context)
+    layout, set_layout = sl.use_state({"w": 6, "h": 10, "i": i})
 
-    def create_figure():
-        """Creates figure with relevant objects"""
-        # obtain data
-        z, x_centers, y_centers, limits = get_data()
+    def update_grid():
+        # TODO: fix to make its own reactive var (computed) thing
+        # fetch from gridstate
+        for spec in GridState.grid_layout.value:
+            if spec["i"] == i:
+                set_layout(spec)
+                break
 
-        # create menu
-        menu = BokehMenu(items=[
-            ActionItem(
-                label="test",  # this isnt visible, how fix?
-                action=CustomJS(
-                    code=
-                    """window.open('https://www.google.com', '_blank').focus()"""
-                ),  # bound to reactive of last hovered points
-            ),
-        ])
-        menu.styles = {"color": "black", "font-size": "16px"}
+    sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
+    if filter is not None:
+        dff = df[filter]
+    else:
+        dff = df
 
-        # generate source object
-        source = ColumnDataSource(
+    def generate_cds():
+        z, x_centers, y_centers, limits = aggregate_data(plotstate)
+        return ColumnDataSource(
             data={
                 "x": np.repeat(x_centers, len(y_centers)),
                 "y": np.tile(y_centers, len(x_centers)),
                 "z": z.values.flatten(),
             })
 
-        # generate main figure
-        p = figure(
-            x_axis_label=plotstate.x.value,
-            y_axis_label=plotstate.y.value,
-            tools=TOOLS,
-            context_menu=menu,
-            toolbar_location="above",
-            # height_policy='max',
-            width_policy="max",
-            active_scroll="wheel_zoom",  # default to scroll wheel for zoom
-            output_backend=
-            "webgl",  # for performance, will fallback to HTML5 if unsupported
-        )
+    source = sl.use_memo(generate_cds, [])
 
-        # setup colormap
-        mapper = LinearColorMapper(palette=plotstate.colormap.value,
-                                   low=z.min().item(),
-                                   high=z.max().item())
+    def create_figure():
+        """Creates figure with relevant objects"""
+        # obtain data
+        p, menu = generate_plot(plotstate)
+        xlimits = calculate_range(plotstate, dff, axis="x")
+        ylimits = calculate_range(plotstate, dff, axis="y")
+
+        mapper, cb = generate_color_mapper_bar(plotstate, source.data["z"])
 
         # generate rectangles
-        glyph = p.rect(
+        glyph = Rect(
             x="x",
             y="y",
-            width=(limits[0][1] - limits[0][0]) / plotstate.nbins.value * 1.02,
-            height=(limits[1][1] - limits[1][0]) / plotstate.nbins.value,
-            source=source,
+            width=(xlimits[1] - xlimits[0]) / plotstate.nbins.value,
+            height=(ylimits[1] - ylimits[0]) / plotstate.nbins.value,
             line_color=None,
             fill_color={
                 "field": "z",
                 "transform": mapper
             },
         )
+        gr = p.add_glyph(source, glyph)
+        p.add_layout(cb, "right")
 
         # create hovertool, bound to figure object
-        TOOLTIPS = [
-            (plotstate.x.value, "$x"),
-            (plotstate.y.value, "$y"),
-            (plotstate.bintype.value, "@z"),
-        ]
-        hover = HoverTool(tooltips=TOOLTIPS, renderers=[glyph], visible=False)
-        p.add_tools(hover)
+        add_all_tools(p, generate_tooltips(plotstate))
+        add_callbacks(plotstate, dff, p, source, set_filter=None)
+        return p
 
-        # add selection tools
-        box_select = BoxSelectTool(renderers=[glyph])
-        p.add_tools(box_select)
-
-        return p, source, mapper, menu, (hover, box_select)
-
-    p, source, mapper, menu, tools = sl.use_memo(create_figure,
-                                                 dependencies=[])
-
-    # source on selection effect
-    def on_select(attr, old, new):
-        # TODO: fix this
-        print(attr)
-        print(old)
-        print(new)
-        print(source.selected.indices)
-
-    source.selected.on_change("indices", on_select)
-
-    def add_effects(pfig):
-
-        def change_heatmap_data():
-            if pfig is not None:
-                fig_element: BokehModel = sl.get_widget(pfig)
-                z, x_centers, y_centers, limits = get_data()
-
-                # directly update data
-                source.data = {
-                    "x": np.repeat(x_centers, len(y_centers)),
-                    "y": np.tile(y_centers, len(x_centers)),
-                    "z": z.values.flatten(),
-                }
-
-                # update colorbar
-                mapper.low = z.min().item()
-                mapper.high = z.max().item()
-
-                if False:
-                    newfig = create_figure()  # recreate figure
-                    fig_element.update_from_model(
-                        newfig)  # replace the main model
-                return
-
-        def change_xy_data():
-            if pfig is not None:
-                fig_element: BokehModel = sl.get_widget(pfig)
-                z, x_centers, y_centers, limits = get_data()
-
-                # directly update data
-                source.data = {
-                    "x": np.repeat(x_centers, len(y_centers)),
-                    "y": np.tile(y_centers, len(x_centers)),
-                    "z": z.values.flatten(),
-                }
-
-                # update x/y labels
-
-                # update colorbar
-                mapper.low = z.min().item()
-                mapper.high = z.max().item()
-                return
-
-        def change_colormap():
-            if pfig is not None:
-                mapper.palette = plotstate.colormap.value
-
-        sl.use_effect(change_xy_data,
-                      dependencies=[plotstate.x.value, plotstate.y.value])
-        sl.use_effect(
-            change_heatmap_data,
-            dependencies=[
-                plotstate.color.value,
-                plotstate.bintype.value,
-            ],
-        )
-        sl.use_effect(change_colormap, dependencies=[plotstate.colormap.value])
+    p = sl.use_memo(create_figure, dependencies=[])
 
     pfig = FigureBokeh(p)
-    add_effects(pfig)
+    add_heatmap_effects(pfig, plotstate, dff, filter, layout)
     return pfig
 
 
 @sl.component
 def ScatterPlot(plotstate: PlotState) -> ValueElement:
     filter, set_filter = sl.use_cross_filter(id(df), name="scatter")
-    dark = sl.lab.use_dark_effective()
-    counter = sl.use_reactive(0)
     i = sl.use_context(index_context)
     layout, set_layout = sl.use_state({"w": 6, "h": 10, "i": i})
 
@@ -327,21 +128,6 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
         dff = df[filter]
     else:
         dff = df
-
-    def generate_tooltips(plotstate):
-        return (f"""
-        <div>
-        {plotstate.x.value}: $snap_x
-        {plotstate.y.value}: $snap_y
-        {plotstate.color.value}: @z
-        sdss_id: @sdss_id
-        </div>\n""" + """
-        <style>
-        div.bk-tooltip-content > div > div:not(:first-child) {
-            display:none !important;
-        } 
-        </style>
-        """)
 
     source = sl.use_memo(
         lambda: ColumnDataSource(
@@ -360,9 +146,11 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
         # generate and add axes
         generate_axes(plotstate, p)
 
-        # generate scatter points
+        # generate scatter points and colorbar
         mapper, cb = generate_color_mapper_bar(
             plotstate, dff[plotstate.color.value].values)
+
+        # add glyph
         glyph = Scatter(
             x="x",
             y="y",
@@ -372,58 +160,16 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
                 "transform": mapper,
             },
         )
-
         p.add_glyph(source, glyph)
         p.add_layout(cb, "right")
 
         # add all tools; custom hoverinfo
         add_all_tools(p, tooltips=generate_tooltips(plotstate))
+        add_callbacks(plotstate, dff, p, source)
 
-        # zora jump
-        tapcb = CustomJS(
-            args=dict(source=source),
-            code="""console.log('Tap');
-            console.log(source.selected.indices);
-            window.open(`https://data.sdss.org/zora/target/${source.data.sdss_id[source.inspected.indices[0]]}`, '_blank').focus();
-            """,
-        )
-        tap = TapTool(
-            behavior="inspect",
-            callback=tapcb,
-            gesture="doubletap",
-            visible=False,
-        )
-        p.add_tools(tap)
-        items = [
-            p.select(name="menu-propogate")[0],
-            p.select(name="menu-table")[0],
-            p.select(name="menu-clear")[0],
-        ]
+        return p
 
-        # source on selection effect
-        def on_select(attr, old, new):
-            for item in items:
-                if len(new) == 0:
-                    # disable button
-                    item.update(disabled=True)
-                else:
-                    item.update(disabled=False)
-
-        source.selected.on_change("indices", on_select)
-
-        def on_reset(event):
-            """Range resets"""
-            newx = calculate_range(plotstate, dff, "x")
-            newy = calculate_range(plotstate, dff, "y")
-            with p.hold(render=True):
-                p.x_range.update(start=newx[0], end=newx[1])
-                p.y_range.update(start=newy[0], end=newy[1])
-
-        p.on_event("reset", on_reset)
-
-        return p, mapper, menu, cb
-
-    p, mapper, menu, cb = sl.use_memo(
+    p = sl.use_memo(
         create_figure,
         dependencies=[],
     )
@@ -435,5 +181,5 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
         light_theme=LIGHTTHEME,
     )
 
-    add_effects(pfig, plotstate, dff, filter, layout)
+    add_scatter_effects(pfig, plotstate, dff, filter, layout)
     return pfig

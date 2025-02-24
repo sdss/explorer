@@ -12,15 +12,18 @@ from plot_actions import (
     reset_range,
     update_label,
     update_axis,
+    aggregate_data,
+    update_coloraxis,
 )
 from state import PlotState
 from util import check_categorical
 
-__all__ = ["add_effects"]
+__all__ = ["add_scatter_effects", "add_heatmap_effects"]
 
 
-def add_effects(pfig: rv.ValueElement, plotstate: PlotState, dff, filter,
-                layout) -> None:
+def add_scatter_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
+                        filter, layout) -> None:
+    """Scatter-glyph specific effects"""
 
     def update_x():
         fig_widget: BokehModel = sl.get_widget(pfig)
@@ -39,33 +42,15 @@ def add_effects(pfig: rv.ValueElement, plotstate: PlotState, dff, filter,
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
+            z = dff[plotstate.color.value].values
+            z = np.log10(z) if plotstate.colorlog.value else z
             with fig_model.hold(render=True):
-                z = dff[plotstate.color.value].values
-                z = np.log10(z) if plotstate.colorlog.value else z
                 fig_model.renderers[0].data_source.data["z"] = z
-                fig_model.renderers[0].glyph.fill_color
+                # fig_model.renderers[0].glyph.fill_color
                 fig_model.right[
                     0].color_mapper.palette = plotstate.colorscale.value
                 # TODO: fancy title based on bintype
                 fig_model.right[0].title = plotstate.color.value
-
-    def update_flipx():
-        """X-axis flip update"""
-        fig_widget: BokehModel = sl.get_widget(pfig)
-        if isinstance(fig_widget, BokehModel):
-            fig_model: Plot = fig_widget._model
-            # TODO: should we rest both ranges?
-            reset_range(plotstate, fig_model, dff, axis="x")
-            fig_model.x_range.flipped = plotstate.flipx.value
-
-    def update_flipy():
-        """Y-axis flip update"""
-        fig_widget: BokehModel = sl.get_widget(pfig)
-        if isinstance(fig_widget, BokehModel):
-            fig_model: Plot = fig_widget._model
-            # TODO: should we rest both ranges?
-            reset_range(plotstate, fig_model, dff, axis="y")
-            fig_model.y_range.flipped = plotstate.flipx.value
 
     def update_cmap():
         """Colormap update effect"""
@@ -118,6 +103,24 @@ def add_effects(pfig: rv.ValueElement, plotstate: PlotState, dff, filter,
             update_label(plotstate, fig_model, axis="y")
             reset_range(plotstate, fig_model, dff, axis="y")
 
+    def update_flipx():
+        """X-axis flip update"""
+        fig_widget: BokehModel = sl.get_widget(pfig)
+        if isinstance(fig_widget, BokehModel):
+            fig_model: Plot = fig_widget._model
+            # TODO: should we rest both ranges?
+            reset_range(plotstate, fig_model, dff, axis="x")
+            fig_model.x_range.flipped = plotstate.flipx.value
+
+    def update_flipy():
+        """Y-axis flip update"""
+        fig_widget: BokehModel = sl.get_widget(pfig)
+        if isinstance(fig_widget, BokehModel):
+            fig_model: Plot = fig_widget._model
+            # TODO: should we rest both ranges?
+            reset_range(plotstate, fig_model, dff, axis="y")
+            fig_model.y_range.flipped = plotstate.flipx.value
+
     def update_height():
         """Height linking callback, because auto-sizing doesn't work"""
         fig_widget: BokehModel = sl.get_widget(pfig)
@@ -137,3 +140,100 @@ def add_effects(pfig: rv.ValueElement, plotstate: PlotState, dff, filter,
     sl.use_effect(update_logx, dependencies=[plotstate.logx.value])
     sl.use_effect(update_logy, dependencies=[plotstate.logy.value])
     return
+
+
+def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
+                        filter, layout) -> None:
+    """Heatmap (rect glyph) specific effects"""
+
+    def update_data():
+        """X/Y/Color data column change update"""
+        fig_widget: BokehModel = sl.get_widget(pfig)
+        if isinstance(fig_widget, BokehModel):
+            fig_model: Plot = fig_widget._model
+            with fig_model.hold(render=True):
+                z, x_centers, y_centers, limits = aggregate_data(plotstate)
+
+                source = fig_model.renderers[0].data_source
+                source.data = {
+                    "x": np.repeat(x_centers, len(y_centers)),
+                    "y": np.tile(y_centers, len(x_centers)),
+                    "z": z.values.flatten(),
+                }
+                # fig_model.renderers[0].glyph.fill_color
+                fig_model.right[
+                    0].color_mapper.palette = plotstate.colorscale.value
+                # TODO: fancy title based on bintype
+                fig_model.right[0].title = plotstate.color.value
+
+    def update_color():
+        fig_widget: BokehModel = sl.get_widget(pfig)
+        if isinstance(fig_widget, BokehModel):
+            fig_model: Plot = fig_widget._model
+            z, _, __, ___ = aggregate_data(plotstate)
+            with fig_model.hold(render=True):
+                fig_model.renderers[0].data_source.data[
+                    "z"] = z.values.flatten()
+                update_coloraxis()
+
+    def update_cmap():
+        """Colormap update effect"""
+        fig_widget: BokehModel = sl.get_widget(pfig)
+        if isinstance(fig_widget, BokehModel):
+            fig_model: Plot = fig_widget._model
+            fig_model.right[
+                0].color_mapper.palette = plotstate.colorscale.value
+
+    def update_filter():
+        """Complete filter update"""
+        fig_widget: BokehModel = sl.get_widget(pfig)
+        if isinstance(fig_widget, BokehModel):
+            fig_model: Plot = fig_widget._model
+            # TODO: categorical support with jittering
+            x = fetch_data(plotstate, dff, axis="x")
+            y = fetch_data(plotstate, dff, axis="y")
+            fig_model.renderers[0].data_source.data = dict(
+                x=x.values,
+                y=y.values,
+                z=dff[plotstate.color.value].values,
+                sdss_id=dff["L"].values,
+            )
+
+    def update_flipx():
+        """X-axis flip update"""
+        fig_widget: BokehModel = sl.get_widget(pfig)
+        if isinstance(fig_widget, BokehModel):
+            fig_model: Plot = fig_widget._model
+            # TODO: should we rest both ranges?
+            reset_range(plotstate, fig_model, dff, axis="x")
+            fig_model.x_range.flipped = plotstate.flipx.value
+
+    def update_flipy():
+        """Y-axis flip update"""
+        fig_widget: BokehModel = sl.get_widget(pfig)
+        if isinstance(fig_widget, BokehModel):
+            fig_model: Plot = fig_widget._model
+            # TODO: should we rest both ranges?
+            reset_range(plotstate, fig_model, dff, axis="y")
+            fig_model.y_range.flipped = plotstate.flipx.value
+
+    def update_height():
+        """Height linking callback, because auto-sizing doesn't work"""
+        fig_widget: BokehModel = sl.get_widget(pfig)
+        if isinstance(fig_widget, BokehModel):
+            fig_model = fig_widget._model
+            fig_model.height = layout["h"] * 45 - 90
+            print(fig_model.height)
+
+    sl.use_effect(update_filter, dependencies=[filter])
+    sl.use_effect(update_height, dependencies=[layout["h"]])
+    sl.use_effect(
+        update_data,
+        dependencies=[plotstate.x.value, plotstate.y.value],
+    )
+    sl.use_effect(
+        update_color,
+        dependencies=[plotstate.color.value, plotstate.colorlog.value])
+    sl.use_effect(update_cmap, dependencies=[plotstate.colorscale.value])
+    sl.use_effect(update_flipx, dependencies=[plotstate.flipx.value])
+    sl.use_effect(update_flipy, dependencies=[plotstate.flipy.value])

@@ -1,10 +1,11 @@
 """Utility functions for generating plot objects and calculations"""
 
-from typing import Optional
+from typing import Optional, Callable, Any
 
 from bokeh.models.grids import Grid
 from bokeh.models.plots import Plot
 from bokeh.models.ranges import DataRange1d
+from bokeh.plotting import ColumnDataSource
 import numpy as np
 import vaex as vx
 from bokeh.models.scales import LinearScale, LogScale
@@ -17,6 +18,7 @@ from bokeh.models.tools import (
     ExamineTool,
     PanTool,
     ResetTool,
+    TapTool,
 )
 from bokeh.models.mappers import (
     LinearColorMapper,
@@ -31,6 +33,7 @@ from bokeh.models.axes import LinearAxis
 from bokeh.model import Model
 
 from util import check_categorical
+from state import PlotState
 
 DEV = True  # TODO: switch to read envvar
 
@@ -72,36 +75,62 @@ def generate_axes(plotstate, p: Plot) -> None:
     p.add_layout(grid_y, "center")
 
 
-def generate_color_mapper_bar(plotstate, z):
-    """Get color mapper and colorbar for colorbar plots"""
+from bokeh.transform import factor_cmap, linear_cmap, log_cmap
+
+
+def generate_color_mapper_bar(plotstate:PlotState, z: vx.Expression):
+    """Get fill_color dataspec, color mapper, and colorbar for colorbar plots
+
+    Arguments
+    :plotstate: PlotState -- plot variables
+    :z: vx.Expression -- the pre-computed z expression for aggregated data
+            some cases will point to unfiltered dataframe (by design) for 
+    """
+
+    pass in one of two things
+    col = plotstate.color.value
+    '''pass in teff'''
+
+    # use correct bokeh function in each case
     if check_categorical(plotstate.color.value):
-        mpr = CategoricalColorMapper
-        mpr_kwargs = dict()  # TODO: catagorical mapper
+        fill_color = factor_cmap("z",
+                                 palette=plotstate.colorscale.value,
+                                 factors=df[col].unique())
+    elif plotstate.colorlog.value():
+        if getattr(plotstate,'bintype', 'count') != 'count':
+            # if it doesn't exist, we have to take the MAXIMA of this column
+            expr = df[df[col] > 0][col]
+        fill_color = log_cmap("z",
+                              palette=plotstate.colorscale.value,
+                              low=expr.min()[()],
+                              high=expr.max())[()],)
     else:
-        mpr_kwargs = dict(
-            low=z.min(),
-            high=z.max(),
-        )
-        if plotstate.colorlog.value is not None:
-            mpr = LogColorMapper
-        else:
-            mpr = LinearColorMapper
-    mapper = mpr(
-        palette=plotstate.colorscale.value,
-        **mpr_kwargs,
+        fill_color = linear_cmap("z",
+                                 palette=plotstate.colorscale.value,
+                                 low=z.min()[()],
+                                 high=z.max())[()],)
+
+    cb = ColorBar(
+        color_mapper=fill_color["transform"],  # dataspec['transform']
+        location=(5, 6),
+        title=plotstate.color.value,
     )
-    cb = ColorBar(color_mapper=mapper,
-                  location=(5, 6),
-                  title=plotstate.color.value)
-    return mapper, cb
+    return fill_color, cb
 
 
 def generate_label(plotstate, axis: str = "x") -> str:
     """Generates an axis label."""
+    assert axis in ("x", "y", "color")
     col = getattr(plotstate, axis).value
-    log = getattr(plotstate, f"log{axis}").value
+    log = getattr(plotstate,
+                  "colorlog" if axis == "color" else f"log{axis}").value
     cond = log and not check_categorical(col)
-    return f"{'log(' if cond else ''}{col}{')' if cond else ''}"
+    bintype = getattr(plotstate, "bintype") if axis == "color" else ""
+    if bintype == "count":
+        # no col data if just counting
+        col = ""
+    # very long oneliner
+    return f"{'log(' if cond else ''}{bintype}{'(' if bintype != 'count' else ''}{col}{')' if bintype != 'count' else ''}{')' if cond else ''}"
 
 
 def generate_plot(plotstate):
@@ -222,3 +251,98 @@ def generate_datamap(expr: vx.Expression) -> dict[str | bool, int]:
     n: int = expr.nunique()
     factors: list[str | bool] = expr.unique()
     return {k: v for (k, v) in zip(factors, range(n))}
+
+
+def add_callbacks(
+    plotstate: PlotState,
+    dff: vx.DataFrame,
+    p: Plot,
+    source: ColumnDataSource,
+    set_filter: Optional[Callable[[Any], Any]] = None,
+) -> None:
+    """
+    Adds various callbacks, for filtering, context menu, and
+    """
+    # grab via names set in generate_plot
+    items = [
+        p.select(name="menu-propogate")[0],
+        p.select(name="menu-table")[0],
+        p.select(name="menu-clear")[0],
+    ]
+
+    # selection callback to disable/enable these items
+    def on_select(attr, old, new):
+        for item in items:
+            if len(new) == 0:
+                # disable button
+                item.update(disabled=True)
+            else:
+                item.update(disabled=False)
+
+    source.selected.on_change("indices", on_select)
+
+    # selection callback to update the filter object
+    if set_filter is not None:  # TODO: remove this line make non optional
+
+        def propogate_select_to_filter(attr, old, new):
+            if len(new) > 0:
+                pass
+
+        source.selected.on_change("indices", propogate_select_to_filter)
+
+    # add reset range event
+    def on_reset(event):
+        """Range resets"""
+        newx = calculate_range(plotstate, dff, "x")
+        newy = calculate_range(plotstate, dff, "y")
+        with p.hold(render=True):
+            p.x_range.update(start=newx[0], end=newx[1])
+            p.y_range.update(start=newy[0], end=newy[1])
+
+    p.on_event("reset", on_reset)
+
+    # zora jump
+    if (plotstate.plottype == "scatter") or (plotstate.plottype == "skyplot"):
+        tapcb = CustomJS(
+            args=dict(source=source),
+            code="""
+            window.open(`https://data.sdss.org/zora/target/${source.data.sdss_id[source.inspected.indices[0]]}`, '_blank').focus();
+            """,
+        )
+        tap = TapTool(
+            behavior="inspect",
+            callback=tapcb,
+            gesture="doubletap",
+            visible=False,  # hidden
+        )
+        p.add_tools(tap)
+
+
+def generate_tooltips(plotstate: PlotState) -> str:
+    if plotstate.plottype == "scatter":
+        return (f"""
+        <div>
+        {plotstate.x.value}: $snap_x
+        {plotstate.y.value}: $snap_y
+        {plotstate.color.value}: @z
+        sdss_id: @sdss_id
+        </div>\n""" + """
+        <style>
+        div.bk-tooltip-content > div > div:not(:first-child) {
+            display:none !important;
+        } 
+        </style>
+        """)
+    elif plotstate.plottype == "heatmap":
+        return (f"""
+        <div>
+        {plotstate.x.value}: $snap_x
+        {plotstate.y.value}: $snap_y
+        {plotstate.color.value}: @z
+        </div>\n""" + """
+        <style>
+        div.bk-tooltip-content > div > div:not(:first-child) {
+            display:none !important;
+        } 
+        </style>
+        """)

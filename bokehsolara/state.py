@@ -77,8 +77,7 @@ class PlotState:
                 self.logx = sl.use_reactive(kwargs.get("logx", ""))
                 self.logy = sl.use_reactive(kwargs.get("logy", ""))
             if plottype in ["scatter", "skyplot"]:
-                self.colorlog = sl.use_reactive(
-                    kwargs.get("colorlog", cast(str, None)))
+                self.colorlog = sl.use_reactive(kwargs.get("colorlog", False))
 
             # statistics settings
             if plottype == "heatmap" or plottype == "histogram" or "delta" in plottype:
@@ -106,14 +105,24 @@ class PlotState:
             # all lookup data for plottypes
             # TODO: move this lookup data elsewhere to reduce the size of the plotstate objects
         self.Lookup = dict(
-            norms=[
+            norms={
                 None, "percent", "probability", "density",
                 "probability density"
-            ],
-            bintypes=["count", "mean", "median", "sum", "min", "max", "mode"],
+            },
+            bintypes={
+                "count",
+                "mean",
+                "median",
+                "sum",
+                "min",
+                "max",
+                "mode",
+                "cov",
+                "covar",
+            },
             colorscales=colormaps,
-            binscales=[None, "log1p", "log10"],
-            projections=[
+            binscales={None, "log1p", "log10"},
+            projections={
                 "albers",
                 "aitoff",
                 "azimuthal equal area",
@@ -121,7 +130,7 @@ class PlotState:
                 "hammer",
                 "mollweide",
                 "mt flat polar quartic",
-            ],
+            },
         )
 
     def swap_axes(self):
