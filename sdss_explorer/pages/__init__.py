@@ -4,6 +4,7 @@ import logging
 from urllib.parse import parse_qs
 from os import getenv
 
+from reacton.ipyvuetify import ValueElement
 import solara as sl
 import numpy as np
 import vaex as vx
@@ -72,7 +73,15 @@ sl.lab.on_kernel_start(on_start)
 
 
 @sl.component()
-def Page():
+def Page() -> None:
+    """
+    Main initialize function.
+
+    Returns
+    -------
+    None
+        Implicitly returns entire app as ValueElement.
+    """
     df = State.df.value
 
     # check query params
