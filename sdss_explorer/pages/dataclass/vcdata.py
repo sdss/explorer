@@ -27,13 +27,24 @@ class VCList:
         # trigger plot resets FIRST
         columns = self.columns.value.copy()
         columns.pop(name)
+
+        # first, if any other VC's depend on this one, they go first
+        removed = [name]
+        for other_name in set(
+                columns.keys()):  # prevents changing size during iteration
+            if name in State.df.value[other_name].variables():
+                columns.pop(other_name)  # drop from UI datastruct
+                removed.append(other_name)  # save this removal for later
+
+        # remove all in a single update to prevent race conditions
         self.columns.set(columns)
 
-        # now delete_virtual_column
-        State.df.value.delete_virtual_column(name)
-        for subset in SubsetState.subsets.value.values():
-            if name in subset.df.virtual_columns.keys():
-                subset.df.delete_virtual_column(name)
+        # now delete all removed virtual columns from dataframe(s)
+        for column in removed:
+            State.df.value.delete_virtual_column(name)
+            for subset in SubsetState.subsets.value.values():
+                if column in subset.df.virtual_columns.keys():
+                    subset.df.delete_virtual_column(column)
 
     def __repr__(self) -> str:
         return str(dict(self.columns.value))

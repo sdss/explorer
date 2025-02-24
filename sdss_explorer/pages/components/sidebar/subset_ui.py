@@ -14,12 +14,6 @@ from ...dataclass import SubsetState, State, use_subset
 from .subset_options import updater_context, SubsetOptions
 
 
-@vx.register_function(multiprocessing=True)
-def check_flags(flags: vx.Expression, filters: vx.Expression):
-    """Converts flags & values to boolean vaex expression for use as a filter."""
-    return np.logical_and(flags, filters).any(axis=1)
-
-
 @sl.component()
 def SubsetMenu() -> ValueElement:
     """Control and display subset cards"""
