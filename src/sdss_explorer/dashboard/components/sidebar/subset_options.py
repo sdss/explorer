@@ -166,6 +166,7 @@ def DownloadMenu(key: str) -> ValueElement:
 
     sl.use_effect(reset_status, dependencies=[subset])
 
+    @sl.lab.task()
     def query_task():
         """Runs a GET query continously for the given job of the subset"""
         # TODO: there is probably a much smarter way to do this, this is the easiest though
@@ -194,7 +195,7 @@ def DownloadMenu(key: str) -> ValueElement:
             t.sleep(2)
         return
 
-    sl.lab.use_task(query_task, dependencies=[response])
+    # sl.lab.use_task(query_task, dependencies=[])
 
     def query_job_status() -> dict[str, str]:
         """Regular 5s ping to check job state"""
@@ -244,6 +245,7 @@ def DownloadMenu(key: str) -> ValueElement:
         if (response.get("status") == "not_run") or (response.get("status")
                                                      == "failed"):
             send_job()
+            query_task()
         elif response.get("status") == "in_progress":
             query_job_status()
         elif response.get("status") == "complete":
