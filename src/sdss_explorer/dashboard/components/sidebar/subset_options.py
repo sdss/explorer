@@ -266,6 +266,7 @@ def DownloadMenu(key: str) -> ValueElement:
             label="",
             icon_name="mdi-download",
             color=color,
+            disabled=True if response["status"] == "in_progress" else False,
             outlined=True if response["status"] == "not_run" else False,
             icon=True,
             text=True,
