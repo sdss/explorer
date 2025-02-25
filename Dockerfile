@@ -82,4 +82,4 @@ LABEL org.opencontainers.image.description "explorer production image"
 EXPOSE 8050
 
 # NOTE: we set most envvars on startup
-CMD ["uv", "run", "gunicorn", "-c", "sdss_explorer/server/wsgi_conf.py", "sdss_explorer.server.wsgi:app"]
+CMD ["uv", "run", "gunicorn", "-c", "src/sdss_explorer/server/wsgi_conf.py", "sdss_explorer.server.wsgi:app"]

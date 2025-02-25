@@ -19,7 +19,7 @@ import plotly.graph_objects as go
 from plotly.graph_objs._figurewidget import FigureWidget
 
 from ...dataclass import Alert, State, SubsetState, use_subset, GridState, VCData
-from ....util import check_catagorical
+from ....util import check_categorical
 from .dataframe import ModdedDataTable
 from .plot_settings import show_settings
 
@@ -225,7 +225,7 @@ def range_loop(start, offset):
 def check_cat_color(color: vx.Expression) -> bool:
     """Helper function to check color expression with catagorical error check."""
     try:
-        assert not check_catagorical(color)
+        assert not check_categorical(color)
     except AssertionError:
         Alert.update(
             "Discrete/catagorical color not supported. Please revert.",
@@ -646,7 +646,7 @@ def HistogramPlot(plotstate):
     expr: vx.Expression = dff[xcol]
 
     def perform_binning():
-        if check_catagorical(expr):
+        if check_categorical(expr):
             # NOTE: under the hood, vaex uses pandas for this
             series = expr.value_counts()  # value_counts as in Pandas
             x = series.index.values
@@ -745,7 +745,7 @@ def HistogramPlot(plotstate):
             df.execute()
             return x, y.get()
 
-    if check_catagorical(expr):
+    if check_categorical(expr):
         logx = False
     else:
         logx = plotstate.logx.value
@@ -905,8 +905,8 @@ def HeatmapPlot(plotstate):
                 "0")  # NOTE: trial and error found this value. arbitrary
             assert plotstate.x.value != plotstate.y.value, "1"
 
-            assert not check_catagorical(dff[plotstate.x.value]), "2"
-            assert not check_catagorical(dff[plotstate.y.value]), "2"
+            assert not check_categorical(dff[plotstate.x.value]), "2"
+            assert not check_categorical(dff[plotstate.y.value]), "2"
         except AssertionError as e:
             msg = str(e)
 
@@ -1629,8 +1629,8 @@ def DeltaHeatmapPlot(plotstate):
                 assert len(SubsetState.subsets.value) != 1, "3"
                 assert plotstate.subset.value != plotstate.subset_b.value, "1"
 
-                assert not check_catagorical(dff[plotstate.x.value]), "2"
-                assert not check_catagorical(dff[plotstate.y.value]), "2"
+                assert not check_categorical(dff[plotstate.x.value]), "2"
+                assert not check_categorical(dff[plotstate.y.value]), "2"
             except AssertionError as e:
                 msg = str(e)
 

@@ -16,7 +16,7 @@ import vaex.logging
 from .logging import setup_logging
 from .filter import filter_dataframe
 from .jobs import Job, jobs
-from .config import settings
+from ..util.config import settings
 
 setup_logging()
 

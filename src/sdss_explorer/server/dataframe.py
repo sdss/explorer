@@ -5,7 +5,7 @@ import os
 import logging
 import vaex as vx
 
-from .config import settings
+from ..util.config import settings
 
 logger = logging.getLogger("server")
 

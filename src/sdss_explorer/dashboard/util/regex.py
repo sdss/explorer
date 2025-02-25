@@ -1,13 +1,13 @@
+"""Regex functions with Alerts"""
 import re
 from itertools import permutations
 from typing import List, Optional
 
 import vaex as vx
 import pandas as pd
-
 from ..dataclass import Alert
 
-__all__ = ['gen_fuzzy_regex', 'filter_regex']
+__all__ = ["gen_fuzzy_regex", "filter_regex"]
 
 
 def gen_fuzzy_regex(input_string: str) -> str:
@@ -50,7 +50,7 @@ def filter_regex(data: vx.DataFrame | pd.DataFrame | List,
                 return list(
                     filter(re.compile(gen_fuzzy_regex(query)).search, data))
     except Exception:
-        Alert.update(
+       Alert.update(
             message=
             'Filter on autocomplete crashed! If persistent, please inform server admins.',
             color='error')

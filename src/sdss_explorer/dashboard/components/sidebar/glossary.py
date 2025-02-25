@@ -7,8 +7,8 @@ from solara.alias import rv
 import numpy as np
 
 from ...dataclass import State
+from ...util import filter_regex
 from ..dialog import Dialog
-from ....util import filter_regex
 from ..textfield import InputTextExposed
 from solara.lab import Tabs, Tab
 

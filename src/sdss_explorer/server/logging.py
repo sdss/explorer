@@ -1,7 +1,7 @@
 import logging
 import logging.config
 
-from .config import settings
+from ..util.config import settings
 
 
 def setup_logging():

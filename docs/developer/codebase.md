@@ -2,15 +2,24 @@
 The codebase folders are organized as follows:
 
 ```bash
-├── __init__.py # python module requirement
-├── assets # holds non-code assets, like help docs and images
-│  └── help # in-app help blurbs/docs
-├── pages # holds main pages and their components
-│  ├── __init__.py
-│  ├── components # all visual compoennts
-│  │  ├── sidebar # all components which sit in the sidebar
-│  │  └── views # plots things
-│  ├── dataclass # dataclass objects
-│  └── util # utility functions; initialized FIRST
-└── vue # relevant vue files
+├── docs
+│  ├── assets # documentation assets
+│  ├── developer # developer handbook
+│  ├── examples # examples
+│  ├── javascripts # javascript source for docs
+│  └── user # user guides
+├── scripts # holds a doc generation script
+└── src
+  └── sdss_explorer
+      ├── __pycache__
+      ├── assets # non-code assets, like help blurbs/docs
+      │  └── help # help menus
+      ├── dashboard # the dashboard
+      │  ├── components # all visual components
+      │  │  ├── sidebar # all components that live in the sidebar
+      │  │  └── views # plot views
+      │  └── dataclass # dataclass objects and namespaces
+      ├── server # custom summary file backend server
+      ├── util # utility functions, common across all apps
+      └── vue # some misc vue
 ```

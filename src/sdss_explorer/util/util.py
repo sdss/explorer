@@ -6,14 +6,14 @@ import os
 import vaex as vx  # noqa
 
 __all__ = [
-    "check_catagorical",
+    "check_categorical",
     "generate_unique_key",
     "validate_release",
     "validate_pipeline",
 ]
 
 
-def check_catagorical(expression: vx.Expression) -> bool:
+def check_categorical(expression: vx.Expression) -> bool:
     """Checks whether a given expression is categorical or not.
 
     Args:
