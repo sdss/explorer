@@ -32,6 +32,9 @@ docs = [
     "mkdocs",
     "mkdocstrings",
     "mkdocstrings-python",
+    'mkdocs-gen-files',
+    'mkdocs-literate-nav',
+    'mkdocs-section-index'
 ]
 
 [build-system]
@@ -39,8 +42,10 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
-path = "sdss_explorer/__init__.py"
+path = "src/sdss_explorer/__init__.py"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/sdss_explorer"]
 
 [tool.black]
 line-length = 160

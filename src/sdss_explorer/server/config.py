@@ -11,12 +11,14 @@ class Settings(BaseSettings):
         validation_alias="EXPLORER_DATAPATH")  # TODO: default None
     scratch: str = Field(
         default="./scratch",
-        validation_alias="EXPLORER_DATAPATH")  # TODO: default None
+        validation_alias="EXPLORER_SCRATCH")  # TODO: default None
     dev: bool = Field(
         default=False,
         validation_alias="EXPLORER_DEV")  # used for logging configuration
     vastra: str = "0.6.0"
-    solara: bool = False  # for future, in case one wants to host both simultaneously
+    solara: bool = Field(
+        default=False, validation_alias="EXPLORER_MOUNT_DASHBOARD"
+    )  # for future, in case one wants to host both simultaneously
 
 
 # NOTE: vaex additionally has settings

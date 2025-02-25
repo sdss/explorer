@@ -1,9 +1,7 @@
 """I/O functions for importing/exporting app state via JSON."""
 
-import json
 from copy import deepcopy
 from typing import Any
-from dataclasses import asdict
 
 from ..dataclass.gridstate import GridData
 from ..dataclass import Subset
@@ -12,9 +10,29 @@ from ..dataclass.vcdata import VCList
 __all__ = ["export_subset", "export_layout", "export_vcdata"]
 
 
+def import_subset(jsondata: str) -> Subset:
+    """Converts JSON data into a Subset
+
+    Args:
+        jsondata: the JSON data of a subset
+    Returns:
+        subset:
+
+    """
+    pass
+
+
 def export_subset(subset: Subset) -> dict[str, str | list[str]]:
-    """Exports a given subset to JSON dict."""
-    # NOTE: manually typed, otherwise asdict dumps entire df into memory
+    """Exports a given subset to JSON dict.
+
+    Args:
+        subset: a given subset
+
+    Returns:
+        data: a compiled dictionary
+
+    """
+    # NOTE: manually typed, otherwise using asdict will dump entire df into memory
     data = dict(
         name=subset.name,
         expression=subset.expression,

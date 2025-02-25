@@ -6,7 +6,7 @@ import numpy as np
 import json
 from fastapi.testclient import TestClient
 
-from .api import app
+from .main import app
 
 client = TestClient(app)
 

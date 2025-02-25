@@ -10,6 +10,11 @@ theme:
 plugins:
   - mkdocstrings
   - search
+  - gen-files:
+      scripts:
+      - scripts/gen_reference_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
 markdown_extensions:
   - toc:
       permalink: "#"
@@ -41,9 +46,7 @@ nav:
     - Layout: guide/codebase.md
     - Data files: guide/datafiles.md
     - Guardrailing: guide/guardrailing.md
-  - Reference: 
-    - API: reference/api.md
-    - Dataclass: reference/dataclass.md
+  - Reference: reference/
   - About: 
     - Description: about.md
     - License: license.md
