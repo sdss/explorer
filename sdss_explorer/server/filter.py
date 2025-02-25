@@ -1,6 +1,7 @@
 import os
 import gc
 import logging
+from typing import ParamSpec
 from uuid import UUID
 import operator
 from functools import reduce
@@ -14,12 +15,43 @@ from ..filter_functions import (
     filter_expression,
 )
 
+_P = ParamSpec("_P")
 logger = logging.getLogger("dashboard")
 
 
-def filter_dataframe(uuid: UUID, release: str, datatype: str, dataset: str,
-                     **kwargs):
-    """Filters dataframe based on public functions from Explorer"""
+def filter_dataframe(
+    uuid: UUID,
+    release: str,
+    datatype: str,
+    dataset: str,
+    name: str = "A",
+    expression: str = "",
+    carton: str = "",
+    mapper: str = "",
+    flags: str = "",
+    combotype: str = "AND",
+    invert: bool = False,
+) -> None:
+    """Filters and exports dataframe based on input subset parameters.
+
+    Will write a file to the scratch disk based on `settings.scratch`.
+
+    Args:
+        uuid: unique job id
+        release: data release
+        datatype: datatype (star or visit)
+        dataset: specific dataset i.e. aspcap, spall, best
+        name: name of subset, used in generating output file
+        expression: filter expression
+        carton: comma-separated cartons
+        mapper: comma-separated mappers
+        flags: comma-separated flagss
+        combotype: logical reducer for carton/mapper
+        invert: whether to invert all filters
+
+    Returns:
+        None
+    """
     dff, columns = load_dataframe(release, datatype, dataset)
     if (dff is None) or (columns is None):
         raise Exception("dataframe/columns oad failed")

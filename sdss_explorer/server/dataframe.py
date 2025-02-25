@@ -9,11 +9,14 @@ from .config import settings
 
 logger = logging.getLogger("server")
 
-if settings.datapath is None:
-    logger.critical("SERVER CANNOT FIND DATAPATH")
-    raise
+if bool(os.getenv("DOCS", False)):
+    if settings.datapath is None:
+        logger.critical("SERVER CANNOT FIND DATAPATH")
+        raise
 
-mappings = vx.open(os.path.join(settings.datapath, "mappings.parquet"))
+    mappings = vx.open(os.path.join(settings.datapath, "mappings.parquet"))
+else:
+    mappings = None
 
 
 def load_columns(release: str, datatype: str, dataset: str):

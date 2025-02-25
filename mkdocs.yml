@@ -1,10 +1,41 @@
 site_name: Explorer documentation
 theme:
   name: material
+  features:
+    - content.tooltips 
+    - navigation.expand 
+    - navigation.indexes 
+    - navigation.sections 
+    - navigation.tabs
 plugins:
-  - mkapi
+  - mkdocstrings
+  - search
+markdown_extensions:
+  - toc:
+      permalink: "#"
+      separator: "_"
+      baselevel: 2
+  - attr_list
+  - md_in_html
+  - pymdownx.blocks.caption
+  - pymdownx.arithmatex:
+      generic: true
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
 nav:
   - Home: index.md
+  - User Guide:
+    - Getting started: user/started.md
+    - Plotting: user/plotting.md
+    - Downloading data: user/download.md
+    - Multiple subsets: user/subsets.md
+    - Virtual columns: user/vc.md
+    - Selecting targeting cartons: user/cartons.md
+  - Examples:
+    - HR Diagram: user/examples/hr.md
+    - Getting your carton: user/examples/yso.md
+    - Checking flags: user/examples/flags.md
   - Developer Guide:
     - Index: guide/index.md
     - Layout: guide/codebase.md
@@ -16,8 +47,4 @@ nav:
   - About: 
     - Description: about.md
     - License: license.md
-markdown_extensions:
-  - toc:
-      permalink: "#"
-      separator: "_"
-      baselevel: 2
+
