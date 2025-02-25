@@ -1,21 +1,33 @@
-"""Everything that is set by an envvar under one namespace"""
+"""Application settings. Places everything that is set by an envvar under a namespace."""
 
 from pydantic_settings import BaseSettings
 from pydantic import Field
 
 
 class Settings(BaseSettings):
+    """Global settings for webapp, defined by environment variables"""
+
     nworkers: int = Field(default=2, validation_alias="EXPLORER_NEXPORTERS")
+    """How many export processes to run concurrently. The max possible will on memory spec of the machine."""
+
     datapath: str = Field(
         default="./data",
         validation_alias="EXPLORER_DATAPATH")  # TODO: default None
+    """The datapath to explorer files. Expects to be formatted in `./[release]/[explorer|columns]All[datatype]-[vastra].[hdf5|parquet]`"""
+
     scratch: str = Field(
         default="./scratch",
         validation_alias="EXPLORER_SCRATCH")  # TODO: default None
+    """The datapath to a scratch space for custom summary file outputs."""
+
     dev: bool = Field(
         default=False,
         validation_alias="EXPLORER_DEV")  # used for logging configuration
+    """Whether to consider the environment a development one or not. Also checks against whether server instance is production for dashboard."""
+
     vastra: str = "0.6.0"
+    """Astra reduction versions to read."""
+
     solara: bool = Field(
         default=False, validation_alias="EXPLORER_MOUNT_DASHBOARD"
     )  # for future, in case one wants to host both simultaneously

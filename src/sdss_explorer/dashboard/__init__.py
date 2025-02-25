@@ -26,7 +26,7 @@ from .dataclass import (
     SubsetState,
     _datapath,
 )  # noqa: E402
-from .util import validate_release, validate_pipeline, setup_logging  # noqa: E402
+from ..util import validate_release, validate_pipeline, setup_logging  # noqa: E402
 from .components.sidebar import Sidebar  # noqa: E402
 from .components.sidebar.glossary import HelpBlurb  # noqa: E402
 from .components.sidebar.subset_filters import flagList  # noqa: E402
@@ -266,4 +266,5 @@ def Layout(children):
 
 # app run on module instance
 if __name__ == "__main__":
+    print(__name__)
     Layout(Page())

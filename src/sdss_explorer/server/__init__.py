@@ -1,5 +1,5 @@
 """
-Explorer Server
+Explorer's FastAPI backend for serving custom summary files, can also host dashboard
 """
 
 from .main import app

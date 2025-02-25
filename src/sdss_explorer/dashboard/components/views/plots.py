@@ -19,7 +19,7 @@ import plotly.graph_objects as go
 from plotly.graph_objs._figurewidget import FigureWidget
 
 from ...dataclass import Alert, State, SubsetState, use_subset, GridState, VCData
-from ...util import check_catagorical
+from ....util import check_catagorical
 from .dataframe import ModdedDataTable
 from .plot_settings import show_settings
 

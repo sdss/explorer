@@ -9,10 +9,24 @@ import vaex as vx
 # TODO: get dashboard or main depending on context of functions
 logger = logging.getLogger("dashboard")
 
+__all__ = [
+    "check_flags", "filter_expression", "filter_carton_mapper", "filter_flags"
+]
+
 
 @vx.register_function(multiprocessing=True)
-def check_flags(flags: vx.Expression, filters: vx.Expression):
-    """Converts flags & values to boolean vaex expression for use as a filter."""
+def check_flags(flags: vx.Expression, filters: vx.Expression) -> vx.Expression:
+    """Converts flags & values to boolean vaex expression for use as a filter.
+
+    Note:
+        Registered as a `vaex.expression.Expression` method via the `register_function` decorator.
+
+    Args:
+        flags: bit flags expressions
+        filters: which filters to apply
+    Returns:
+        Boolean expression of filters
+    """
     return np.logical_and(flags, filters).any(axis=1)
 
 

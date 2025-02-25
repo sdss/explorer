@@ -8,13 +8,19 @@ theme:
     - navigation.sections 
     - navigation.tabs
 plugins:
-  - mkdocstrings
-  - search
-  - gen-files:
-      scripts:
-      - scripts/gen_reference_pages.py
-  - literate-nav:
-      nav_file: SUMMARY.md
+- mkdocstrings:
+    handlers:
+      python:
+        options:
+          extensions:
+          - griffe_pydantic:
+              schema: true
+- search
+- gen-files:
+    scripts:
+    - scripts/gen_reference_pages.py
+- literate-nav:
+    nav_file: SUMMARY.md
 markdown_extensions:
   - toc:
       permalink: "#"
@@ -38,14 +44,14 @@ nav:
     - Virtual columns: user/vc.md
     - Selecting targeting cartons: user/cartons.md
   - Examples:
-    - HR Diagram: user/examples/hr.md
-    - Getting your carton: user/examples/yso.md
-    - Checking flags: user/examples/flags.md
+    - HR Diagram: examples/hr.md
+    - Getting your carton: examples/yso.md
+    - Checking flags: examples/flags.md
   - Developer Guide:
-    - Index: guide/index.md
-    - Layout: guide/codebase.md
-    - Data files: guide/datafiles.md
-    - Guardrailing: guide/guardrailing.md
+    - Index: developer/index.md
+    - Layout: developer/codebase.md
+    - Data files: developer/datafiles.md
+    - Guardrailing: developer/guardrailing.md
   - Reference: reference/
   - About: 
     - Description: about.md

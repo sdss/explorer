@@ -13,7 +13,7 @@ import reacton.ipyvuetify as rv
 import solara as sl
 from reacton.core import ValueElement
 
-from ....filter_functions import (
+from ....util.filters import (
     filter_carton_mapper,
     filter_expression,
     filter_flags,
