@@ -1,6 +1,11 @@
 """Subset cards and SubsetState class"""
 
 from typing import Callable
+import json
+import time as t
+import os
+import requests
+import asyncio
 
 import reacton.ipyvuetify as rv
 import solara as sl
@@ -13,6 +18,8 @@ from .subset_filters import ExprEditor, TargetingFiltersPanel
 
 # context for updater and renamer
 updater_context = sl.create_context(print)  # context for forcing updates
+
+API_URL = os.getenv("EXPLORER_API", "http://localhost:8000")
 
 
 @sl.component()
@@ -146,25 +153,99 @@ def DeleteSubsetDialog(deleter: Callable) -> ValueElement:
 
 @sl.component()
 def DownloadMenu(key: str) -> ValueElement:
+    router = sl.use_router()
+    subset = SubsetState.subsets.value[key]
+    default = {"status": "not_run"}
+    response, set_response = sl.use_state(default)
+    print(response)
 
-    def get_data():
-        # TODO: change all of these methods to better valis-integrated methods that dont involve
-        # dropping the entire DB file into memory...
-        # dfp = dff.to_pandas_df()
-        Alert.update(
-            "Download currently unsupported due to memory issues server-side. Coming soon!",
-            color="info",
+    def reset_status():
+        """On change and not pending a result, reset"""
+        if response["status"] != "in_progress":
+            set_response(default)
+
+    sl.use_effect(reset_status, dependencies=[subset])
+
+    def query_task():
+        """Runs query continously"""
+        local_response = query_job_status()
+        while local_response["status"] == "in_progress":
+            local_response = query_job_status()
+            print("received response", local_response)
+            if local_response["status"] == "complete":
+                Alert.update(
+                    message=
+                    f"Your file for Subset {subset.name} is ready! Hit the download button",
+                    color="success",
+                )
+                set_response(local_response)
+                return
+            elif local_response["status"] == "failed":
+                Alert.update(
+                    message="File render failed! Please try again, "
+                    "and inform system adminstrator if it keeps failing.",
+                    color="error",
+                )
+                set_response(local_response)
+                return
+            t.sleep(1)
+
+    sl.lab.use_task(query_task, dependencies=[response])
+
+    def query_job_status() -> dict[str, str]:
+        """Regular 5s ping to check job state"""
+        # TODO: make this way better
+        if response["status"] == "in_progress":
+            resp = requests.get(f"{API_URL}/status/{response.get('uid', 0)}")
+            if resp.status_code == 200:
+                data = json.loads(resp.text)
+                if data["status"] == "complete":
+                    return data
+        return response
+
+    def send_job():
+        """Exports subset data to JSON and sends to FastAPI DL sever."""
+        from ...dataclass import State
+        from dataclasses import asdict
+
+        # serialize & remove columns/df from req
+        data = asdict(subset)
+        data.pop("columns")
+        data.pop("df")
+        print(data)
+        dataset = data["dataset"]
+        resp = requests.post(
+            f"{API_URL}/filter_subset/ipl3/{State.datatype}/{dataset}",  # TODO: fix url
+            params=data,
+            data=json.dumps(data),
         )
+        if resp.status_code == 202:
+            print("post", json.loads(resp.text))
+            Alert.update("Creating file for download! Please wait.")
+            set_response(json.loads(resp.text))
         return  # dfp.to_csv(index=False)
+
+    def click_handler():
+        """Handles click events properly"""
+        if (response.get("status") == "not_run") or (response.get("status")
+                                                     == "failed"):
+            send_job()
+        elif response.get("status") == "in_progress":
+            query_job_status()
+        elif response.get("status") == "complete":
+            router.push(
+                f"https://www.bing.com/search?q={response.get('uid', 'foobar')}"
+            )
 
     with sl.Tooltip("Download subset as csv") as main:
         sl.Button(
             label="",
             icon_name="mdi-download",
+            color="green" if response["status"] == "complete" else "white",
+            outlined=True if response["status"] == "not_run" else False,
             icon=True,
             text=True,
-            on_click=get_data,
-            # NOTE: temporary disable because the interface is poor
+            on_click=click_handler,
         )
 
     return main
