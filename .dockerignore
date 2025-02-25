@@ -1,0 +1,17 @@
+# Ignore .git dirs
+.git
+.github
+
+# Ignore any venvs
+.venv
+
+# Ignore tests directory
+**/tests/*
+**/test_*.py
+
+# Ignore docs directory
+**/docs/*
+
+# Ignore Python bytecode
+**/__pycache__/
+**/*.pyc
