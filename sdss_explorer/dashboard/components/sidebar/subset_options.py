@@ -21,7 +21,7 @@ logger = logging.getLogger("dashboard")
 # context for updater and renamer
 updater_context = sl.create_context(print)  #  dummy func
 
-API_URL = os.getenv("EXPLORER_API", "http://localhost:8000")
+API_URL = os.getenv("EXPLORER_API", "http://localhost:8050")
 
 
 @sl.component()
