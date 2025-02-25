@@ -36,7 +36,7 @@ from .components.views.dataframe import NoDF  # noqa: E402
 DEV = settings.dev or (sl.server.settings.main.mode == "production")
 
 setup_logging(
-    log_path=settings.home,
+    log_path=settings.logpath,
     console_log_level=logging.DEBUG if DEV else logging.ERROR,
     file_log_level=logging.DEBUG
     if DEV else logging.INFO,  # TODO: discuss logging setup
