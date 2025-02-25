@@ -16,9 +16,14 @@ class Settings(BaseSettings):
 
     home: str = Field(default=os.path.expanduser("~"),
                       validation_alias="VAEX_HOME")
-    """The home directory for logging and caching. Defaults to `$HOME`."""
+    """The home directory for caching and fingerprinting by vaex. Defaults to `$HOME`."""
 
-    datapath: str = Field(validation_alias="EXPLORER_DATAPATH")
+    logpath: str = Field(default=os.path.expanduser("~"),
+                         validation_alias="EXPLORER_LOGPATH")
+    """The home directory for logs. Defaults to `$HOME`."""
+
+    datapath: str = Field(default="./home",
+                          validation_alias="EXPLORER_DATAPATH")
     """The datapath to explorer files. Expects to be formatted in `./[release]/[explorer|columns]All[datatype]-[vastra].[hdf5|parquet]`"""
 
     scratch: str = Field(default="./scratch",
