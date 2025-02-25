@@ -2,10 +2,10 @@
 
 from typing import Callable
 import json
+import logging
 import time as t
 import os
 import requests
-import asyncio
 
 import reacton.ipyvuetify as rv
 import solara as sl
@@ -16,8 +16,10 @@ from ...dataclass import Alert, SubsetState
 from ..dialog import Dialog
 from .subset_filters import ExprEditor, TargetingFiltersPanel
 
+logger = logging.getLogger("dashboard")
+
 # context for updater and renamer
-updater_context = sl.create_context(print)  # context for forcing updates
+updater_context = sl.create_context(print)  #  dummy func
 
 API_URL = os.getenv("EXPLORER_API", "http://localhost:8000")
 
@@ -157,7 +159,6 @@ def DownloadMenu(key: str) -> ValueElement:
     subset = SubsetState.subsets.value[key]
     default = {"status": "not_run"}
     response, set_response = sl.use_state(default)
-    print(response)
 
     def reset_status():
         """On change and not pending a result, reset"""
@@ -167,19 +168,22 @@ def DownloadMenu(key: str) -> ValueElement:
     sl.use_effect(reset_status, dependencies=[subset])
 
     def query_task():
-        """Runs query continously"""
+        """Runs a GET query continously for the given job of the subset"""
+        # TODO: there is probably a much smarter way to do this, this is the easiest though
         local_response = query_job_status()
         while local_response["status"] == "in_progress":
             local_response = query_job_status()
-            print("received response", local_response)
+            logger.debug("received response", local_response)
             if local_response["status"] == "complete":
                 Alert.update(
                     message=
                     f"Your file for Subset {subset.name} is ready! Hit the download button",
                     color="success",
                 )
+
+                # apply to everything and get out
                 set_response(local_response)
-                return
+                break
             elif local_response["status"] == "failed":
                 Alert.update(
                     message="File render failed! Please try again, "
@@ -187,20 +191,26 @@ def DownloadMenu(key: str) -> ValueElement:
                     color="error",
                 )
                 set_response(local_response)
-                return
-            t.sleep(1)
+                break
+            t.sleep(2)
+        return
 
     sl.lab.use_task(query_task, dependencies=[response])
 
     def query_job_status() -> dict[str, str]:
         """Regular 5s ping to check job state"""
-        # TODO: make this way better
         if response["status"] == "in_progress":
-            resp = requests.get(f"{API_URL}/status/{response.get('uid', 0)}")
-            if resp.status_code == 200:
-                data = json.loads(resp.text)
-                if data["status"] == "complete":
-                    return data
+            try:
+                resp = requests.get(
+                    f"{API_URL}/status/{response.get('uid', 0)}")
+                if resp.status_code == 200:
+                    data = json.loads(resp.text)
+                    if data["status"] == "complete":
+                        return data
+            except Exception as e:
+                logger.debug(f"failed to connect: {e}")
+                Alert.update("Failed to connect to download sever",
+                             color="error")
         return response
 
     def send_job():
@@ -212,21 +222,24 @@ def DownloadMenu(key: str) -> ValueElement:
         data = asdict(subset)
         data.pop("columns")
         data.pop("df")
-        print(data)
         dataset = data["dataset"]
-        resp = requests.post(
-            f"{API_URL}/filter_subset/ipl3/{State.datatype}/{dataset}",  # TODO: fix url
-            params=data,
-            data=json.dumps(data),
-        )
-        if resp.status_code == 202:
-            print("post", json.loads(resp.text))
-            Alert.update("Creating file for download! Please wait.")
-            set_response(json.loads(resp.text))
-        return  # dfp.to_csv(index=False)
+        try:
+            resp = requests.post(
+                f"{API_URL}/filter_subset/ipl3/{State.datatype}/{dataset}",
+                params=data,
+                data=json.dumps(data),
+            )
+            if resp.status_code == 202:
+                print("post", json.loads(resp.text))
+                Alert.update("Creating file for download! Please wait.")
+                set_response(json.loads(resp.text))
+        except Exception as e:
+            logger.debug(f"failed to connect: {e}")
+            Alert.update("Failed to connect to download sever", color="error")
+        return
 
     def click_handler():
-        """Handles click events properly"""
+        """Handles click events"""
         if (response.get("status") == "not_run") or (response.get("status")
                                                      == "failed"):
             send_job()

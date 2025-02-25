@@ -18,14 +18,12 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.graph_objs._figurewidget import FigureWidget
 
-from sdss_explorer.pages.dataclass.vcdata import VCData
-
-from ...dataclass import Alert, State, SubsetState, use_subset, GridState
+from ...dataclass import Alert, State, SubsetState, use_subset, GridState, VCData
 from ...util import check_catagorical
 from .dataframe import ModdedDataTable
 from .plot_settings import show_settings
 
-logger = logging.getLogger("sdss_explorer")
+logger = logging.getLogger("dashboard")
 
 # index context for grid
 # NOTE: must be initialized here to avoid circular imports
@@ -319,7 +317,7 @@ def ScatterPlot(plotstate):
                 min = 10**min
                 max = 10**max
             xfilter = df[
-                f"(({plotstate.x.value} > {np.min((min,max))}) & ({plotstate.x.value} < {np.max((min,max))}))"]
+                f"(({plotstate.x.value} > {np.min((min, max))}) & ({plotstate.x.value} < {np.max((min, max))}))"]
         except KeyError:
             pass
         try:
@@ -329,7 +327,7 @@ def ScatterPlot(plotstate):
                 min = 10**min
                 max = 10**max
             yfilter = df[
-                f"(({plotstate.y.value} > {np.min((min,max))}) & ({plotstate.y.value} < {np.max((min,max))}))"]
+                f"(({plotstate.y.value} > {np.min((min, max))}) & ({plotstate.y.value} < {np.max((min, max))}))"]
 
         except KeyError:
             pass
@@ -903,9 +901,8 @@ def HeatmapPlot(plotstate):
 
         # error checking
         try:
-            assert (
-                len(dff)
-                > 40), "0"  # NOTE: trial and error found this value. arbitrary
+            assert len(dff) > 40, (
+                "0")  # NOTE: trial and error found this value. arbitrary
             assert plotstate.x.value != plotstate.y.value, "1"
 
             assert not check_catagorical(dff[plotstate.x.value]), "2"
@@ -1626,9 +1623,8 @@ def DeltaHeatmapPlot(plotstate):
 
             # error checking
             try:
-                assert (
-                    len(dff) > 40
-                ), "0"  # NOTE: trial and error found this value. arbitrary
+                assert len(dff) > 40, (
+                    "0")  # NOTE: trial and error found this value. arbitrary
                 assert plotstate.x.value != plotstate.y.value, "1"
                 assert len(SubsetState.subsets.value) != 1, "3"
                 assert plotstate.subset.value != plotstate.subset_b.value, "1"

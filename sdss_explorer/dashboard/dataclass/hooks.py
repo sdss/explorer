@@ -7,7 +7,7 @@ from typing import Callable, TypeVar, Union
 import solara.util
 from solara.hooks.misc import use_unique_key
 
-from sdss_explorer.pages.dataclass.state import State
+from .state import State
 
 T = TypeVar("T")
 
@@ -43,7 +43,7 @@ def use_subset(
     del subset_key
 
     key = use_unique_key(prefix=f"ss-{name}-")
-    subset_store = State.subset_store  #solara.use_context(subset_context)
+    subset_store = State.subset_store  # solara.use_context(subset_context)
     _own_filter, otherfilters, set_filter = subset_store.use(
         str(data_key),
         subset_reactive.value,

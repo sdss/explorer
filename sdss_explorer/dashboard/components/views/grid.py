@@ -18,7 +18,7 @@ from ...util.io import export_layout, export_subset, export_vcdata
 from ..dialog import Dialog
 from .plots import index_context, show_plot
 
-logger = logging.getLogger("sdss_explorer")
+logger = logging.getLogger("dashboard")
 
 
 class GridLayout(v.VuetifyTemplate):

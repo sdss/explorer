@@ -1,8 +1,7 @@
 """
-Explorer Server API
+Explorer Server
 """
 
-__version__ = "0.1.0"
 from .api import app
 
 if __name__ == "__main__":

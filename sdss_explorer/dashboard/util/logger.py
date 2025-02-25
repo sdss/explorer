@@ -1,10 +1,9 @@
 """Logging configuration and setup"""
 
-import logging
 from os.path import join as pathjoin
-
 import logging
 import logging.config
+import solara as sl
 
 __all__ = ["setup_logging"]
 
@@ -12,39 +11,43 @@ __all__ = ["setup_logging"]
 class MultiLineFormatter(logging.Formatter):
     """Multi-line formatter with UUKID prepended."""
 
-    def __init__(self, fmt=None, datefmt=None, kernel_id=None):
-        super().__init__(fmt, datefmt)
-        self.kernel_id = kernel_id
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def get_header_length(self, record):
         """Get the header length of a given record."""
-        return len(super().format(
-            logging.LogRecord(
-                name=record.name,
-                level=record.levelno,
-                pathname=record.pathname,
-                lineno=record.lineno,
-                msg="",
-                args=(),
-                exc_info=None,
-            )))
+        record_no_msg = logging.LogRecord(
+            name=record.name,
+            level=record.levelno,
+            pathname=record.pathname,
+            lineno=record.lineno,
+            msg="",
+            args=(),
+            exc_info=None,
+        )
+        record_no_msg.kernel_id = record.kernel_id  # ensure this is copied properly
+        return len(super().format(record_no_msg))
 
     def format(self, record):
         """Format a record with added indentation and custom property prepended."""
-        # Add the custom property to the record
-        record.kernel_id = self.kernel_id
-        # TODO:kernel_id_field = f"{record.kernel_id} - "
-
         # get header
         head, *trailing = super().format(record).splitlines(True)
         # first = record.getMessage().splitlines(True)[0]
         # head = head.replace(first, "")
 
         # Format the message and preserve multiline formatting
-        indent = " " * (self.get_header_length(record)
-                        )  # + len(kernel_id_field))
+        indent = " " * (self.get_header_length(record))
+        # indent = " "
 
         return head + "".join(indent + line for line in trailing)
+
+
+def get_kernel_id() -> str:
+    """Fetches kernel ID per context"""
+    try:
+        return str(sl.get_kernel_id())
+    except Exception:
+        return "dummy"
 
 
 def setup_logging(
@@ -54,7 +57,6 @@ def setup_logging(
     file_log_level=logging.INFO,
     max_bytes: int = 5 * 1024 * 1024,
     backup_count: int = 5,
-    kernel_id: str = "dummy",
 ):
     """
     Configures the logging system with a rotating file handler.
@@ -72,11 +74,10 @@ def setup_logging(
         "formatters": {
             "standard": {
                 "()":
-                MultiLineFormatter,  # Use the custom multi-line formatter
+                # logging.Formatter,
+                MultiLineFormatter,  # use custom multi-line formatter
                 "format":
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s",  # Standard format
-                "kernel_id":
-                kernel_id,  # Pass the custom property to the formatter
+                "%(asctime)s - %(name)s - %(levelname)s - %(kernel_id)s - %(message)s",  # standard format
             }
         },
         "handlers": {
@@ -84,6 +85,7 @@ def setup_logging(
                 "class": "logging.StreamHandler",
                 "formatter": "standard",
                 "level": console_log_level,
+                #                "filters": ["kernelid"],
             },
             "rotating_file": {
                 "class": "logging.handlers.RotatingFileHandler",
@@ -92,19 +94,34 @@ def setup_logging(
                 "maxBytes": max_bytes,
                 "backupCount": backup_count,
                 "level": file_log_level,
+                #                "filters": ["kernelid"],
             },
         },
         "loggers": {
-            # Example: Custom logger configuration for a specific module
-            "sdss_explorer": {
+            "dashboard": {
                 "handlers": ["console", "rotating_file"],
                 "level": file_log_level,
                 "class": "ExplorerLogger",
-                "kernel_id": "dummy",
                 "propagate": False,
-            }
+            },
+            "server": {
+                "handlers": ["console", "rotating_file"],
+                "level": file_log_level,
+                "class": "ExplorerLogger",
+                "propagate": False,
+            },
         },
     }
+
+    # set record factory to set kernel id
+    oldfactory = logging.getLogRecordFactory()
+
+    def record_factory(*args, **kwargs):
+        record = oldfactory(*args, **kwargs)
+        record.kernel_id = get_kernel_id()
+        return record
+
+    logging.setLogRecordFactory(record_factory)
 
     logging.config.dictConfig(logging_config)
     return

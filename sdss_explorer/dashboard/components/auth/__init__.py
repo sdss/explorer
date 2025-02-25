@@ -17,7 +17,7 @@ from ipyvue import VueWidget
 from ...dataclass import State, Alert
 from ..dialog import Dialog
 
-logger = logging.getLogger("sdss_explorer")
+logger = logging.getLogger("dashboard")
 
 
 def get_url():
@@ -70,9 +70,9 @@ def login(username: str, password: str):
         )
         logger.info("response received:", response.json())
         if not response.ok:
-            assert (
-                "502" not in response.json()["detail"]
-            ), "upstream server error, please inform admins (api.sdss.org/crown)."
+            assert "502" not in response.json()["detail"], (
+                "upstream server error, please inform admins (api.sdss.org/crown)."
+            )
 
         # check response is okay
         assert response.ok, "invalid username or password."

@@ -1,4 +1,5 @@
 import asyncio
+import os
 import logging
 from concurrent.futures.process import ProcessPoolExecutor
 from contextlib import asynccontextmanager
@@ -12,21 +13,37 @@ from uuid import UUID
 import vaex.cache
 import vaex.logging
 
-from explorer_server.logging import setup_logging
-from explorer_server.filter import filter_dataframe
-from explorer_server.jobs import Job, jobs
+from .logging import setup_logging
+from .filter import filter_dataframe
+from .jobs import Job, jobs
+from .config import settings
 
 setup_logging()
 
 vaex.logging.remove_handler()  # dump handler
 vaex.cache.on()  # ensure cache on!
 
-logger = logging.getLogger("explorerdownload")
+logger = logging.getLogger("server")
+
+# solara server setup(?)
+try:
+    os.environ["SOLARA_ROOT_PATH"] = os.getenv("SOLARA_ROOT", "/solara")
+    os.environ["SOLARA_APP"] = "sdss_explorer.dashboard"
+    os.environ["SOLARA_THEME_VARIANT"] = "dark"
+    os.environ["EXPLORER_DATAPATH"] = os.getenv("EXPLORER_DATAPATH",
+                                                os.path.expanduser("~"))
+    assert os.getenv("MOUNT_DASHBOARD", False)
+    # this solara import needs to come after the os environ setup
+    import solara.server.fastapi as solara_server
+except ImportError:
+    solara_server = None
+except AssertionError:
+    solara_server = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.executor = ProcessPoolExecutor(max_workers=2)
+    app.state.executor = ProcessPoolExecutor(max_workers=settings.nworkers)
     try:
         yield
     finally:
@@ -36,9 +53,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
-@app.get("/health")
+@app.get("/")
 async def health_check():
-    return {"status": "healthy"}
+    return {"This is": "Explorer server"}
 
 
 async def run_in_process(fn, *args, **kwargs):
@@ -108,3 +125,8 @@ async def status_handler(uid: UUID):
 async def status_all():
     """Get all job statuses"""
     return jobs
+
+
+# mount if found
+if solara_server:
+    app.mount("/solara/", app=solara_server.app)

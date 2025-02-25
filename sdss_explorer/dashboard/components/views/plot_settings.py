@@ -4,9 +4,7 @@ import solara as sl
 from solara.components.card import Card
 from solara.components.columns import Columns
 
-from sdss_explorer.pages.dataclass.vcdata import VCData
-
-from ...dataclass import SubsetState, Subset
+from ...dataclass import SubsetState, Subset, VCData
 from ..sidebar.autocomplete import SingleAutocomplete, AutocompleteSelect
 
 

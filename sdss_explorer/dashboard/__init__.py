@@ -36,7 +36,14 @@ from .components.views.dataframe import NoDF  # noqa: E402
 # logging setup
 DEV = bool(getenv("EXPLORER_DEV", False))
 
-logger = logging.getLogger("sdss_explorer")
+setup_logging(
+    log_path=getenv("VAEX_HOME", "./"),
+    console_log_level=logging.DEBUG if DEV else logging.ERROR,
+    file_log_level=logging.DEBUG
+    if DEV else logging.INFO,  # TODO: discuss logging setup
+)
+
+logger = logging.getLogger("dashboard")
 
 
 def on_start():
@@ -46,16 +53,9 @@ def on_start():
     State._subset_store.set(SubsetStore())
 
     # start logger
-    setup_logging(
-        log_path=getenv("VAEX_HOME", "./"),
-        console_log_level=logging.INFO if DEV else logging.CRITICAL,
-        file_log_level=logging.INFO
-        if DEV else logging.DEBUG,  # TODO: discuss logging setup
-        kernel_id=State.kernel_id,
-    )
 
     # connection log
-    logger.info(f"new session connected! :: {State.kernel_id}")
+    logger.info("new session connected!")
 
     # TODO: get user authentication via router (?) and define permissions
     # NOTE: https://github.com/widgetti/solara/issues/774
@@ -64,7 +64,7 @@ def on_start():
         """On kernel shutdown function, helps to clear memory of dataframes."""
         if State.df.value:
             State.df.value.close()
-        logger.info(f"culled kernel! :: {State.kernel_id}")
+        logger.info("disconnected, culled kernel!")
 
     return on_shutdown
 
@@ -190,8 +190,9 @@ def Page() -> None:
                             )), "carton failed"
 
                     expr = subset_data.get("expression")
-                    expr = expr.replace(".and.", " & ").replace(".or.", " | ")
                     if expr:
+                        expr = expr.replace(".and.",
+                                            " & ").replace(".or.", " | ")
                         State.df.value.validate_expression(expr)
                 except Exception as e:
                     logger.debug(f"Failed query params on subset parsing: {e}")

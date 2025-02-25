@@ -29,7 +29,7 @@ __all__ = [
     "ExprEditor", "TargetingFiltersPanel", "PivotTablePanel", "DatasetSelect"
 ]
 
-logger = logging.getLogger("sdss_explorer")
+logger = logging.getLogger("dashboard")
 
 
 @sl.component()
@@ -264,8 +264,8 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
             return
 
         # mapper + cartons
-        logger.info(f"MAPPER: {mapper}")
-        logger.info(f"CARTON: {carton}")
+        logger.debug(f"MAPPER: {mapper}")
+        logger.debug(f"CARTON: {carton}")
         start = timer()
         cmp_filter = filter_carton_mapper(
             df,
@@ -278,7 +278,7 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
         # invert if requested
         set_cmfilter(cmp_filter)
 
-        logger.info(f"CM filter took {timer() - start:.4f} seconds")
+        logger.debug(f"CM filter took {timer() - start:.4f} seconds")
 
         return
 

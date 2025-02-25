@@ -1,9 +1,13 @@
 """All filter conversion functions. Validation done in UI, but conversion to Expressions is done via these functions"""
 
 import operator
+import logging
 import re
 import numpy as np
 import vaex as vx
+
+# TODO: get dashboard or main depending on context of functions
+logger = logging.getLogger("dashboard")
 
 
 @vx.register_function(multiprocessing=True)
@@ -34,6 +38,7 @@ def filter_expression(
     """Converts expression to valid filter"""
     # first, remove all spaces
     expr = expression.replace(" ", "")
+    logger.debug(f"expr: {expr}")
     num_regex = r"^-?[0-9]+(?:\.[0-9]+)?(?:e-?\d+)?$"
 
     # get expression in parts, saving split via () regex
@@ -102,9 +107,11 @@ def filter_expression(
 
     # create expression as str
     expr = "(" + "".join(subexpressions) + ")"
+    logger.debug(f"expr final: {expr}")
 
     # set filter corresponding to inverts & exit
     if invert:  # NOTE: df will never be None unless something horrible happens
+        logger.debug("inverting expression")
         return ~df[expr]
     else:
         return df[expr]
@@ -153,6 +160,7 @@ def filter_carton_mapper(
         cmp_filter = None
 
     if invert and (cmp_filter is not None):
+        logger.debug("inverting cmpfilter")
         return ~cmp_filter
     else:
         return cmp_filter
@@ -185,6 +193,7 @@ def filter_flags(df: vx.DataFrame,
         concat_filter = f"(({')&('.join(filters)}))"
         concat_filter: vx.Expression = df[concat_filter]
         if invert and (concat_filter is not None):
+            logger.debug("inverting flagfilter")
             concat_filter = ~concat_filter
     else:
         concat_filter = None

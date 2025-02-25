@@ -11,7 +11,7 @@ import vaex as vx
 
 from .subsetstore import SubsetStore
 
-logger = logging.getLogger("sdss_explorer")
+logger = logging.getLogger("dashboard")
 
 # disable the vaex built-in logging (clogs on FileNotFounds et al)
 if sl.server.settings.main.mode == "production":

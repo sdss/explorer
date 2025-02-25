@@ -7,14 +7,23 @@ license = {file = "LICENSE"}
 classifiers = ["Intended Audience :: Developers",  "Programming Language :: Python :: 3.10"]
 dynamic = ["version", "description"]
 dependencies = [
-    "solara>=1.40.0",
-    "plotly",
-    "vaex>=4.17.0",
-    "numpy",
+    "solara>=1.40.0,<=1.42.0",
+    "plotly>=5.18.0,<6.0.0",
+    "vaex-core >=4.17.0",
+    "vaex-hdf5",
     "diskcache>=5.6.3",
+    "numpy>=1.26.4,<2.0.0", # dependency force because its being annoying
+    "xarray",
+    "dotenv",
 ]
 requires-python = ">= 3.10"
 readme = "README.md"
+
+#[project.optional-dependencies]
+#dev = [
+#    "pytest>=7.0",
+#    "pynvim",
+#]
 
 [build-system]
 requires = ["hatchling"]

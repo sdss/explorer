@@ -7,15 +7,14 @@ from functools import reduce
 from datetime import datetime
 
 from .dataframe import load_dataframe, mappings
-from sdss_explorer.filter_functions import (
+from .config import settings
+from ..filter_functions import (
     filter_carton_mapper,
     filter_flags,
     filter_expression,
 )
 
-logger = logging.getLogger("explorerdownload")
-
-SCRATCH = os.getenv("EXPLORER_SCRATCH", default="./scratch")
+logger = logging.getLogger("dashboard")
 
 
 def filter_dataframe(uuid: UUID, release: str, datatype: str, dataset: str,
@@ -74,9 +73,9 @@ def filter_dataframe(uuid: UUID, release: str, datatype: str, dataset: str,
         raise Exception("attempting to export 0 length df")
 
     # make directory and pass back after successful export
-    os.makedirs(os.path.join(SCRATCH, str(uuid)), exist_ok=True)
+    os.makedirs(os.path.join(settings.scratch, str(uuid)), exist_ok=True)
     currentTime = "{date:%Y-%m-%d_%H:%M:%S}".format(date=datetime.now())
-    filepath = os.path.join(SCRATCH, str(uuid),
+    filepath = os.path.join(settings.scratch, str(uuid),
                             f"subset-{name}-{currentTime}.parquet")
     # extract, then export
     dff = dff[columns].extract()
