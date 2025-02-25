@@ -58,13 +58,6 @@ def filter_dataframe(
     filters = list()
 
     # generic unpack
-    name = kwargs.get("name", "A")
-    combotype = kwargs.get("combotype", "AND")
-    invert = kwargs.get("invert", False)
-    expression = kwargs.get("expression", "")
-    carton = kwargs.get("carton", None)
-    mapper = kwargs.get("mapper", None)
-    flags = kwargs.get("flags", None)
     # show console
     logger.info(f"{uuid}: requests {release}/{datatype}/{dataset}")
     logger.info(
@@ -77,17 +70,17 @@ def filter_dataframe(
 
     # process list-like data
     if carton:
-        carton = carton.split(",")
+        carton: list[str] = carton.split(",")
     if mapper:
-        mapper = mapper.split(",")
+        mapper: list[str] = mapper.split(",")
     if flags:
-        flags = flags.split(",")
+        flags: list[str] = flags.split(",")
     if carton or mapper:
         cmp_filter = filter_carton_mapper(
             dff,
             mappings,
-            carton,
-            mapper,
+            carton if carton else [],
+            mapper if mapper else [],
             combotype=combotype,
             invert=invert,
         )
@@ -107,11 +100,13 @@ def filter_dataframe(
     # make directory and pass back after successful export
     os.makedirs(os.path.join(settings.scratch, str(uuid)), exist_ok=True)
     currentTime = "{date:%Y-%m-%d_%H:%M:%S}".format(date=datetime.now())
-    filepath = os.path.join(settings.scratch, str(uuid),
-                            f"subset-{name}-{currentTime}.parquet")
+    filename = f"subset-{name}-{release}-{datatype}-{dataset}-{currentTime}.parquet"
+    filepath = os.path.join(str(uuid), filename)
+    disk_path = os.path.join(settings.scratch, filepath)
+
     # extract, then export
     dff = dff[columns].extract()
-    dff.export_parquet(filepath, chunk_size=int(60e3))
+    dff.export_parquet(disk_path, chunk_size=int(60e3))
 
     # cleanup to free memory slightly
     dff.close()

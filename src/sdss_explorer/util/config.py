@@ -42,6 +42,12 @@ class Settings(BaseSettings):
                          validation_alias="EXPLORER_API_URL")
     """API url for download server. Defaults to localhost on port 8050."""
 
+    download_url: str = Field(
+        default="https://bing.com/search?query=",
+        validation_alias="EXPLORER_DOWNLOAD_URL",
+    )
+    """Public download URL for serving files. Defaults to bing (for fun)."""
+
 
 # NOTE: vaex additionally has settings
 # VAEX_HOME -> where the cache is

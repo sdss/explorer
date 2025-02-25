@@ -202,10 +202,12 @@ def DownloadMenu(key: str) -> ValueElement:
             try:
                 resp = requests.get(
                     f"{settings.api_url}/status/{response.get('uid', 0)}")
-                if resp.status_code == 200:
+                try:
                     data = json.loads(resp.text)
                     if data["status"] == "complete":
                         return data
+                except Exception:
+                    return response
             except Exception as e:
                 logger.debug(f"failed to connect: {e}")
                 Alert.update("Failed to connect to download sever",
@@ -246,14 +248,22 @@ def DownloadMenu(key: str) -> ValueElement:
             query_job_status()
         elif response.get("status") == "complete":
             router.push(
-                f"https://www.bing.com/search?q={response.get('uid', 'foobar')}"
+                f"{settings.download_url}/{response.get('filepath', 'foobar')}"
             )
+
+    # color logic
+    if response["status"] == "complete":
+        color = "green"
+    elif response["status"] == "complete":
+        color = "red"
+    else:
+        color = "white"
 
     with sl.Tooltip("Download subset as csv") as main:
         sl.Button(
             label="",
             icon_name="mdi-download",
-            color="green" if response["status"] == "complete" else "white",
+            color=color,
             outlined=True if response["status"] == "not_run" else False,
             icon=True,
             text=True,
