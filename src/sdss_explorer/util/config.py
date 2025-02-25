@@ -15,17 +15,14 @@ class Settings(BaseSettings):
     """How many export processes to run concurrently. The max possible will on memory spec of the machine."""
 
     home: str = Field(default=os.path.expanduser("~"),
-                      validation_alias="VAEX_HOME")  # TODO: default None
+                      validation_alias="VAEX_HOME")
     """The home directory for logging and caching. Defaults to `$HOME`."""
 
-    datapath: str = Field(
-        default="./data",
-        validation_alias="EXPLORER_DATAPATH")  # TODO: default None
+    datapath: str = Field(validation_alias="EXPLORER_DATAPATH")
     """The datapath to explorer files. Expects to be formatted in `./[release]/[explorer|columns]All[datatype]-[vastra].[hdf5|parquet]`"""
 
-    scratch: str = Field(
-        default="./scratch",
-        validation_alias="EXPLORER_SCRATCH")  # TODO: default None
+    scratch: str = Field(default="./scratch",
+                         validation_alias="EXPLORER_SCRATCH")
     """The datapath to a scratch space for custom summary file outputs."""
 
     dev: bool = Field(

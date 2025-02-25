@@ -70,9 +70,14 @@ RUN mkdir -p /tmp/webapp
 
 # module setup
 # this is overriden by wsgi cfg
-ENV MODULE_NAME="valis.wsgi"
 ENV EXPLORER_SOCKET_DIR='/tmp/webapp' 
 ENV SOLARA_CHECK_HOOKS="off"
+ENV EXPLORER_NPROCESSES=4
+ENV EXPLORER_NWORKERS=1
+ENV VAEX_HOME="~/"
+ENV VAEX_CACHE="memory,disk"
+ENV VAEX_CACHE_DISK_SIZE_LIMIT="10GB"
+ENV VAEX_CACHE_MEMORY_SIZE_LIMIT="1GB"
 
 # label
 LABEL org.opencontainers.image.source https://github.com/sdss/explorer

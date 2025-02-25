@@ -24,7 +24,7 @@ cd sdss-explorer
 pip install -e . 
 ```
 
-These instructions are the same as in conda
+These instructions are the same as in `conda`.
 
 ## Development
 
@@ -54,23 +54,30 @@ Explorer uses stacked, custom HDF5 renders of the [astra](https://github.com/sds
 It additionally uses a custom parquet render of the mappings used in [semaphore](https://github.com/sdss/semaphore), available in the same directory.
 
 ## Starting the server
-To run, the environment variables must be exported to the shell environment. These are:
+To run, the environment variables must be exported to the shell environment. The base ones are:
 
- - `EXPLORER_DATAPATH` :: path to data files (proprietary SDSS data, found on the SAS). In the deployment context a folder is mounted onto the VM.
+ - `EXPLORER_DATAPATH` :: path to data files (proprietary SDSS data, found on the SAS). 
+    - In the deployment context a folder is mounted onto the VM.
+    - Files are expected to be placed as: `./[release]/[explorer|columns]All[datatype]-[vastra].[hdf5|parquet]`
+ - `VASTRA` :: specific [astra](https://github.com/sdss/astra) reduction versions to read.
+ - `VAEX_HOME` :: path to store cache and log files during runtime. Defaults on startup to `$HOME/.vaex`.
  - `VALIS_API_URL` :: url for [valis](https://www.github.com/sdss/valis). This is required for login authentication (to be implemented).
- - `VAEX_HOME` :: path to store `vaex` cache and log files during runtime. Defaults on startup to `$HOME/.vaex`.
 
-Additionally, the download server requires:
+Additionally, using the download server requires:
  - `EXPLORER_SCRATCH` :: path to a scratch space
- - `` :: path to a scratch
+ - `API_URL` :: API url for the download server. Defaults to localhost (so you might not need to set this)
+ - `EXPLORER_NPROCESSES` :: max concurrent processes for custom summary file renders.
+
+ You also must additionally set for the Docker:
+ - `EXPLORER_NWORKERS` :: how many gunicorn/uvicorn workers to use
 
 ### Cache setup
 The Explorer can utilize a hybrid memory and disk cache . To set these up, use the following environment variables on runtime:
  - `VAEX_CACHE="memory,disk"`
- - `VAEX_CACHE_DISK_SIZE_LIMIT="10GB"`
- - `VAEX_CACHE_MEMORY_SIZE_LIMIT="1GB`
+ - `VAEX_CACHE_DISK_SIZE_LIMIT="10GB"` -- this can be higher/lower
+ - `VAEX_CACHE_MEMORY_SIZE_LIMIT="1GB` -- this can also be higher/lower
 
-These are automatically set when using the bundled shell scripts.
+These are automatically set when using the bundled shell scripts and docker.
 
 
 ## Deployment
