@@ -13,7 +13,21 @@ def SingleAutocomplete(
     disabled: bool = False,
     allow_none: bool = False,
 ):
-    """Single selectable autocomplete"""
+    """Autocomplete component with single selection
+
+    Note:
+        this is a vue component. Look at the relevant vue file.
+
+    Args:
+        label: component text label
+        value: selected thing value
+        on_value: value setter for `value`
+        values: list of values that are selectable
+        disabled: whether disabled; prop is synced live
+        allow_none: can value be set to None?
+
+
+    """
     pass
 
 
@@ -25,4 +39,17 @@ def AutocompleteSelect(
     values: list[Any],
     multiple: bool = True,
 ):
+    """Autocomplete component via selection
+
+    Note:
+        this is a vue component. Look at the relevant vue file.
+
+    Args:
+        label: component text label
+        value: value of selectables
+        on_value: value setter for `value`
+        values: list of values that are selectable
+        multiple: allow multiple selections
+    """
+
     pass

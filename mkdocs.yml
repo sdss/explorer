@@ -6,7 +6,6 @@ theme:
     - navigation.expand 
     - navigation.indexes 
     - navigation.sections 
-    - navigation.tabs
 plugins:
 - mkdocstrings:
     handlers:
@@ -35,7 +34,7 @@ extra_javascript:
   - javascripts/mathjax.js
   - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
 nav:
-  - Home: index.md
+  - Introduction: index.md
   - User Guide:
     - Getting started: user/started.md
     - Plotting: user/plotting.md

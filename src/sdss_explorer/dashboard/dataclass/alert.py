@@ -7,7 +7,18 @@ __all__ = ["Alert", "AlertSystem"]
 
 
 class Alert:
-    """Alert message settings"""
+    """Alert message settings
+
+    This namespace controls what is displayed with `AlertSystem` and whether it is displayed.
+
+
+    State variables:
+        * `open`: whether the menu is open or not
+        * `message`: message to display
+        * `color`: color of the popup. Any of `"success","warning","error","info"`.
+        * `closeable`: whether the popup is closeable
+
+    """
 
     open = sl.reactive(False)
     message = sl.reactive("")
@@ -15,7 +26,17 @@ class Alert:
     closeable = sl.reactive(True)
 
     @staticmethod
-    def update(message, color="info", closeable=True):
+    def update(message: str,
+               color: str = "info",
+               closeable: bool = True) -> None:
+        """
+        Submit a message
+
+        Args:
+            message: message to send
+            color: color of popup. Any of `"success","warning","error","info"`.
+            closeable: whether the popup is closeable
+        """
         # possible colors are success, info, warning, and error
         Alert.color.set(color)
         Alert.message.set(message)

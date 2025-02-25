@@ -10,7 +10,7 @@ from ..dataclass.vcdata import VCList
 __all__ = ["export_subset", "export_layout", "export_vcdata"]
 
 
-def import_subset(jsondata: str) -> Subset:
+def import_subset(jsondata: str):
     """Converts JSON data into a Subset
 
     Args:
