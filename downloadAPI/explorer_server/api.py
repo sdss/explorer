@@ -1,46 +1,37 @@
 import asyncio
 import logging
-from typing import cast
 from concurrent.futures.process import ProcessPoolExecutor
 from contextlib import asynccontextmanager
 from http import HTTPStatus
 from functools import partial
 from timeit import default_timer as timer
 
-import vaex.logging
 from fastapi import BackgroundTasks
-from typing import Dict
-from uuid import UUID, uuid4
 from fastapi import FastAPI
-from pydantic import BaseModel, Field
+from uuid import UUID
+import vaex.cache
+import vaex.logging
 
 from explorer_server.logging import setup_logging
 from explorer_server.filter import filter_dataframe
+from explorer_server.jobs import Job, jobs
 
 setup_logging()
 
 vaex.logging.remove_handler()  # dump handler
+vaex.cache.on()  # ensure cache on!
 
 logger = logging.getLogger("explorerdownload")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.executor = ProcessPoolExecutor(max_workers=5)
+    app.state.executor = ProcessPoolExecutor(max_workers=2)
     try:
         yield
     finally:
         app.state.executor.shutdown()  # free any resources
 
-
-class Job(BaseModel):
-    uid: UUID = Field(default_factory=uuid4)
-    status: str = "in_progress"
-    message: str = ""
-    filepath: str = cast(str, None)
-
-
-jobs: Dict[UUID, Job] = {}
 
 app = FastAPI(lifespan=lifespan)
 

@@ -1,4 +1,5 @@
 import os
+import gc
 import logging
 from uuid import UUID
 import operator
@@ -65,24 +66,24 @@ def filter_dataframe(uuid: UUID, release: str, datatype: str, dataset: str,
         filters.append(flagfilter)
 
     # concat all and go!
+    filters = [f for f in filters if f is not None]
     if filters:
-        totalfilter = reduce(operator.__and__,
-                             [f for f in filters if f is not None])
-        dfe = dff[totalfilter]
-    else:
-        dfe = dff
-    dfe = dfe[columns].extract()
-    if len(dfe) == 0:
-        print(uuid)
-        print(dataset, datatype)
-        print(carton, mapper)
-        print([filter.__str__() for filter in filters])
-        raise Exception("attempting to export 0 rows")
+        totalfilter = reduce(operator.__and__, filters)
+        dff = dff[totalfilter]
+    if len(dff) == 0:
+        raise Exception("attempting to export 0 length df")
 
     # make directory and pass back after successful export
     os.makedirs(os.path.join(SCRATCH, str(uuid)), exist_ok=True)
     currentTime = "{date:%Y-%m-%d_%H:%M:%S}".format(date=datetime.now())
     filepath = os.path.join(SCRATCH, str(uuid),
                             f"subset-{name}-{currentTime}.parquet")
-    dfe.export_parquet(filepath)
+    # extract, then export
+    dff = dff[columns].extract()
+    dff.export_parquet(filepath, chunk_size=int(60e3))
+
+    # cleanup to free memory slightly
+    dff.close()
+    del dff
+    gc.collect()
     return filepath
