@@ -10,6 +10,7 @@ import solara as sl
 import vaex as vx
 
 from .subsetstore import SubsetStore
+from ...util import settings
 
 logger = logging.getLogger("dashboard")
 
@@ -17,24 +18,17 @@ logger = logging.getLogger("dashboard")
 if sl.server.settings.main.mode == "production":
     vx.logging.remove_handler()  # force remove handler on production instance
 
-VASTRA = "0.6.0"
+VASTRA = settings.vastra
+DATAPATH = settings.datapath
 
-
-def _datapath() -> str | None:
-    """fetches path to parquet files from envvar"""
-    # NOTE: does not expect a slash at end of the envvar, can account for it in future
-    datapath = os.getenv("EXPLORER_DATAPATH", default=None)
-    if datapath:
-        return datapath
-    else:
-        logger.critical("Datapath envvar is not set! App cannot function.")
-        return None
+if DATAPATH is None:
+    logger.critical("Datapath envvar is not set! App cannot function.")
 
 
 def load_column_json(release: str, datatype: str) -> dict | None:
     """Load the pre-compiled column JSON for a given dataset."""
     # get dataset name
-    datapath = _datapath()
+    datapath = settings.datapath
 
     # fail case for no envvar
     if datapath is None:
@@ -55,7 +49,7 @@ def load_column_json(release: str, datatype: str) -> dict | None:
 def open_file(filename):
     """Vaex open wrapper for datafiles to ensure authorization/file finding."""
     # get dataset name
-    datapath = _datapath()
+    datapath = settings.datapath
 
     # fail case for no envvar
     if datapath is None:
@@ -79,7 +73,7 @@ def open_file(filename):
 
 def load_datamodel() -> pd.DataFrame | None:
     """Loads a given compiled datamodel, used in conjunction with the column glossary"""
-    datapath = _datapath()
+    datapath = settings.datapath
     # no datapath
     if datapath is None:
         return None
@@ -88,7 +82,7 @@ def load_datamodel() -> pd.DataFrame | None:
     # TODO: replace with a real datamodel from the real things
     file = "ipl3_partial.json"
     try:
-        with open(f"{_datapath()}/{file}") as f:
+        with open(f"{settings.datapath}/{file}") as f:
             data = json.load(f).values()
             f.close()
         return pd.DataFrame(data)  # TODO: back to vaex

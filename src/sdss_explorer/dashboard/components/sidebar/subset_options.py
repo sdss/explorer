@@ -13,6 +13,7 @@ from reacton.core import ValueElement
 from solara.lab import ConfirmationDialog
 
 from ...dataclass import Alert, SubsetState
+from ....util import settings
 from ..dialog import Dialog
 from .subset_filters import ExprEditor, TargetingFiltersPanel
 
@@ -20,8 +21,6 @@ logger = logging.getLogger("dashboard")
 
 # context for updater and renamer
 updater_context = sl.create_context(print)  #  dummy func
-
-API_URL = os.getenv("EXPLORER_API", "http://localhost:8050")
 
 
 @sl.component()
@@ -202,7 +201,7 @@ def DownloadMenu(key: str) -> ValueElement:
         if response["status"] == "in_progress":
             try:
                 resp = requests.get(
-                    f"{API_URL}/status/{response.get('uid', 0)}")
+                    f"{settings.api_url}/status/{response.get('uid', 0)}")
                 if resp.status_code == 200:
                     data = json.loads(resp.text)
                     if data["status"] == "complete":
@@ -225,7 +224,7 @@ def DownloadMenu(key: str) -> ValueElement:
         dataset = data["dataset"]
         try:
             resp = requests.post(
-                f"{API_URL}/filter_subset/ipl3/{State.datatype}/{dataset}",
+                f"{settings.api_url}/filter_subset/ipl3/{State.datatype}/{dataset}",
                 params=data,
                 data=json.dumps(data),
             )

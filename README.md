@@ -99,8 +99,9 @@ docker build -t explorer -f Dockerfile .
 
 To start a container, run:
 ```bash
-docker run -p 8050:8050 -v $EXPLORER_SCRATCH:/root/sas valis-dev -e 
+docker run -p 8050:8050 -v $EXPLORER_SCRATCH:/root/scratch valis-dev -v $EXPLORER_DATAPATH:/root/data -e EXPLORER_DATAPATH=/root/data -e EXPLORER_SCRATCH=/root/scratch
 ```
+Additionally, add `-e EXPLORER_MOUNT_DASHBOARD` to mount the dashboard to the same docker.
 
 ### Bundled shell scripts
 This repo comes bundled with shell scripts to run the application via `solara`. They don't particularly do anything different to just running it manually. To ensure they work, make the scripts executable:

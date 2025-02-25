@@ -36,16 +36,18 @@ extra_javascript:
 nav:
   - Introduction: index.md
   - User Guide:
-    - Getting started: user/started.md
     - Plotting: user/plotting.md
-    - Downloading data: user/download.md
     - Multiple subsets: user/subsets.md
     - Virtual columns: user/vc.md
     - Selecting targeting cartons: user/cartons.md
+    - Crossmatch: user/crossmatch.md
+    - Downloading data: user/download.md
   - Examples:
-    - HR Diagram: examples/hr.md
-    - Getting your carton: examples/yso.md
-    - Checking flags: examples/flags.md
+    - Creating a HR Diagram: examples/hr.md
+    - Selecting sources from Gaia: examples/crossmatch.md
+    - Selecting a carton: examples/yso.md
+    - Comparing flags and datasets: examples/flags.md
+    - Getting your data out: examples/flags.md
   - Developer Guide:
     - Index: developer/index.md
     - Layout: developer/codebase.md

@@ -4,10 +4,10 @@ import logging
 from urllib.parse import parse_qs
 from os import getenv
 
-from reacton.ipyvuetify import ValueElement
 import solara as sl
 import numpy as np
 import vaex as vx
+from reacton.ipyvuetify import ValueElement
 from solara.lab import ThemeToggle
 
 # vaex setup
@@ -24,9 +24,8 @@ from .dataclass import (
     AlertSystem,
     Alert,
     SubsetState,
-    _datapath,
 )  # noqa: E402
-from ..util import validate_release, validate_pipeline, setup_logging  # noqa: E402
+from ..util import settings, validate_release, validate_pipeline, setup_logging  # noqa: E402
 from .components.sidebar import Sidebar  # noqa: E402
 from .components.sidebar.glossary import HelpBlurb  # noqa: E402
 from .components.sidebar.subset_filters import flagList  # noqa: E402
@@ -34,10 +33,10 @@ from .components.views import ObjectGrid, add_view  # noqa: E402
 from .components.views.dataframe import NoDF  # noqa: E402
 
 # logging setup
-DEV = bool(getenv("EXPLORER_DEV", False))
+DEV = settings.dev or (sl.server.settings.main.mode == "production")
 
 setup_logging(
-    log_path=getenv("VAEX_HOME", "./"),
+    log_path=settings.home,
     console_log_level=logging.DEBUG if DEV else logging.ERROR,
     file_log_level=logging.DEBUG
     if DEV else logging.INFO,  # TODO: discuss logging setup
@@ -51,8 +50,6 @@ def on_start():
     State._uuid.set(sl.get_session_id())
     State._kernel_id.set(sl.get_kernel_id())
     State._subset_store.set(SubsetStore())
-
-    # start logger
 
     # connection log
     logger.info("new session connected!")
@@ -119,7 +116,7 @@ def Page() -> None:
         release: str = query_params.pop("release", "ipl3")
         datatype: str = query_params.pop("datatype", "star")
         try:
-            assert validate_release(_datapath(), release), 1
+            assert validate_release(settings.datapath, release), 1
             if not ((datatype == "star") or (datatype == "visit")):
                 datatype = "star"  # force reassignment if bad; ensures no load failure
 
