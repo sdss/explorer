@@ -1,4 +1,5 @@
 """Regex functions with Alerts"""
+
 import re
 from itertools import permutations
 from typing import List, Optional
@@ -50,9 +51,9 @@ def filter_regex(data: vx.DataFrame | pd.DataFrame | List,
                 return list(
                     filter(re.compile(gen_fuzzy_regex(query)).search, data))
     except Exception:
-       Alert.update(
+        Alert.update(
             message=
-            'Filter on autocomplete crashed! If persistent, please inform server admins.',
-            color='error')
+            "Filter on autocomplete crashed! If persistent, please inform server admins.",
+            color="error",
+        )
         return []
-    return
