@@ -7,6 +7,7 @@ import solara as sl
 from jupyter_bokeh import BokehModel
 
 from plot_actions import (
+    update_tooltips,
     change_formatter,
     fetch_data,
     reset_range,
@@ -42,15 +43,7 @@ def add_scatter_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
-            z = dff[plotstate.color.value].values
-            z = np.log10(z) if plotstate.colorlog.value else z
-            with fig_model.hold(render=True):
-                fig_model.renderers[0].data_source.data["z"] = z
-                # fig_model.renderers[0].glyph.fill_color
-                fig_model.right[
-                    0].color_mapper.palette = plotstate.colorscale.value
-                # TODO: fancy title based on bintype
-                fig_model.right[0].title = plotstate.color.value
+            update_coloraxis(plotstate, fig_model, dff)
 
     def update_cmap():
         """Colormap update effect"""
@@ -152,29 +145,49 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
             with fig_model.hold(render=True):
-                z, x_centers, y_centers, limits = aggregate_data(plotstate)
+                z, x_centers, y_centers, limits = aggregate_data(
+                    plotstate, dff)
+                print("effect, z from return", len(z))
 
                 source = fig_model.renderers[0].data_source
                 source.data = {
                     "x": np.repeat(x_centers, len(y_centers)),
                     "y": np.tile(y_centers, len(x_centers)),
-                    "z": z.values.flatten(),
+                    "z": z.flatten(),
                 }
-                # fig_model.renderers[0].glyph.fill_color
-                fig_model.right[
-                    0].color_mapper.palette = plotstate.colorscale.value
-                # TODO: fancy title based on bintype
-                fig_model.right[0].title = plotstate.color.value
+                fig_model.renderers[0].glyph.update(
+                    height=(limits[0][1] - limits[0][0]) /
+                    plotstate.nbins.value,
+                    width=(limits[1][1] - limits[1][0]) /
+                    plotstate.nbins.value,
+                )
+                for axis in {"x", "y"}:
+                    update_label(plotstate, fig_model,
+                                 axis=axis)  # update all labels
+                update_tooltips(plotstate, fig_model)
+            update_coloraxis(plotstate, fig_model,
+                             dff)  # also update coloraxis
+
+    def update_filter():
+        """Filter update"""
+        fig_widget: BokehModel = sl.get_widget(pfig)
+        if isinstance(fig_widget, BokehModel):
+            fig_model: Plot = fig_widget._model
+            with fig_model.hold(render=True):
+                z, x_centers, y_centers, limits = aggregate_data(
+                    plotstate, dff)
+                source = fig_model.renderers[0].data_source
+                source.data = {
+                    "x": np.repeat(x_centers, len(y_centers)),
+                    "y": np.tile(y_centers, len(x_centers)),
+                    "z": z.flatten(),
+                }
 
     def update_color():
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
-            z, _, __, ___ = aggregate_data(plotstate)
-            with fig_model.hold(render=True):
-                fig_model.renderers[0].data_source.data[
-                    "z"] = z.values.flatten()
-                update_coloraxis()
+            update_coloraxis(plotstate, fig_model, dff)
 
     def update_cmap():
         """Colormap update effect"""
@@ -184,27 +197,11 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
             fig_model.right[
                 0].color_mapper.palette = plotstate.colorscale.value
 
-    def update_filter():
-        """Complete filter update"""
-        fig_widget: BokehModel = sl.get_widget(pfig)
-        if isinstance(fig_widget, BokehModel):
-            fig_model: Plot = fig_widget._model
-            # TODO: categorical support with jittering
-            x = fetch_data(plotstate, dff, axis="x")
-            y = fetch_data(plotstate, dff, axis="y")
-            fig_model.renderers[0].data_source.data = dict(
-                x=x.values,
-                y=y.values,
-                z=dff[plotstate.color.value].values,
-                sdss_id=dff["L"].values,
-            )
-
     def update_flipx():
         """X-axis flip update"""
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
-            # TODO: should we rest both ranges?
             reset_range(plotstate, fig_model, dff, axis="x")
             fig_model.x_range.flipped = plotstate.flipx.value
 
@@ -213,7 +210,6 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
-            # TODO: should we rest both ranges?
             reset_range(plotstate, fig_model, dff, axis="y")
             fig_model.y_range.flipped = plotstate.flipx.value
 
@@ -233,7 +229,12 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
     )
     sl.use_effect(
         update_color,
-        dependencies=[plotstate.color.value, plotstate.colorlog.value])
+        dependencies=[
+            plotstate.color.value,
+            plotstate.colorlog.value,
+            plotstate.bintype.value,
+        ],
+    )
     sl.use_effect(update_cmap, dependencies=[plotstate.colorscale.value])
     sl.use_effect(update_flipx, dependencies=[plotstate.flipx.value])
     sl.use_effect(update_flipy, dependencies=[plotstate.flipy.value])

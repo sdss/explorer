@@ -23,9 +23,10 @@ from plot_utils import (
     add_all_tools,
     add_callbacks,
     calculate_range,
+    generate_color_mapper,
     generate_tooltips,
-    generate_axes,
-    generate_color_mapper_bar,
+    add_axes,
+    add_colorbar,
     generate_plot,
 )
 from state import PlotState, df, GridState
@@ -64,12 +65,13 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
         dff = df
 
     def generate_cds():
-        z, x_centers, y_centers, limits = aggregate_data(plotstate)
+        z, x_centers, y_centers, _ = aggregate_data(plotstate, dff)
+        print("init z", z.shape)
         return ColumnDataSource(
             data={
                 "x": np.repeat(x_centers, len(y_centers)),
                 "y": np.tile(y_centers, len(x_centers)),
-                "z": z.values.flatten(),
+                "z": z.flatten(),
             })
 
     source = sl.use_memo(generate_cds, [])
@@ -77,11 +79,13 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
     def create_figure():
         """Creates figure with relevant objects"""
         # obtain data
-        p, menu = generate_plot(plotstate)
+        p, menu = generate_plot()
         xlimits = calculate_range(plotstate, dff, axis="x")
         ylimits = calculate_range(plotstate, dff, axis="y")
+        add_axes(plotstate, p)
 
-        mapper, cb = generate_color_mapper_bar(plotstate, source.data["z"])
+        fill_color = generate_color_mapper(plotstate)
+        add_colorbar(plotstate, p, fill_color)
 
         # generate rectangles
         glyph = Rect(
@@ -90,13 +94,9 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
             width=(xlimits[1] - xlimits[0]) / plotstate.nbins.value,
             height=(ylimits[1] - ylimits[0]) / plotstate.nbins.value,
             line_color=None,
-            fill_color={
-                "field": "z",
-                "transform": mapper
-            },
+            fill_color=fill_color,
         )
         gr = p.add_glyph(source, glyph)
-        p.add_layout(cb, "right")
 
         # create hovertool, bound to figure object
         add_all_tools(p, generate_tooltips(plotstate))
@@ -142,26 +142,22 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
 
     def create_figure():
         """Creates figure with relevant objects"""
-        p, menu = generate_plot(plotstate)
+        p, menu = generate_plot()
         # generate and add axes
-        generate_axes(plotstate, p)
+        add_axes(plotstate, p)
 
         # generate scatter points and colorbar
-        mapper, cb = generate_color_mapper_bar(
-            plotstate, dff[plotstate.color.value].values)
+        fill_color = generate_color_mapper(plotstate)
 
         # add glyph
         glyph = Scatter(
             x="x",
             y="y",
             size=8,
-            fill_color={
-                "field": "z",
-                "transform": mapper,
-            },
+            fill_color=fill_color,
         )
         p.add_glyph(source, glyph)
-        p.add_layout(cb, "right")
+        add_colorbar(plotstate, p, fill_color)
 
         # add all tools; custom hoverinfo
         add_all_tools(p, tooltips=generate_tooltips(plotstate))

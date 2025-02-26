@@ -73,11 +73,10 @@ class PlotState:
                 self.color = sl.use_reactive(kwargs.get("color", "FeH"))
                 self.colorscale = sl.use_reactive(
                     kwargs.get("colorscale", "Inferno256"))
+                self.colorlog = sl.use_reactive(kwargs.get("colorlog", False))
             if plottype != "aggregated" and plottype != "skyplot":
                 self.logx = sl.use_reactive(kwargs.get("logx", ""))
                 self.logy = sl.use_reactive(kwargs.get("logy", ""))
-            if plottype in ["scatter", "skyplot"]:
-                self.colorlog = sl.use_reactive(kwargs.get("colorlog", False))
 
             # statistics settings
             if plottype == "heatmap" or plottype == "histogram" or "delta" in plottype:
@@ -85,8 +84,6 @@ class PlotState:
                 if plottype == "heatmap" or plottype == "delta2d":
                     self.bintype = sl.use_reactive(
                         kwargs.get("bintype", "mean"))
-                    self.binscale = sl.use_reactive(
-                        kwargs.get("binscale", None))
                 else:
                     self.bintype = sl.use_reactive(
                         kwargs.get("bintype", "count"))
