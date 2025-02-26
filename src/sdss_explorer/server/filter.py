@@ -16,7 +16,7 @@ from ..util.filters import (
 )
 
 _P = ParamSpec("_P")
-logger = logging.getLogger("dashboard")
+logger = logging.getLogger("server")
 
 
 def filter_dataframe(
@@ -52,16 +52,22 @@ def filter_dataframe(
     Returns:
         None
     """
+    logger.debug("starting filter job")
     dff, columns = load_dataframe(release, datatype, dataset)
     if (dff is None) or (columns is None):
-        raise Exception("dataframe/columns oad failed")
+        raise Exception("dataframe/columns load failed")
     filters = list()
 
     # generic unpack
     # show console
-    logger.info(f"{uuid}: requests {release}/{datatype}/{dataset}")
-    logger.info(
-        f"{uuid}: requests {expression} with {carton} {mapper} {flags}")
+    logger.debug(f"""requested {release}/{datatype}/{dataset}{uuid}
+                 expr:      {expression} 
+                 carton:    {carton} 
+                 mapper:    {mapper} 
+                 flags:     {flags}
+                 combotype: {combotype}
+                 invert:    {invert}
+                 """)
 
     # expression, etc
     if expression:
@@ -112,4 +118,5 @@ def filter_dataframe(
     dff.close()
     del dff
     gc.collect()
+    logger.debug("completed filter job, exiting now!")
     return filepath

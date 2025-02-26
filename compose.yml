@@ -1,0 +1,36 @@
+services:
+  web:
+    # Build the image from the Dockerfile in the current directory
+    image: explorer-dev
+    build: 
+      context: .
+      dockerfile: Dockerfile.dev
+
+    # Host the FastAPI application on port 8000
+    ports:
+      - "8050:8050"
+    volumes:
+      - "/home/riley/projects/explorer/data/:/root/data"
+      - "/home/riley/projects/explorer/scratch/:/root/scratch"
+    env_file:
+      - .env
+    develop:
+      # Create a `watch` configuration to update the appl
+      # https://docs.docker.com/compose/file-watch/#compose-watch-versus-bind-mounts
+      watch:
+        # Sync the working directory with the `/app` directory in the container
+        - action: sync
+          path: .
+          target: /app
+          # Exclude the project virtual environment — it could be for a
+          # different platform in the container
+          ignore:
+            - .venv/
+            - data/
+            - scratch/
+
+        # Rebuild the image if dependencies change by checking uv.lock
+        - action: rebuild
+          path: ./uv.lock
+        - action: rebuild
+          path: ./pyproject.toml

@@ -2,6 +2,10 @@
 .git
 .github
 
+# DO NOT COPY THE DATA
+data/*
+**/data/**
+
 # Ignore any venvs
 .venv
 

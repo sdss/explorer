@@ -101,13 +101,11 @@ def setup_logging(
             "dashboard": {
                 "handlers": ["console", "rotating_file"],
                 "level": file_log_level,
-                "class": "ExplorerLogger",
                 "propagate": False,
             },
             "server": {
                 "handlers": ["console", "rotating_file"],
                 "level": file_log_level,
-                "class": "ExplorerLogger",
                 "propagate": False,
             },
         },
@@ -118,7 +116,8 @@ def setup_logging(
 
     def record_factory(*args, **kwargs):
         record = oldfactory(*args, **kwargs)
-        record.kernel_id = get_kernel_id()
+        if getattr(record, "kernel_id", None) is None:
+            record.kernel_id = get_kernel_id()
         return record
 
     logging.setLogRecordFactory(record_factory)

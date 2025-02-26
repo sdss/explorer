@@ -6,6 +6,7 @@ import logging
 import time as t
 import os
 import requests
+import asyncio
 
 import reacton.ipyvuetify as rv
 import solara as sl
@@ -156,25 +157,59 @@ def DeleteSubsetDialog(deleter: Callable) -> ValueElement:
 def DownloadMenu(key: str) -> ValueElement:
     router = sl.use_router()
     subset = SubsetState.subsets.value[key]
-    default = {"status": "not_run"}
-    response, set_response = sl.use_state(default)
+    response, set_response = sl.use_state({"status": "not_run"})
 
     def reset_status():
         """On change and not pending a result, reset"""
+        logger.debug(f"Resetting download button on {subset.name}")
+        default = {"status": "not_run"}
         if response["status"] != "in_progress":
             set_response(default)
 
     sl.use_effect(reset_status, dependencies=[subset])
 
-    @sl.lab.task()
-    def query_task():
+    def query_job_status(uid: str) -> dict[str, str]:
+        """Ping command to query job state and return result
+
+        Args:
+            uid: job ID
+
+        Returns:
+            data: Dictionary of response data
+            response: previous response data (when failing)
+        """
+        try:
+            resp = requests.get(f"{settings.api_url}/status/{uid}")
+            if resp.status_code == 200:
+                data = json.loads(resp.text)
+                return data
+        except Exception as e:
+            logger.debug(f"failed to connect: {e}")
+            Alert.update("Failed to connect to download sever", color="error")
+        return response
+
+    # @sl.lab.task()
+    async def query_task():
         """Runs a GET query continously for the given job of the subset"""
-        # TODO: there is probably a much smarter way to do this, this is the easiest though
-        local_response = query_job_status()
-        while local_response["status"] == "in_progress":
-            local_response = query_job_status()
-            logger.debug("received response", local_response)
+        logger.debug(f"query task start on {subset.name}")
+
+        # get our local response
+        local_response = response.copy()
+        status = local_response.get("status", "in_progress")
+
+        # early exit if something else triggered update (reset, completion, etc)
+        if (status == "complete") or (status == "failed") or (status
+                                                              == "not_run"):
+            return
+
+        # loop until received, spawning in thread
+        while True:
+            local_response = await asyncio.to_thread(query_job_status,
+                                                     local_response["uid"])
+            logger.debug(f"received response {local_response}")
+
             if local_response["status"] == "complete":
+                logger.debug(f"job returned as complete! {local_response}")
                 Alert.update(
                     message=
                     f"Your file for Subset {subset.name} is ready! Hit the download button",
@@ -185,6 +220,7 @@ def DownloadMenu(key: str) -> ValueElement:
                 set_response(local_response)
                 break
             elif local_response["status"] == "failed":
+                logger.debug(f"job returned as failed! {local_response}")
                 Alert.update(
                     message="File render failed! Please try again, "
                     "and inform system adminstrator if it keeps failing.",
@@ -192,28 +228,15 @@ def DownloadMenu(key: str) -> ValueElement:
                 )
                 set_response(local_response)
                 break
-            t.sleep(2)
+
+            # if not run or in_progress, continues
+            await asyncio.sleep(2)
+
+        # flag our exit
+        logger.debug(f"query task shutdown on {subset.name}")
         return
 
-    # sl.lab.use_task(query_task, dependencies=[])
-
-    def query_job_status() -> dict[str, str]:
-        """Regular 5s ping to check job state"""
-        if response["status"] == "in_progress":
-            try:
-                resp = requests.get(
-                    f"{settings.api_url}/status/{response.get('uid', 0)}")
-                try:
-                    data = json.loads(resp.text)
-                    if data["status"] == "complete":
-                        return data
-                except Exception:
-                    return response
-            except Exception as e:
-                logger.debug(f"failed to connect: {e}")
-                Alert.update("Failed to connect to download sever",
-                             color="error")
-        return response
+    sl.lab.use_task(query_task, dependencies=[response])
 
     def send_job():
         """Exports subset data to JSON and sends to FastAPI DL sever."""
@@ -232,11 +255,14 @@ def DownloadMenu(key: str) -> ValueElement:
                 data=json.dumps(data),
             )
             if resp.status_code == 202:
-                print("post", json.loads(resp.text))
+                # ready! push update to call query loop task
+                logger.debug(
+                    f"Successfully called for download for {subset.name}")
                 Alert.update("Creating file for download! Please wait.")
                 set_response(json.loads(resp.text))
+        # on timeout raise, inform user
         except Exception as e:
-            logger.debug(f"failed to connect: {e}")
+            logger.debug(f"failed to connect to call for download: {e}")
             Alert.update("Failed to connect to download sever", color="error")
         return
 
@@ -245,32 +271,47 @@ def DownloadMenu(key: str) -> ValueElement:
         if (response.get("status") == "not_run") or (response.get("status")
                                                      == "failed"):
             send_job()
-            query_task()
-        elif response.get("status") == "in_progress":
-            query_job_status()
         elif response.get("status") == "complete":
-            router.push(
-                f"{settings.download_url}/{response.get('filepath', 'foobar')}"
+            logger.debug(
+                f"sending user to {settings.download_url}{response.get('filepath', 'foobar')}"
             )
 
     # color logic
     if response["status"] == "complete":
         color = "green"
-    elif response["status"] == "complete":
+    elif response["status"] == "failed":
         color = "red"
     else:
         color = "white"
+    button = sl.Button(
+        label="",
+        icon_name="mdi-download",
+        color=color,
+        disabled=True if response["status"] == "in_progress" else False,
+        icon=True,
+        text=True,
+        href=f"{settings.download_url}{response.get('filepath', 'foobar')}"
+        if response["status"] == "complete" else None,
+        target="_blank",
+        on_click=click_handler,
+    )
 
-    with sl.Tooltip("Download subset as csv") as main:
-        sl.Button(
-            label="",
-            icon_name="mdi-download",
-            color=color,
-            disabled=True if response["status"] == "in_progress" else False,
-            outlined=True if response["status"] == "not_run" else False,
-            icon=True,
-            text=True,
-            on_click=click_handler,
-        )
+    tooltipped = rv.Tooltip(
+        bottom=True,
+        disabled=True if response["status"] == "complete" else False,
+        v_slots=[{
+            "name": "activator",
+            "variable": "tooltip",
+            "children": [button]
+        }],
+        color=None,  # pyright: ignore[]
+        children=["Download subset"],
+    )
 
-    return main
+    def set_v_on():
+        widget = sl.get_widget(button)
+        widget.v_on = "tooltip.on"  # pyright: ignore
+
+    sl.use_effect(set_v_on, button)
+
+    return sl.Column(children=[tooltipped])

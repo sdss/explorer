@@ -68,8 +68,8 @@ Additionally, using the download server requires:
  - `API_URL` :: API url for the download server. Defaults to localhost (so you might not need to set this)
  - `EXPLORER_NPROCESSES` :: max concurrent processes for custom summary file renders.
 
- You also must additionally set for the Docker:
- - `EXPLORER_NWORKERS` :: how many gunicorn/uvicorn workers to use
+ There is additionally:
+ - `EXPLORER_NWORKERS` :: how many gunicorn/uvicorn workers to use. Defaults to 1 so you don't connect to different workers each time
 
 ### Cache setup
 The Explorer can utilize a hybrid memory and disk cache . To set these up, use the following environment variables on runtime:
@@ -97,7 +97,7 @@ uvicorn --reload sdss_explorer.server:app --port=8050
 This will start _purely_ the app in development refresh mode on two uvicorn instances. To run in production mode, add `--production` to the `solara` command, and remove the `--reload` flag from the `uvicorn` call.
 
 ### Docker
-This repo comes included with a basic production docker image.
+This repo comes included with a basic production/dev docker image.
 
 To build, run:
 ```bash
@@ -110,7 +110,7 @@ docker run -p 8050:8050 -v $EXPLORER_SCRATCH:/root/scratch valis-dev -v $EXPLORE
 ```
 Additionally, add `-e EXPLORER_MOUNT_DASHBOARD` to mount the dashboard to the same docker.
 
-### Bundled shell scripts
+### Bundled shell scripts ()
 This repo comes bundled with shell scripts to run the application via `solara`. They don't particularly do anything different to just running it manually. To ensure they work, make the scripts executable:
 ```bash
 chmod +x run.sh run_production.sh
