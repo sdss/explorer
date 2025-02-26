@@ -8,10 +8,10 @@ ENV UV_LINK_MODE=copy
 ENV UV_PYTHON_DOWNLOADS=0 
 
 # setrup app dir
-WORKDIR /tmp
+WORKDIR /app
 
 # project files 
-COPY ./pyproject.toml ./uv.lock ./
+COPY ./pyproject.toml ./uv.lock /app
 
 # install system requirements
 RUN apt-get update && \
@@ -34,15 +34,6 @@ ENV PATH="/root/.cargo/bin:$PATH"
 # Add a command to check if cargo is available
 RUN cargo --version
 
-# setup correct wheels for vaex
-# normal build hangs/fails like https://github.com/vaexio/vaex/issues/2382
-# temp solution, see https://github.com/vaexio/vaex/pull/2331
-#ENV PIP_FIND_LINKS=https://github.com/ddelange/vaex/releases/expanded_assets/core-v4.17.1.post4
-#RUN pip install --force-reinstall vaex
-#ENV PIP_FIND_LINKS=
-
-# NOTE: unlike valis, don't need github creds for install of private sdss_explorer
-
 # Installing uv and then project dependencies
 RUN pip install uv
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -55,21 +46,15 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 FROM dep-stage as dev-stage
 
 # Copy the main project files over and install
-COPY ./ ./
+COPY ./ /app
 
 # install project itself
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+    uv sync --all-extras --frozen
 
-# production build
 FROM dev-stage as build-stage
-
 # place executables in the environment at the front of the path
 ENV PATH="/app/.venv/bin:$PATH"
-
-# Create dir for socket and logs
-# NOTE: i stole this from valis Dockerfile, don't know if necessary
-RUN mkdir -p /tmp/webapp
 
 # module setup
 # this is overriden by wsgi cfg
@@ -77,18 +62,18 @@ ENV EXPLORER_SOCKET_DIR='/tmp/webapp'
 ENV SOLARA_CHECK_HOOKS="off"
 ENV EXPLORER_NPROCESSES=4
 ENV EXPLORER_NWORKERS=1
+ENV EXPLORER_DEV=True
 ENV VAEX_HOME="~/"
 ENV VAEX_CACHE="memory,disk"
-ENV VAEX_CACHE_DISK_SIZE_LIMIT="10GB"
-ENV VAEX_CACHE_MEMORY_SIZE_LIMIT="1GB"
-ENV GUNICORN_CMD_ARGS="--reload --preload --workers=${EXPLORER_NWORKERS} -c src/sdss_explorer/server/wsgi_conf.py"
+ENV VAEX_CACHE_DISK_SIZE_LIMIT="20GB"
+ENV VAEX_CACHE_MEMORY_SIZE_LIMIT="4GB"
 
 # label
 LABEL org.opencontainers.image.source https://github.com/sdss/explorer
-LABEL org.opencontainers.image.description "explorer production image"
+LABEL org.opencontainers.image.description "explorer dev image"
 
 # port goes out @ 8050
 EXPOSE 8050
 
 # NOTE: we set most envvars on startup
-CMD ["uv", "run", "gunicorn","sdss_explorer.server.wsgi:app"]
+CMD ["uv", "run", "uvicorn", "--reload","sdss_explorer.server:app", "--port","8050","--host","0.0.0.0"]
