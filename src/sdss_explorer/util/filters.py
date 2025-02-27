@@ -246,6 +246,7 @@ def filter_crossmatch(df: vx.DataFrame, crossmatch: str,
     Raises:
         ValueError: if crossmatch fails to convert all to integers
         TypeError: if tic_v8 with spall (not supported)
+        AssertionError: if users pass
 
     """
     assert cmtype in crossmatchList.keys(
@@ -255,14 +256,25 @@ def filter_crossmatch(df: vx.DataFrame, crossmatch: str,
     if (cmtype == "tic_v8") and (df["pipeline"].unique()[0] == "spall"):
         raise TypeError("tic_v8 not supported with spall dataset")
     if len(crossmatch) > 0:
-        # make more informative
+        # NOTE: you can rate limit, but it adds O(n) to every crossmatch operation,
+        # where n is length of str
+        #
+        # assert len(crossmatch.count('\n')) < 100_000, 'too many identifiers!'
+
+        # for checking our dtype
+        col = df[crossmatchList[cmtype]]
         try:
-            identifiers = list(
-                map(int,
-                    crossmatch.lstrip().rstrip().split("\n")))
+            if col.dtype == "string":
+                identifiers = crossmatch.lstrip().rstrip().split("\n")
+            else:
+                # we have to make sure all are integers
+                identifiers = list(
+                    map(int,
+                        crossmatch.lstrip().rstrip().split("\n")))
         except Exception:
+            # makes errors more informative
             raise ValueError("failed to convert to integer identifiers")
 
-        return df[crossmatchList[cmtype]].isin(identifiers)
+        return col.isin(identifiers)
     else:
         return None
