@@ -108,6 +108,8 @@ def show_plot(plottype, remover, *args, **kwargs):
                                             value=plotstate.flipx)
                                 sl.Checkbox(label="yflip",
                                             value=plotstate.flipy)
+                            sl.Checkbox(label="logcolor",
+                                        value=plotstate.logcolor)
                         sl.Button(
                             icon_name="mdi-delete",
                             color="red",

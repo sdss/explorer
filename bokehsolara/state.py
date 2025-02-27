@@ -64,16 +64,17 @@ class PlotState:
             self.x = sl.use_reactive(kwargs.get("x", "x"))
             self.flipx = sl.use_reactive(kwargs.get("flipx", ""))
             self.flipy = sl.use_reactive(kwargs.get("flipy", ""))
-            self.xmapping = sl.use_reactive(kwargs.get("xmapping", {}))
-            self.ymapping = sl.use_reactive(kwargs.get("ymapping", {}))
+            self.xmapping = dict()  # non-reactive
+            self.ymapping = dict()  # non-reactive
 
             # moderately unique plot parameters/settings
             if plottype != "histogram":
                 self.y = sl.use_reactive(kwargs.get("y", "y"))
                 self.color = sl.use_reactive(kwargs.get("color", "FeH"))
+                self.colormapping = dict()  # non-reactive
                 self.colorscale = sl.use_reactive(
                     kwargs.get("colorscale", "Inferno256"))
-                self.colorlog = sl.use_reactive(kwargs.get("colorlog", False))
+                self.logcolor = sl.use_reactive(kwargs.get("logcolor", False))
             if plottype != "aggregated" and plottype != "skyplot":
                 self.logx = sl.use_reactive(kwargs.get("logx", ""))
                 self.logy = sl.use_reactive(kwargs.get("logy", ""))

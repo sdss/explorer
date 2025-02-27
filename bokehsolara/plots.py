@@ -39,7 +39,7 @@ index_context = sl.create_context(0)
 
 from plot_themes import LIGHTTHEME, DARKTHEME
 from plot_effects import add_scatter_effects, add_heatmap_effects, add_common_effects
-from plot_actions import aggregate_data
+from plot_actions import aggregate_data, fetch_data
 
 
 @sl.component()
@@ -63,13 +63,12 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
         dff = df
 
     def generate_cds():
-        z, x_centers, y_centers, _ = aggregate_data(plotstate, dff)
-        print("init z", z.flatten().shape)
+        color, x_centers, y_centers, _ = aggregate_data(plotstate, dff)
         return ColumnDataSource(
             data={
                 "x": np.repeat(x_centers, len(y_centers)),
                 "y": np.tile(y_centers, len(x_centers)),
-                "z": z.flatten(),
+                "color": color.flatten(),
             })
 
     source = sl.use_memo(generate_cds, [])
@@ -86,8 +85,7 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
         p.center[0].grid_line_color = None
         p.center[1].grid_line_color = None
 
-        fill_color = generate_color_mapper(plotstate)
-        add_colorbar(plotstate, p, fill_color)
+        mapper = generate_color_mapper(plotstate, z=source.data["color"])
         # generate rectangles
         glyph = Rect(
             x="x",
@@ -96,8 +94,12 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
             height=(ylimits[1] - ylimits[0]) / plotstate.nbins.value,
             dilate=True,
             line_color=None,
-            fill_color=fill_color,
+            fill_color={
+                "field": "color",
+                "transform": mapper
+            },
         )
+        add_colorbar(plotstate, p, mapper, source.data["color"])
         gr = p.add_glyph(source, glyph)
 
         # create hovertool, bound to figure object
@@ -114,7 +116,7 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
         add_heatmap_effects(pfig, plotstate, dff, filter)
     except Exception as e:
         print("heatmap ", e)
-    add_common_effects(pfig, plotstate, layout)
+    add_common_effects(pfig, plotstate, dff, layout)
     return pfig
 
 
@@ -140,9 +142,9 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
     source = sl.use_memo(
         lambda: ColumnDataSource(
             data={
-                "x": dff[plotstate.x.value].values,
-                "y": dff[plotstate.y.value].values,
-                "z": dff[plotstate.color.value].values,
+                "x": fetch_data(plotstate, dff, "x").values,
+                "y": fetch_data(plotstate, dff, "y").values,
+                "color": fetch_data(plotstate, dff, "color").values,
                 "sdss_id": dff["L"].values,  # temp
             }),
         dependencies=[],
@@ -155,17 +157,18 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
         add_axes(plotstate, p)
 
         # generate scatter points and colorbar
-        fill_color = generate_color_mapper(plotstate)
+        mapper = generate_color_mapper(plotstate)
 
         # add glyph
-        glyph = Scatter(
-            x="x",
-            y="y",
-            size=8,
-            fill_color=fill_color,
-        )
+        glyph = Scatter(x="x",
+                        y="y",
+                        size=8,
+                        fill_color={
+                            "field": "color",
+                            "transform": mapper
+                        })
         p.add_glyph(source, glyph)
-        add_colorbar(plotstate, p, fill_color)
+        add_colorbar(plotstate, p, mapper, source.data["color"])
 
         # add all tools; custom hoverinfo
         add_all_tools(p, tooltips=generate_tooltips(plotstate))
@@ -188,5 +191,5 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
     )
 
     add_scatter_effects(pfig, plotstate, dff, filter)
-    add_common_effects(pfig, plotstate, layout)
+    add_common_effects(pfig, plotstate, dff, layout)
     return pfig

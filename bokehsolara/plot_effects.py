@@ -1,14 +1,17 @@
 """Main functions for plot effects"""
 
 import asyncio
+import logging
 from bokeh.models.plots import Plot
 from bokeh.models import Rect
 import numpy as np
+import vaex as vx
 import reacton.ipyvuetify as rv
 import solara as sl
 from jupyter_bokeh import BokehModel
 
 from plot_actions import (
+    update_color_mapper,
     update_tooltips,
     change_formatter,
     fetch_data,
@@ -16,12 +19,13 @@ from plot_actions import (
     update_label,
     update_axis,
     aggregate_data,
-    update_coloraxis,
 )
 from state import PlotState
 from util import check_categorical
 
 __all__ = ["add_scatter_effects", "add_heatmap_effects"]
+
+logger = logging.getLogger()
 
 
 def add_scatter_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
@@ -45,7 +49,7 @@ def add_scatter_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
-            update_coloraxis(plotstate, fig_model, dff)
+            update_axis(plotstate, fig_model, dff, "color")
 
     def update_cmap():
         """Colormap update effect"""
@@ -67,10 +71,11 @@ def add_scatter_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
             # TODO: categorical support with jittering
             x = fetch_data(plotstate, dff, axis="x")
             y = fetch_data(plotstate, dff, axis="y")
+            color = fetch_data(plotstate, dff, axis="color")
             fig_model.renderers[0].data_source.data = dict(
                 x=x.values,
                 y=y.values,
-                z=dff[plotstate.color.value].values,
+                color=color.values,
                 sdss_id=dff["L"].values,
             )
 
@@ -85,6 +90,7 @@ def add_scatter_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
 def add_common_effects(
     pfig: rv.ValueElement,
     plotstate: PlotState,
+    dff: vx.DataFrame,
     layout,
 ):
     """Adds common effects across plots.
@@ -94,6 +100,7 @@ def add_common_effects(
     Args:
         pfig: figure element
         plotstate: plot variables
+        dff: filtered dataframe
         layout: grid layout dictionary for the card.
     """
 
@@ -183,15 +190,17 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
-            z, x_centers, y_centers, limits = aggregate_data(plotstate, dff)
+            color, x_centers, y_centers, limits = aggregate_data(
+                plotstate, dff)
             with fig_model.hold(render=True):
                 source = fig_model.renderers[0].data_source
                 fill_color = fig_model.renderers[0].glyph.fill_color
                 source.data = {
                     "x": np.repeat(x_centers, len(y_centers)),
                     "y": np.tile(y_centers, len(x_centers)),
-                    "z": z.flatten(),
+                    "color": color.flatten(),
                 }
+                # NOTE: you have to remake the glyph because the height/width prop doesn't update on the render
                 glyph = Rect(
                     x="x",
                     y="y",
@@ -203,35 +212,32 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
                     line_color=None,
                     fill_color=fill_color,
                 )
-                gr = fig_model.add_glyph(source, glyph)
+                fig_model.add_glyph(source, glyph)
                 fig_model.renderers = fig_model.renderers[1:]
-                for axis in {"x", "y"}:
+                for axis in ("x", "y"):
                     update_label(plotstate, fig_model,
                                  axis=axis)  # update all labels
+                    reset_range(plotstate, fig_model, dff, axis=axis)
                 update_tooltips(plotstate, fig_model)
-            update_coloraxis(plotstate, fig_model, dff,
-                             update_data=False)  # also update coloraxis
-
-    def update_filter():
-        """Filter update"""
-        fig_widget: BokehModel = sl.get_widget(pfig)
-        if isinstance(fig_widget, BokehModel):
-            fig_model: Plot = fig_widget._model
-            with fig_model.hold(render=True):
-                z, x_centers, y_centers, limits = aggregate_data(
-                    plotstate, dff)
-                source = fig_model.renderers[0].data_source
-                source.data = {
-                    "x": np.repeat(x_centers, len(y_centers)),
-                    "y": np.tile(y_centers, len(x_centers)),
-                    "z": z.flatten(),
-                }
 
     def update_color():
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
-            update_coloraxis(plotstate, fig_model, dff)
+            try:
+                color = aggregate_data(plotstate, dff)[0]
+            except AssertionError:
+                logger.debug("attempted exit, leaving")
+                return
+            with fig_model.hold(render=True):
+                fig_model.renderers[0].data_source.data[
+                    "color"] = color.flatten()
+                update_color_mapper(plotstate, fig_model, color)
+                change_formatter(plotstate,
+                                 fig_model,
+                                 axis="color",
+                                 color=color)
+                update_label(plotstate, fig_model, axis="color")
 
     def update_cmap():
         """Colormap update effect"""
@@ -241,16 +247,15 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
             fig_model.right[
                 0].color_mapper.palette = plotstate.colorscale.value
 
-    sl.use_effect(update_filter, dependencies=[filter])
     sl.use_effect(
         update_data,
-        dependencies=[plotstate.x.value, plotstate.y.value],
+        dependencies=[plotstate.x.value, plotstate.y.value, filter],
     )
     sl.use_effect(
         update_color,
         dependencies=[
             plotstate.color.value,
-            plotstate.colorlog.value,
+            plotstate.logcolor.value,
             plotstate.bintype.value,
         ],
     )

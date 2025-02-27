@@ -2,9 +2,10 @@
 
 from bokeh.models.tools import HoverTool
 from typing import Optional, Any
+import numpy as np
 import vaex as vx
 from numpy import ndarray
-from bokeh.models import Plot
+from bokeh.models import BasicTicker, FixedTicker, Plot
 from bokeh.models.formatters import (
     LogTickFormatter,
     BasicTickFormatter,
@@ -13,8 +14,9 @@ from bokeh.models.formatters import (
 from util import check_categorical
 from state import PlotState
 from plot_utils import (
+    _calculate_color_range,
+    calculate_colorbar_ticks,
     calculate_range,
-    generate_color_mapper,
     generate_label,
     generate_datamap,
     generate_categorical_tick_formatter,
@@ -43,7 +45,8 @@ def update_axis(
         dff: filtered dataframe
     """
     # get all attributes of plotstate + fig_model
-    assert axis in ("x", "y"), f"expected axis x or y but got {axis}"
+    assert axis in ("x", "y", "color"), (
+        f"expected axis 'x','y', or 'color' but got {axis}")
     col = getattr(plotstate, axis).value  # column name
     if check_categorical(col):
         # update before datafetch
@@ -51,44 +54,11 @@ def update_axis(
     colData = fetch_data(plotstate, dff, axis=axis)
     with fig_model.hold(render=True):
         change_formatter(plotstate, fig_model,
-                         axis=axis)  # change to cat if needed
+                         axis=axis)  # change formatter to cat if needed
         fig_model.renderers[0].data_source.data[
             axis] = colData.values  # set data
         update_label(plotstate, fig_model, axis=axis)
         reset_range(plotstate, fig_model, dff, axis=axis)
-        update_tooltips(plotstate, fig_model)
-
-
-def update_coloraxis(
-    plotstate: PlotState,
-    fig_model: Plot,
-    dff: vx.DataFrame,
-    update_data: bool = True,
-) -> None:
-    """Direct and complete coloraxis update.
-
-    Args:
-        plotstate: plot variables
-        fig_model: figure object
-        dff: filtered dataframe
-    """
-    # get all attributes of plotstate + fig_model
-    if update_data:
-        if plotstate.plottype == "heatmap":
-            color = aggregate_data(plotstate, dff)[0].flatten()
-            colordata = color  # no values prop for ndarray
-        else:
-            color = dff[plotstate.color.value]
-            colordata = color.values
-
-    with fig_model.hold(render=True):
-        if update_data:
-            fig_model.renderers[0].data_source.data[
-                "z"] = colordata  # set data
-            update_color_mapper(plotstate, fig_model,
-                                z=color)  # replace mapping
-        update_label(plotstate, fig_model,
-                     axis="color")  # update colorbar label
         update_tooltips(plotstate, fig_model)
 
 
@@ -101,11 +71,14 @@ def reset_range(plotstate: PlotState, fig_model: Plot, dff, axis: str = "x"):
         axis: axis to update for. 'x', 'y', or 'color'.
 
     """
-    assert axis in ("x", "y"), f"expected axis x or y but got {axis}"
-    datarange = getattr(fig_model, f"{axis}_range")
-    # NOTE: flip/log is automatically by the calculation function
-    newrange = calculate_range(plotstate, dff, axis=axis)
-    datarange.update(start=newrange[0], end=newrange[1])
+    assert axis in ("x", "y", "color"), f"expected axis x or y but got {axis}"
+    if axis == "color":
+        update_color_mapper(plotstate, fig_model)
+    else:
+        datarange = getattr(fig_model, f"{axis}_range")
+        # NOTE: flip/log is automatically by the calculation function
+        newrange = calculate_range(plotstate, dff, axis=axis)
+        datarange.update(start=newrange[0], end=newrange[1])
 
 
 def update_label(plotstate: PlotState,
@@ -138,12 +111,12 @@ def update_mapping(plotstate: PlotState, axis: str = "x") -> None:
 
     Args:
         plotstate: plot variables
-        axis: axis to perform update on. any of 'x' or 'y'.
+        axis: axis to perform update on. any of 'x', 'y', or 'color'
 
     """
     from state import df  # WARNING: this df must be from SubsetState.subsets later
 
-    assert axis in ("x", "y"), f"expected axis x or y but got {axis}"
+    assert axis in ("x", "y", "color"), f"expected axis x or y but got {axis}"
     col = getattr(plotstate, axis).value  # column name
 
     mapping = generate_datamap(df[col])
@@ -154,36 +127,67 @@ def update_mapping(plotstate: PlotState, axis: str = "x") -> None:
 def update_color_mapper(
     plotstate: PlotState,
     fig_model: Plot,
-    z: Optional[vx.Expression | ndarray] = None,
+    color: Optional[ndarray] = None,
 ) -> None:
-    """Recreates a color mapper model and adds it everywhere necessary, from glyph (rendered plot) to colorbar.
+    """Updates low/high property of color mapper
 
     Args:
         plotstate: plot variables
         fig_model: plot object to update
-        z: optional pre-computed expression to generate new color mapper against. Parsed down to `generate_color_mapper`.
-
+        color: optional pre-computed aggregation data.
     """
-    fill_color = generate_color_mapper(plotstate, z=z)
-    fig_model.renderers[0].glyph.fill_color = fill_color  # set on plot
-    fig_model.right[0].color_mapper = fill_color[
-        "transform"]  # set on colorbar
+
+    mapper = fig_model.right[0].color_mapper  # same obj as in glyph
+    low, high = _calculate_color_range(plotstate, color)
+    mapper.update(low=low, high=high)
+
     return
 
 
-def change_formatter(plotstate, fig_model, axis: str = "x") -> None:
-    assert axis in ("x", "y"), f"expected axis x or y but got {axis}"
+# code = f"return ({json.dumps(mapping)})[Math.floor(special_vars.y)];"
+# hover = HoverTool(tooltips=[("x", "$x"), ("y", "$y"), ('mapped_y', '$y{0}')],
+#                  formatters={'$y': CustomJSHover(code=code)})
+
+
+def change_formatter(
+    plotstate: PlotState,
+    fig_model: Plot,
+    axis: str = "x",
+    color: Optional[np.ndarray] = None,
+) -> None:
+    """
+    Updates the formatter on the plot, changing to a categorical type if needed.
+
+    Args:
+        plotstate: plot variables
+        fig_model: figure object
+        axis: axis to update. any of 'x', 'y', or 'color'
+    """
+    assert axis in ("x", "y", "color"), f"expected axis x or y but got {axis}"
     col = getattr(plotstate, axis).value  # column name
     log = getattr(plotstate, f"log{axis}").value  # whether log
     mapping = getattr(plotstate, f"{axis}mapping")  # categorical datamap
 
-    ax = getattr(fig_model,
-                 "below" if axis == "x" else "left")[0]  # axis object pointer
+    # gangsta one liner
+    loc = ("below" if axis == "x" else "left") if axis != "color" else "right"
 
+    # get place and set it
+    ax = getattr(fig_model, loc)[0]
     if check_categorical(col):
-        ax.formatter = generate_categorical_tick_formatter(mapping)
+        formatter = generate_categorical_tick_formatter(mapping)
     else:
-        ax.formatter = BasicTickFormatter() if not log else LogTickFormatter()
+        formatter = (LogTickFormatter() if log and
+                     (axis != "color") else BasicTickFormatter())
+    if axis == "color":
+        if check_categorical(col):
+            ax.ticker.ticks = [v for v in mapping.values()]
+            ax.major_label_overrides = {v: k for k, v in mapping.items()}
+        else:
+            low, high = _calculate_color_range(plotstate, color)
+            ax.ticker.ticks = calculate_colorbar_ticks(low, high)
+            ax.major_label_overrides = {0: "0"}
+    else:
+        ax.formatter = formatter
 
 
 def fetch_data(plotstate: PlotState,
@@ -194,19 +198,18 @@ def fetch_data(plotstate: PlotState,
     Args:
         plotstate: plot variables
         fig_model: figure object
-        axis: axis to fetch for. either 'x' or 'y'.
+        axis: axis to fetch for. either 'x', 'y', or 'color'.
 
     Returns:
         Expression of mapped categorical data or raw expression.
 
     """
-    assert axis in ("x", "y"), f"expected axis x or y but got {axis}"
+    assert axis in ("x", "y", "color"), f"expected axis x or y but got {axis}"
     col = getattr(plotstate, axis).value  # column name
 
     if check_categorical(col):
         # NOTE: we always ensure this is altered prior to fetch
-        mapping = getattr(plotstate,
-                          f"{axis}mapping").value  # categorical datamap
+        mapping = getattr(plotstate, f"{axis}mapping")  # categorical datamap
         colData = dff[col].map(mapping)
     else:
         colData = dff[col]
@@ -224,10 +227,10 @@ def aggregate_data(
         dff: filtered dataframe
 
     Returns:
-        z (numpy.ndarray): aggregated data according to `plotstate.bintype`
+        color (numpy.ndarray): 2D aggregated data according to `plotstate.bintype`
         x_edges: 1D array of x-axis coordinates
         y_edges: 1D array of x-axis coordinates
-        limits: x and y axis limits
+        limits: splatted list of x and y axis limits
 
 
     """
@@ -245,6 +248,8 @@ def aggregate_data(
         update_mapping(plotstate, axis="x")
     if check_categorical(dff[plotstate.y.value]):
         update_mapping(plotstate, axis="y")
+    assert not check_categorical(dff[plotstate.color.value]), (
+        "cannot perform aggregations on categorical data")
 
     expr = (
         fetch_data(plotstate, dff, axis="x"),
@@ -286,18 +291,32 @@ def aggregate_data(
     )
 
     # pull the aggregation function pointer and call it with our kwargs
-    aggFunc = getattr(dff, bintype)
-    z = aggFunc(
+    if bintype == "median":
+        aggFunc = getattr(dff, "median_approx")
+    else:
+        aggFunc = getattr(dff, bintype)
+    color = aggFunc(
         expression=expr_c if bintype != "count" else None,
         binby=expr,
         limits=limits,
         shape=plotstate.nbins.value,
         delay=True,
-        array_type="numpy",
     )
 
     # execute!
     dff.execute()
-    z = z.get()
+    color = color.get()
 
-    return z, x_edges, y_edges, limits
+    # scale if needed
+    if plotstate.logcolor.value:
+        color = np.log10(color)
+
+    print(color)
+    # convert because it breaks
+    if bintype == "count":
+        color = color.astype("float")
+        color[color == 0] = np.nan
+    color[color == np.inf] = np.nan
+    color[color == -np.inf] = np.nan
+
+    return color, x_edges, y_edges, limits

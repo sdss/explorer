@@ -28,7 +28,7 @@ from bokeh.models.mappers import (
 )
 from bokeh.models.formatters import (
     CustomJSTickFormatter, )
-from bokeh.models import CustomJS, ColorBar
+from bokeh.models import CustomJS, ColorBar, BasicTicker, FixedTicker
 from bokeh.models.ui import ActionItem, Menu as BokehMenu
 from bokeh.models.axes import LinearAxis
 from bokeh.model import Model
@@ -148,7 +148,8 @@ def generate_plot():
     return p, menu
 
 
-def add_colorbar(plotstate: PlotState, p: Plot, fill_color: DataSpec) -> None:
+def add_colorbar(plotstate: PlotState, p: Plot,
+                 color_mapper: LinearColorMapper, data) -> None:
     """Adds a colorbar to plot. Used during initialization.
 
     Args:
@@ -158,63 +159,72 @@ def add_colorbar(plotstate: PlotState, p: Plot, fill_color: DataSpec) -> None:
 
     """
     cb = ColorBar(
-        color_mapper=fill_color.transform,  # color_mapper object
+        color_mapper=color_mapper,  # color_mapper object
+        ticker=FixedTicker(
+            ticks=calculate_colorbar_ticks(np.nanmin(data), np.nanmax(data))),
         location=(5, 6),
         title=generate_label(plotstate, axis="color"),
     )
     p.add_layout(cb, "right")
 
 
-def generate_color_mapper(
+def _calculate_color_range(
         plotstate: PlotState,
-        z: Optional[vx.Expression | np.ndarray] = None) -> DataSpec:
-    """Get fill_color dataspec, color mapper, and colorbar for colorbar plots
+        color: Optional[np.ndarray] = None) -> tuple[float, float]:
+    """Calculates low/high for colormapper.
 
     Args:
         plotstate: plot variables
-        z: pre-computed expression or just aggregated data array.
+        color: optional pre-computed aggregation data.
     """
-    from state import df
+    from state import df  # TODO: get for subset
 
     col = plotstate.color.value
-    bintype = getattr(plotstate, "bintype", None)
-    if z is None:
-        expr = df[col]
-    else:
-        expr = z
 
-    # use correct bokeh function in each case
-    if (z is None) and check_categorical(plotstate.color.value):
-        # only do color if we havent got aggregated data
-        fill_color = factor_cmap("z",
-                                 palette=plotstate.colorscale.value,
-                                 factors=df[col].unique())
+    if color is None:
+        expr = df[col]  # NOTE: we compile for global df for true minmax
     else:
-        # correct for taking the >0 of column for limits if log
-        if bintype is not None:  # NOTE: split so it doesnt crash
-            if bintype.value == "count":
+        expr = color
+
+    if plotstate.plottype == "heatmap":
+        assert color is not None, "expected color handoff but got nothing"
+        assert not check_categorical(
+            col), "handed categorical data for aggregation"
+        bintype = getattr(plotstate, "bintype")
+        if bintype == "count":
+            low = 0
+        else:
+            low = np.nanmin(expr)
+        high = np.nanmax(expr)
+    else:
+        assert color is None, f"expected no color handoff but got {color}"
+        if check_categorical(col):
+            # NOTE: colormapping must be updated before this
+            low = 0
+            high = len(plotstate.colormapping) - 1
+        else:
+            if plotstate.logcolor.value:
                 expr = df[df[col] > 0][col]
-
-        # find these limits based on dtype
-        if isinstance(expr, vx.Expression):
             low = expr.min()[()]
             high = expr.max()[()]
-        else:
-            low = expr.min()
-            high = expr.max()
+    return low, high
 
-        # set cases based on log
-        if plotstate.colorlog.value:
-            fill_color = log_cmap("z",
-                                  palette=plotstate.colorscale.value,
-                                  low=low,
-                                  high=high)
-        else:
-            fill_color = linear_cmap("z",
-                                     palette=plotstate.colorscale.value,
-                                     low=low,
-                                     high=high)
-    return fill_color
+
+def generate_color_mapper(plotstate: PlotState,
+                          z: Optional[np.ndarray] = None) -> LinearColorMapper:
+    """Create a colormapper.
+
+    Args:
+        plotstate: plot variables
+        z: pre-computed aggregated data array.
+    """
+    low, high = _calculate_color_range(plotstate, z)
+
+    return LinearColorMapper(
+        palette=plotstate.colorscale.value,
+        low=low,
+        high=high,
+    )
 
 
 def generate_label(plotstate: PlotState, axis: str = "x") -> str:
@@ -230,7 +240,7 @@ def generate_label(plotstate: PlotState, axis: str = "x") -> str:
     assert axis in ("x", "y", "color")
     col = getattr(plotstate, axis).value
     log = getattr(plotstate,
-                  "colorlog" if axis == "color" else f"log{axis}").value
+                  "logcolor" if axis == "color" else f"log{axis}").value
     cond = log and not check_categorical(col)
     if (axis == "color") and (plotstate.plottype == "heatmap"):
         bintype = getattr(plotstate, "bintype").value
@@ -319,7 +329,7 @@ def add_callbacks(
         p.add_tools(tap)
 
 
-def calculate_range(plotstate, df, axis: str = "x") -> tuple[float, float]:
+def calculate_range(plotstate, dff, axis: str = "x") -> tuple[float, float]:
     """
     Fetches a new reset-like start/end value based on the flip, log, and column.
 
@@ -333,6 +343,8 @@ def calculate_range(plotstate, df, axis: str = "x") -> tuple[float, float]:
     Returns:
         tuple for start/end props of range.
     """
+    from state import df  # TODO: change to subset
+
     # bug checking
     assert axis in ("x", "y"), f"expected axis x or y but got {axis}"
 
@@ -341,17 +353,18 @@ def calculate_range(plotstate, df, axis: str = "x") -> tuple[float, float]:
     flip = plotstate.flipx.value if axis == "x" else plotstate.flipy.value
     log = plotstate.logx.value if axis == "x" else plotstate.logy.value
 
-    expr = df[col]
+    expr = dff[col]
     if check_categorical(expr):
+        expr = df[col]
         limits = (0, expr.nunique() - 1)
     else:
         if log:  # limit to > 0 for log mapping
-            expr = np.log10(df[df[col] > 0]
+            expr = np.log10(dff[dff[col] > 0]
                             [col])  # TODO: may cause assertion error crashes
         try:
             limits = expr.minmax()
         except RuntimeError:
-            # TODO: logger debug stride bug
+            # TODO: logger.debug("dodging stride bug")
             limits = (expr.min()[()], expr.max()[()])
 
     # bokeh uses 10% of range as padding by default
@@ -410,7 +423,7 @@ def generate_tooltips(plotstate: PlotState) -> str:
         <div>
         {generate_label(plotstate, axis="x")}: $snap_x
         {generate_label(plotstate, axis="y")}: $snap_y
-        {generate_label(plotstate, axis="color")}: @z
+        {generate_label(plotstate, axis="color")}: @color
         sdss_id: @sdss_id
         </div>\n""" + """
         <style>
@@ -424,7 +437,7 @@ def generate_tooltips(plotstate: PlotState) -> str:
         <div>
         {generate_label(plotstate, axis="x")}: $snap_x
         {generate_label(plotstate, axis="y")}: $snap_y
-        {generate_label(plotstate, axis="color")}: @z
+        {generate_label(plotstate, axis="color")}: @color
         </div>\n""" + """
         <style>
         div.bk-tooltip-content > div > div:not(:first-child) {
@@ -434,3 +447,38 @@ def generate_tooltips(plotstate: PlotState) -> str:
         """)
     else:
         return ""
+
+
+def calculate_colorbar_ticks(low, high) -> list[float]:
+    print(low, high)
+    """Manually calculates colorbar ticks to bypas low-level Bokeh object replacement locks."""
+
+    def get_interval(data_low, data_high, desired_n_ticks):
+        """Helper to get ticks interval. Translated from AdaptiveTicker in BokehJS."""
+        data_range = data_high - data_low
+        ideal_interval = (data_high - data_low) / desired_n_ticks
+
+        def extended_mantissas():
+            mantissas = [1, 2, 5]
+            prefix_mantissa = mantissas[-1]
+            suffix_mantissa = mantissas[0]
+            return [prefix_mantissa] + mantissas + [suffix_mantissa]
+
+        def clamp(value, min_val, max_val):
+            return max(min_val, min(value, max_val))
+
+        interval_exponent = np.floor(np.log10(ideal_interval))
+        ideal_magnitude = 10**interval_exponent
+
+        candidate_mantissas = extended_mantissas()
+        errors = [
+            abs(desired_n_ticks - (data_range / (mantissa * ideal_magnitude)))
+            for mantissa in candidate_mantissas
+        ]
+
+        best_mantissa = candidate_mantissas[np.argmin(errors)]
+        interval = best_mantissa * ideal_magnitude
+        return clamp(interval, 0, float("inf"))
+
+    interval = get_interval(low, high, 6)
+    return np.arange(round(low / interval) * interval, high, interval).tolist()
