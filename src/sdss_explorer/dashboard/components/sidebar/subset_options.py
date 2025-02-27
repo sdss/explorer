@@ -3,8 +3,6 @@
 from typing import Callable
 import json
 import logging
-import time as t
-import os
 import requests
 import asyncio
 
@@ -16,12 +14,14 @@ from solara.lab import ConfirmationDialog
 from ...dataclass import Alert, SubsetState
 from ....util import settings
 from ..dialog import Dialog
-from .subset_filters import ExprEditor, TargetingFiltersPanel
+from .subset_filters import (
+    ExprEditor,
+    TargetingFiltersPanel,
+    CrossmatchPanel,
+    DatasetSelect,
+)
 
 logger = logging.getLogger("dashboard")
-
-# context for updater and renamer
-updater_context = sl.create_context(print)  #  dummy func
 
 
 @sl.component()
@@ -37,34 +37,36 @@ def SubsetOptions(key: str, deleter: Callable):
         :deleter: deletion functions
     """
     # filter settings/subfilters
+    subset = SubsetState.subsets.value[key]
     invert = sl.use_reactive(False)
+    open, set_open = sl.use_state([])
+    dataset, set_dataset = (
+        subset.dataset,
+        lambda arg: SubsetState.update_subset(key, dataset=arg),
+    )
 
     # flag data
 
     # User facing
     with sl.Column() as main:
         ExprEditor(key, invert)
+        DatasetSelect(key, dataset, set_dataset)
         # complex option panels
-        TargetingFiltersPanel(key, invert)
+        with rv.ExpansionPanels(flat=True,
+                                multiple=True,
+                                v_model=open,
+                                on_v_model=set_open):
+            TargetingFiltersPanel(key, invert)
+            CrossmatchPanel(key)
+
         # bottom card actions
         with rv.Row(style_="width: 100%; height: 100%"):
-            # download button
-            DownloadMenu(key)
-
-            # invert button
-            InvertButton(invert)
-
-            # spacer
-            rv.Spacer()
-
-            # rename button
-            RenameSubsetButton(key)
-
-            # clone button
-            CloneSubsetButton(key)
-
-            # delete button
-            DeleteSubsetDialog(deleter)
+            DownloadMenu(key)  # download button
+            InvertButton(invert)  # invert button
+            rv.Spacer()  # spacer
+            RenameSubsetButton(key)  # rename button
+            CloneSubsetButton(key)  # clone button
+            DeleteSubsetDialog(deleter)  # delete button
 
     return main
 
@@ -248,11 +250,13 @@ def DownloadMenu(key: str) -> ValueElement:
         data.pop("columns")
         data.pop("df")
         dataset = data["dataset"]
+        jsonData = json.dumps(data)
+        logger.debug("requesting" + str(jsonData))
         try:
             resp = requests.post(
                 f"{settings.api_url}/filter_subset/ipl3/{State.datatype}/{dataset}",
                 params=data,
-                data=json.dumps(data),
+                data=jsonData,
             )
             if resp.status_code == 202:
                 # ready! push update to call query loop task

@@ -16,12 +16,14 @@ class Subset:
     name: str = "A"
     expression: str = ""
     df: vx.DataFrame = State.df.value
-    dataset: str = "best" if State._datatype.value == "star" else "apogeenet"
+    dataset: str = "best" if State.datatype == "star" else "apogeenet"
     flags: list[str] = dataclasses.field(
         default_factory=lambda: ["purely non-flagged"])
     mapper: list[str] = dataclasses.field(default_factory=list)
     carton: list[str] = dataclasses.field(default_factory=list)
     columns: list[str] = dataclasses.field(default_factory=list)
+    crossmatch: str = ""
+    cmtype: str = "gaia_dr3"
 
     def __repr__(self) -> str:
         return "\n".join(

@@ -1,14 +1,9 @@
 """Holds specific filter components"""
 
-import operator
 import logging
-import re
-from functools import reduce
 from typing import cast
 from timeit import default_timer as timer
 
-import numpy as np
-import vaex as vx
 import reacton.ipyvuetify as rv
 import solara as sl
 from reacton.core import ValueElement
@@ -17,6 +12,8 @@ from ....util.filters import (
     filter_carton_mapper,
     filter_expression,
     filter_flags,
+    filter_crossmatch,
+    crossmatchList,
     flagList,
 )
 
@@ -245,10 +242,6 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
         subset.carton,
         lambda arg: SubsetState.update_subset(key, carton=arg),
     )
-    dataset, set_dataset = (
-        subset.dataset,
-        lambda arg: SubsetState.update_subset(key, dataset=arg),
-    )
     combotype = (
         "AND"  # NOTE: remains for functionality as potential state var (in future)
     )
@@ -285,46 +278,91 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
     result = sl.lab.use_task(update_cm,
                              dependencies=[df, mapper, carton, invert.value])
 
-    open, set_open = sl.use_state([])
-    with rv.ExpansionPanels(flat=True,
-                            multiple=True,
-                            v_model=open,
-                            on_v_model=set_open) as main:
-        DatasetSelect(key, dataset, set_dataset)
-        with rv.ExpansionPanel():
-            rv.ExpansionPanelHeader(children=[
-                rv.Col(
-                    cols=1,
-                    children=[
-                        "Targeting Filters",
-                        sl.ProgressLinear(result.pending),
-                    ],
+    with rv.ExpansionPanel() as main:
+        rv.ExpansionPanelHeader(children=[
+            rv.Col(
+                cols=1,
+                children=[
+                    "Targeting Filters",
+                    sl.ProgressLinear(result.pending),
+                ],
+            )
+        ])
+        with rv.ExpansionPanelContent():
+            if State.mapping.value is None:
+                sl.Warning(
+                    dense=True,
+                    label=
+                    "Mappings file not found! Please contact server admins.",
                 )
-            ])
-            with rv.ExpansionPanelContent():
-                if State.mapping.value is None:
-                    sl.Warning(
-                        dense=True,
-                        label=
-                        "Mappings file not found! Please contact server admins.",
+            else:
+                with sl.Column(gap="2px"):
+                    AutocompleteSelect(
+                        label="Mapper",
+                        value=mapper,
+                        on_value=set_mapper,
+                        values=State.mapping.value["mapper"].unique(),
                     )
-                else:
-                    with sl.Column(gap="2px"):
-                        AutocompleteSelect(
-                            label="Mapper",
-                            value=mapper,
-                            on_value=set_mapper,
-                            values=State.mapping.value["mapper"].unique(),
-                        )
-                        AutocompleteSelect(
-                            label="Carton",
-                            value=carton,
-                            on_value=set_carton,
-                            values=State.mapping.value["alt_name"].unique(),
-                        )
-                        FlagSelect(key, invert)
+                    AutocompleteSelect(
+                        label="Carton",
+                        value=carton,
+                        on_value=set_carton,
+                        values=State.mapping.value["alt_name"].unique(),
+                    )
+                    FlagSelect(key, invert)
 
     return main
+
+
+@sl.component()
+def CrossmatchPanel(key: str) -> ValueElement:
+    subset = SubsetState.subsets.value[key]
+    df = subset.df
+    crossmatch, set_crossmatch = (
+        subset.crossmatch,
+        lambda arg: SubsetState.update_subset(key, crossmatch=arg),
+    )
+    cmtype, set_cmtype = (
+        subset.cmtype,
+        lambda arg: SubsetState.update_subset(key, cmtype=arg),
+    )
+
+    _, set_filter = use_subset(id(df), key, "crossmatch", write_only=True)
+
+    def update_crossmatch():
+        try:
+            filter = filter_crossmatch(df, crossmatch, cmtype)
+            set_filter(filter)
+        except Exception as e:
+            Alert.update(f"Crossmatch failed! {e}", color="error")
+
+    result = sl.lab.use_task(update_crossmatch,
+                             dependencies=[df, crossmatch, cmtype])
+    with rv.ExpansionPanel() as main:
+        rv.ExpansionPanelHeader(children=[
+            rv.Col(
+                cols=1,
+                children=[
+                    "Crossmatch",
+                    sl.ProgressLinear(result.pending),
+                ],
+            )
+        ])
+        with rv.ExpansionPanelContent():
+            SingleAutocomplete(
+                label="ID Type",
+                value=cmtype,
+                on_value=set_cmtype,
+                values=list(crossmatchList.keys()),
+            )
+            sl.InputTextArea(
+                "Enter some identifiers (integer)",
+                auto_grow=False,
+                value=crossmatch,
+                on_value=set_crossmatch,
+            )
+            with sl.Tooltip("Clear your crossmatch entry."):
+                sl.Button("Clear", on_click=lambda: set_crossmatch(""))
 
 
 @sl.component()

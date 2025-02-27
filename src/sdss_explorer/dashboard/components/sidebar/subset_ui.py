@@ -1,6 +1,7 @@
 """Main user-facing subset components"""
 
 from typing import List, Union, Tuple
+import logging
 import solara as sl
 import vaex as vx
 import numpy as np
@@ -11,21 +12,27 @@ from reacton.core import ValueElement
 from ..dialog import Dialog
 
 from ...dataclass import SubsetState, State, use_subset
-from .subset_options import updater_context, SubsetOptions
+from .subset_options import SubsetOptions
+
+logger = logging.getLogger("dashboard")
 
 
 @sl.component()
 def SubsetMenu() -> ValueElement:
-    """Control and display subset cards"""
+    """Control and display subset cards
+
+    State variables:
+        add: whether the add dialog is open
+        name: the text input state of the name of new subset to be added
+
+    """
     add = sl.use_reactive(False)
-    name, set_name = sl.use_state("")
-    updater = use_force_update()
-    updater_context.provide(updater)  # provide updater to context
+    name, set_name = sl.use_state("")  # new name of subset
+    model, set_model = sl.use_state(0)
 
     def add_subset(name):
         "Wrapper on Subset Add to support dialog interface"
         if SubsetState.add_subset(name):
-            updater()  # force rerender
             close()
 
     def close():
@@ -52,10 +59,10 @@ def SubsetMenu() -> ValueElement:
         # NOTE: starting app with expanded panels requires
         # enabling the multiple prop for this version of vuetify.
         # This is really annoying for UX (too much info), so we cant do it
-        with rv.ExpansionPanels(flat=True, popout=True):
-            # multiple=True,
-            # v_model=model,
-            # on_v_model=set_model):
+        with rv.ExpansionPanels(flat=True,
+                                popout=True,
+                                v_model=model,
+                                on_v_model=set_model):
             for key in SubsetState.subsets.value.keys():
                 SubsetCard(key).key(key)
         with Dialog(
@@ -78,6 +85,7 @@ def SubsetMenu() -> ValueElement:
 def SubsetCard(key: str) -> ValueElement:
     """Holds filter update info, card structure, and calls to options"""
     subset = SubsetState.subsets.value[key]
+    open, set_open = sl.use_state(False)
     df = subset.df
     if df is None:
         df = State.df.value
@@ -114,8 +122,9 @@ def SubsetCard(key: str) -> ValueElement:
     filtered = filtered_length < length
     denom = max(length, 1)
     progress = filtered_length / denom * 100
+    logger.debug(open)
 
-    with rv.ExpansionPanel() as main:
+    with rv.ExpansionPanel(v_model=open, on_v_model=set_open) as main:
         with rv.ExpansionPanelHeader():
             with sl.Row(gap="0px"):
                 rv.Col(cols="4", children=[name])

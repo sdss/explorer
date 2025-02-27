@@ -42,6 +42,15 @@ flagList = {
     "gmag < 17": "g_mag<=17",
 }
 
+# map crossmatch names to columns
+crossmatchList = {
+    "gaia_dr3": "gaia_dr3_source_id",
+    "gaia_dr2": "gaia_dr2_source_id",
+    "sdss5": "sdss_id",
+    "sdss4_apogee": "sdss4_apogee_id",
+    "tic_v8": "tic_v8_id",
+}
+
 
 def filter_expression(
     df: vx.DataFrame,
@@ -186,6 +195,12 @@ def filter_flags(df: vx.DataFrame,
                  invert: bool = False) -> vx.Expression | None:
     """
     Generates a filter for flags
+
+    Args:
+        df: dataframe to filter
+        flags: list of flags to update
+        dataset: specific dataset to filter on, used to check whether result_flags is present
+        invert: whether to invert
     """
     filters = []
     for flag in flags:
@@ -212,3 +227,42 @@ def filter_flags(df: vx.DataFrame,
     else:
         concat_filter = None
     return concat_filter
+
+
+def filter_crossmatch(df: vx.DataFrame, crossmatch: str,
+                      cmtype: str) -> vx.Expression | None:
+    """
+    Generates a filter for flags
+
+    Args:
+        df: dataframe to filter
+        crossmatch: multiline string of identifiers
+        cmtype: identifier type
+
+    Returns:
+        None: if nothing parsed to crossmatch
+        vx.Expression: if there is a valid filter
+
+    Raises:
+        ValueError: if crossmatch fails to convert all to integers
+        TypeError: if tic_v8 with spall (not supported)
+
+    """
+    assert cmtype in crossmatchList.keys(
+    ), "unspported crossmatch column passed"
+
+    # bhm doesnt fetch tic_v8's so flag
+    if (cmtype == "tic_v8") and (df["pipeline"].unique()[0] == "spall"):
+        raise TypeError("tic_v8 not supported with spall dataset")
+    if len(crossmatch) > 0:
+        # make more informative
+        try:
+            identifiers = list(
+                map(int,
+                    crossmatch.lstrip().rstrip().split("\n")))
+        except Exception:
+            raise ValueError("failed to convert to integer identifiers")
+
+        return df[crossmatchList[cmtype]].isin(identifiers)
+    else:
+        return None

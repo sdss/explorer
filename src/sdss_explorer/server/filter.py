@@ -12,6 +12,7 @@ from ..util.config import settings
 from ..util.filters import (
     filter_carton_mapper,
     filter_flags,
+    filter_crossmatch,
     filter_expression,
 )
 
@@ -29,6 +30,8 @@ def filter_dataframe(
     carton: str = "",
     mapper: str = "",
     flags: str = "",
+    crossmatch: str = "",
+    cmtype: str = "",
     combotype: str = "AND",
     invert: bool = False,
 ) -> None:
@@ -58,21 +61,16 @@ def filter_dataframe(
         raise Exception("dataframe/columns load failed")
     filters = list()
 
-    # generic unpack
-    # show console
+    # generic unpack; show to console
     logger.debug(f"""requested {release}/{datatype}/{dataset}{uuid}
-                 expr:      {expression} 
-                 carton:    {carton} 
-                 mapper:    {mapper} 
-                 flags:     {flags}
-                 combotype: {combotype}
-                 invert:    {invert}
+                 expr:                 {expression} 
+                 carton:               {carton} 
+                 mapper:               {mapper} 
+                 flags:                {flags}
+                 crossmatch({cmtype}): {crossmatch[:8]}...
+                 combotype:            {combotype}
+                 invert:               {invert}
                  """)
-
-    # expression, etc
-    if expression:
-        filters.append(
-            filter_expression(dff, columns, expression, invert=invert))
 
     # process list-like data
     if carton:
@@ -81,6 +79,11 @@ def filter_dataframe(
         mapper: list[str] = mapper.split(",")
     if flags:
         flags: list[str] = flags.split(",")
+
+    # make all filters via utility funcs
+    if expression:
+        filters.append(
+            filter_expression(dff, columns, expression, invert=invert))
     if carton or mapper:
         cmp_filter = filter_carton_mapper(
             dff,
@@ -94,6 +97,9 @@ def filter_dataframe(
     if flags:
         flagfilter = filter_flags(dff, flags, dataset, invert=invert)
         filters.append(flagfilter)
+    if len(crossmatch) > 0:
+        crossmatchFilter = filter_crossmatch(dff, crossmatch, cmtype)
+        filters.append(crossmatchFilter)
 
     # concat all and go!
     filters = [f for f in filters if f is not None]

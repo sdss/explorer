@@ -28,6 +28,7 @@ logger = logging.getLogger("server")
 # solara server setup(?)
 try:
     os.environ["SOLARA_APP"] = "sdss_explorer.dashboard"
+    os.environ["SOLARA_APP"] = "sdss_explorer.dashboard"
     assert settings.solara  # check if we want to mount the server or not
     # this solara import needs to come after the os environ setup
     import solara.server.fastapi as solara_server
@@ -90,10 +91,19 @@ async def task_handler(
     carton: str = "",
     mapper: str = "",
     flags: str = "",
+    crossmatch: str = "",
+    cmtype: str = "",
     combotype: str = "AND",
     invert: bool = False,
 ):
-    """Task handler endpoint"""
+    """Task handler endpoint
+
+    Note:
+        You can't have this kwargs overload because it needs to know the properties.
+
+    Args:
+        Everything from the subset
+    """
     new_task = Job()  # create jobspec
     jobs[new_task.uid] = new_task  # add to global joblist
     # bundle data
@@ -103,6 +113,8 @@ async def task_handler(
         carton=carton,
         mapper=mapper,
         flags=flags,
+        crossmatch=crossmatch,
+        cmtype=cmtype,
         combotype=combotype,
         invert=invert,
     )
