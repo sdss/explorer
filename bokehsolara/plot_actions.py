@@ -237,7 +237,8 @@ def aggregate_data(
             "no assigned bintype for aggregation. bug somewhere in settings.")
 
     # TODO: histogram logic
-    # TODO: categorical datum for both hist
+    # TODO: categorical datum for heatmap
+    # TODO: categorical for hist
 
     # update mappings if needed
     if check_categorical(dff[plotstate.x.value]):
@@ -286,8 +287,8 @@ def aggregate_data(
 
     # pull the aggregation function pointer and call it with our kwargs
     aggFunc = getattr(dff, bintype)
-    z = dff.mean(
-        expression=expr_c,  # if bintype != "count" else None,
+    z = aggFunc(
+        expression=expr_c if bintype != "count" else None,
         binby=expr,
         limits=limits,
         shape=plotstate.nbins.value,
