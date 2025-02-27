@@ -20,15 +20,33 @@ from plot_utils import (
     generate_label,
     generate_datamap,
     generate_categorical_tick_formatter,
+    generate_categorical_hover_formatter,
     generate_tooltips,
 )
 
 
 def update_tooltips(plotstate: PlotState, fig_model: Plot) -> None:
-    """Updates tooltips on toolbar's HoverTool"""
+    """Updates tooltips on toolbar's HoverTool
+
+    Note:
+        This will fetch mappings, so it assumes it has already been generated.
+
+    Args:
+        plotstate: plot vars
+        fig_model: plot object
+    """
+    # find the tool
     for tool in fig_model.toolbar.tools:
         if isinstance(tool, HoverTool):
             tool.tooltips = generate_tooltips(plotstate)
+            tool.formatters = {
+                "$snap_x":
+                generate_categorical_hover_formatter(plotstate, axis="x"),
+                "$snap_y":
+                generate_categorical_hover_formatter(plotstate, axis="y"),
+                "@color":
+                generate_categorical_hover_formatter(plotstate, axis="color"),
+            }
 
 
 def update_axis(
@@ -142,11 +160,6 @@ def update_color_mapper(
     mapper.update(low=low, high=high)
 
     return
-
-
-# code = f"return ({json.dumps(mapping)})[Math.floor(special_vars.y)];"
-# hover = HoverTool(tooltips=[("x", "$x"), ("y", "$y"), ('mapped_y', '$y{0}')],
-#                  formatters={'$y': CustomJSHover(code=code)})
 
 
 def change_formatter(
@@ -311,7 +324,6 @@ def aggregate_data(
     if plotstate.logcolor.value:
         color = np.log10(color)
 
-    print(color)
     # convert because it breaks
     if bintype == "count":
         color = color.astype("float")

@@ -31,15 +31,14 @@ from plot_utils import (
 )
 from state import PlotState, df, GridState
 from figurebokeh import FigureBokeh
+from plot_themes import LIGHTTHEME, DARKTHEME
+from plot_effects import add_scatter_effects, add_heatmap_effects, add_common_effects
+from plot_actions import aggregate_data, fetch_data, update_tooltips
 
 colormaps = [x for x in colormaps if "256" in x]
 
 index_context = sl.create_context(0)
 # https://docs.bokeh.org/en/latest/docs/user_guide/interaction/js_callbacks.html#customjs-for-topics-events
-
-from plot_themes import LIGHTTHEME, DARKTHEME
-from plot_effects import add_scatter_effects, add_heatmap_effects, add_common_effects
-from plot_actions import aggregate_data, fetch_data
 
 
 @sl.component()
@@ -102,20 +101,24 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
         add_colorbar(plotstate, p, mapper, source.data["color"])
         gr = p.add_glyph(source, glyph)
 
+        # force reset ranges, we want no pad
+        p.x_range.start = xlimits[0]
+        p.x_range.end = xlimits[1]
+        p.y_range.start = ylimits[0]
+        p.y_range.end = ylimits[1]
+        p.x_range.bounds = "auto"  # lock to image
+        p.y_range.bounds = "auto"  # lock to image
+
         # create hovertool, bound to figure object
         add_all_tools(p, generate_tooltips(plotstate))
+        update_tooltips(plotstate, p)
         add_callbacks(plotstate, dff, p, source, set_filter=None)
-        # cjs = CustomJS(args=dict(p=p), code="""p.change.emit()""")
-        # p.js_on_change("height", cjs)
         return p
 
     p = sl.use_memo(create_figure, dependencies=[])
 
     pfig = FigureBokeh(p, dark_theme=DARKTHEME, light_theme=LIGHTTHEME)
-    try:
-        add_heatmap_effects(pfig, plotstate, dff, filter)
-    except Exception as e:
-        print("heatmap ", e)
+    add_heatmap_effects(pfig, plotstate, dff, filter)
     add_common_effects(pfig, plotstate, dff, layout)
     return pfig
 
@@ -171,10 +174,9 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
         add_colorbar(plotstate, p, mapper, source.data["color"])
 
         # add all tools; custom hoverinfo
-        add_all_tools(p, tooltips=generate_tooltips(plotstate))
+        add_all_tools(p)
+        update_tooltips(plotstate, p)
         add_callbacks(plotstate, dff, p, source)
-        # cjs = CustomJS(args=dict(p=p), code="""p.change.emit()""")
-        # p.js_on_change("height", cjs)
 
         return p
 

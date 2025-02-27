@@ -1,5 +1,6 @@
 """Utility functions for generating plot objects and calculations"""
 
+import json
 from typing import Optional, Callable, Any
 
 from bokeh.core.properties import DataSpec
@@ -13,6 +14,7 @@ from bokeh.models.scales import LinearScale, LogScale
 from bokeh.models.tools import (
     BoxSelectTool,
     BoxZoomTool,
+    CustomJSHover,
     LassoSelectTool,
     WheelZoomTool,
     HoverTool,
@@ -56,6 +58,7 @@ def add_all_tools(p: Plot, tooltips: Optional[str] = None) -> list[Model]:
     lasoo = LassoSelectTool()
     reset = ResetTool()
     tools = [pan, boxzoom, box_select, lasoo, hover, wz, reset]
+
     if DEV:
         tools.append(ExamineTool())  # debugging tool
     p.add_tools(*tools)
@@ -95,7 +98,8 @@ def generate_plot():
         context_menu=menu,
         toolbar_location="above",
         height=360,
-        height_policy="fixed",
+        height_policy=
+        "fixed",  # do what we tell you and don't try to go find bounds
         # height_policy=
         # "fit",  # NOTE: this doesn't work in the Lumino context of the cards
         width_policy="max",
@@ -412,45 +416,77 @@ def generate_datamap(expr: vx.Expression) -> dict[str | bool, int]:
     return {k: v for (k, v) in zip(factors, range(n))}
 
 
+def generate_categorical_hover_formatter(plotstate, axis: str = "x"):
+    """Generates tooltips for a hovertool based on current plotstate.
+
+    Args:
+        plotstate: plot variables
+        axis: axis to generate for, any of 'x','y', or 'color'.
+    """
+    assert axis in ("x", "y", "color"), (
+        f'expected axis to be "x","y", or "color" but got {axis}')
+    col = getattr(plotstate, axis).value
+    mapping = getattr(plotstate, f"{axis}mapping")
+    if check_categorical(col):
+        cjs = f"return ({json.dumps(mapping)})[Math.floor(value)];"
+    else:
+        cjs = """return value.toFixed(4)"""
+
+    return CustomJSHover(code=cjs)
+
+
 def generate_tooltips(plotstate: PlotState) -> str:
     """Generates tooltips for a hovertool based on current plotstate.
 
     Args:
         plotstate: plot variables
     """
+
+    def generate_row(label, value):
+        return f"""
+            <div style="display: table-row">
+                <div style="display: table-cell; color: #0D47A1; text-align: right;">
+                    {label}:
+                </div>
+                <div style="display: table-cell;">
+                    {value}
+                </div>
+            </div>
+        """
+
+    # define the labels and corresponding values based on plottype
+    labels_values = [
+        (generate_label(plotstate, axis="x"), "$snap_x{0}"),
+    ]
+    if plotstate.plottype != "histogram":
+        labels_values.extend([
+            (generate_label(plotstate, axis="y"), "$snap_y{0}"),
+            (generate_label(plotstate, axis="color"), "@color{0}"),
+        ])
     if plotstate.plottype == "scatter":
-        return (f"""
-        <div>
-        {generate_label(plotstate, axis="x")}: $snap_x
-        {generate_label(plotstate, axis="y")}: $snap_y
-        {generate_label(plotstate, axis="color")}: @color
-        sdss_id: @sdss_id
-        </div>\n""" + """
-        <style>
+        labels_values.append(("sdss_id", "@sdss_id"))
+
+    # generate the rows dynamically
+    rows = "".join(
+        generate_row(label, value) for label, value in labels_values)
+
+    # construct the full HTML structure
+    return (
+        f"""
+    <div>
+        <div style="display: table; border-spacing: 2px;">
+            {rows}
+        </div>
+    </div>""" + """
+    <style>
         div.bk-tooltip-content > div > div:not(:first-child) {
             display:none !important;
-        } 
-        </style>
-        """)
-    elif plotstate.plottype == "heatmap":
-        return (f"""
-        <div>
-        {generate_label(plotstate, axis="x")}: $snap_x
-        {generate_label(plotstate, axis="y")}: $snap_y
-        {generate_label(plotstate, axis="color")}: @color
-        </div>\n""" + """
-        <style>
-        div.bk-tooltip-content > div > div:not(:first-child) {
-            display:none !important;
-        } 
-        </style>
-        """)
-    else:
-        return ""
+        }
+    </style>"""
+    )  # this is a hack to stop multiple point's tips from displaying at once
 
 
 def calculate_colorbar_ticks(low, high) -> list[float]:
-    print(low, high)
     """Manually calculates colorbar ticks to bypas low-level Bokeh object replacement locks."""
 
     def get_interval(data_low, data_high, desired_n_ticks):

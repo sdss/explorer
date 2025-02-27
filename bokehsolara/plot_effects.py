@@ -190,8 +190,13 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
-            color, x_centers, y_centers, limits = aggregate_data(
-                plotstate, dff)
+            try:
+                assert len(dff) > 0
+                color, x_centers, y_centers, limits = aggregate_data(
+                    plotstate, dff)
+            except Exception:
+                logger.debug("0 length, leaving")
+                return
             with fig_model.hold(render=True):
                 source = fig_model.renderers[0].data_source
                 fill_color = fig_model.renderers[0].glyph.fill_color
@@ -238,6 +243,7 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
                                  axis="color",
                                  color=color)
                 update_label(plotstate, fig_model, axis="color")
+                update_tooltips(plotstate, fig_model)
 
     def update_cmap():
         """Colormap update effect"""
@@ -249,7 +255,12 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
 
     sl.use_effect(
         update_data,
-        dependencies=[plotstate.x.value, plotstate.y.value, filter],
+        dependencies=[
+            plotstate.x.value,
+            plotstate.y.value,
+            plotstate.nbins.value,
+            filter,
+        ],
     )
     sl.use_effect(
         update_color,
