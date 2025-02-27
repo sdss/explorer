@@ -357,8 +357,11 @@ def calculate_range(plotstate, df, axis: str = "x") -> tuple[float, float]:
     # bokeh uses 10% of range as padding by default
     datarange = abs(limits[1] - limits[0])
     pad = datarange / 20
-    start = limits[0] - pad
-    end = limits[1] + pad
+    start = limits[0]
+    end = limits[1]
+    if plotstate.plottype != "heatmap":
+        start = start - pad
+        end = end + pad
     if log:
         start = 10**start
         end = 10**end

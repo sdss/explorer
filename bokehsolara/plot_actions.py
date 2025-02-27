@@ -63,6 +63,7 @@ def update_coloraxis(
     plotstate: PlotState,
     fig_model: Plot,
     dff: vx.DataFrame,
+    update_data: bool = True,
 ) -> None:
     """Direct and complete coloraxis update.
 
@@ -72,16 +73,20 @@ def update_coloraxis(
         dff: filtered dataframe
     """
     # get all attributes of plotstate + fig_model
-    if plotstate.plottype == "heatmap":
-        color = aggregate_data(plotstate, dff)[0]
-        colordata = color  # no values prop for ndarray
-    else:
-        color = dff[plotstate.color.value]
-        colordata = color.values
+    if update_data:
+        if plotstate.plottype == "heatmap":
+            color = aggregate_data(plotstate, dff)[0].flatten()
+            colordata = color  # no values prop for ndarray
+        else:
+            color = dff[plotstate.color.value]
+            colordata = color.values
 
     with fig_model.hold(render=True):
-        fig_model.renderers[0].data_source.data["z"] = colordata  # set data
-        update_color_mapper(plotstate, fig_model, z=color)  # replace mapping
+        if update_data:
+            fig_model.renderers[0].data_source.data[
+                "z"] = colordata  # set data
+            update_color_mapper(plotstate, fig_model,
+                                z=color)  # replace mapping
         update_label(plotstate, fig_model,
                      axis="color")  # update colorbar label
         update_tooltips(plotstate, fig_model)
@@ -281,19 +286,17 @@ def aggregate_data(
 
     # pull the aggregation function pointer and call it with our kwargs
     aggFunc = getattr(dff, bintype)
-    print(aggFunc)
     z = dff.mean(
         expression=expr_c,  # if bintype != "count" else None,
         binby=expr,
         limits=limits,
-        shape=(plotstate.nbins.value, plotstate.nbins.value),
+        shape=plotstate.nbins.value,
         delay=True,
+        array_type="numpy",
     )
 
     # execute!
     dff.execute()
     z = z.get()
-    print(z)
-    print("zlen", z.shape)
 
     return z, x_edges, y_edges, limits

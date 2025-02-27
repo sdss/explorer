@@ -32,8 +32,6 @@ from plot_utils import (
 from state import PlotState, df, GridState
 from figurebokeh import FigureBokeh
 
-TOOLS = "pan,wheel_zoom,box_zoom,reset,save,examine"
-
 colormaps = [x for x in colormaps if "256" in x]
 
 index_context = sl.create_context(0)
@@ -82,17 +80,21 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
         p, menu = generate_plot()
         xlimits = calculate_range(plotstate, dff, axis="x")
         ylimits = calculate_range(plotstate, dff, axis="y")
+
+        # add grid, but disable its lines
         add_axes(plotstate, p)
+        p.center[0].grid_line_color = None
+        p.center[1].grid_line_color = None
 
         fill_color = generate_color_mapper(plotstate)
         add_colorbar(plotstate, p, fill_color)
-
         # generate rectangles
         glyph = Rect(
             x="x",
             y="y",
             width=(xlimits[1] - xlimits[0]) / plotstate.nbins.value,
             height=(ylimits[1] - ylimits[0]) / plotstate.nbins.value,
+            dilate=True,
             line_color=None,
             fill_color=fill_color,
         )
@@ -107,8 +109,11 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
 
     p = sl.use_memo(create_figure, dependencies=[])
 
-    pfig = FigureBokeh(p)
-    add_heatmap_effects(pfig, plotstate, dff, filter)
+    pfig = FigureBokeh(p, dark_theme=DARKTHEME, light_theme=LIGHTTHEME)
+    try:
+        add_heatmap_effects(pfig, plotstate, dff, filter)
+    except Exception as e:
+        print("heatmap ", e)
     add_common_effects(pfig, plotstate, layout)
     return pfig
 
@@ -165,6 +170,8 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
         # add all tools; custom hoverinfo
         add_all_tools(p, tooltips=generate_tooltips(plotstate))
         add_callbacks(plotstate, dff, p, source)
+        # cjs = CustomJS(args=dict(p=p), code="""p.change.emit()""")
+        # p.js_on_change("height", cjs)
 
         return p
 

@@ -2,6 +2,7 @@
 
 import asyncio
 from bokeh.models.plots import Plot
+from bokeh.models import Rect
 import numpy as np
 import reacton.ipyvuetify as rv
 import solara as sl
@@ -182,29 +183,34 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
+            z, x_centers, y_centers, limits = aggregate_data(plotstate, dff)
             with fig_model.hold(render=True):
-                z, x_centers, y_centers, limits = aggregate_data(
-                    plotstate, dff)
-                print("effect, z from return", len(z.flatten()))
-
                 source = fig_model.renderers[0].data_source
+                fill_color = fig_model.renderers[0].glyph.fill_color
                 source.data = {
                     "x": np.repeat(x_centers, len(y_centers)),
                     "y": np.tile(y_centers, len(x_centers)),
                     "z": z.flatten(),
                 }
-                fig_model.renderers[0].glyph.update(
-                    height=(limits[0][1] - limits[0][0]) /
+                glyph = Rect(
+                    x="x",
+                    y="y",
+                    width=(limits[0][1] - limits[0][0]) /
                     plotstate.nbins.value,
-                    width=(limits[1][1] - limits[1][0]) /
+                    height=(limits[1][1] - limits[1][0]) /
                     plotstate.nbins.value,
+                    dilate=True,
+                    line_color=None,
+                    fill_color=fill_color,
                 )
+                gr = fig_model.add_glyph(source, glyph)
+                fig_model.renderers = fig_model.renderers[1:]
                 for axis in {"x", "y"}:
                     update_label(plotstate, fig_model,
                                  axis=axis)  # update all labels
                 update_tooltips(plotstate, fig_model)
-            update_coloraxis(plotstate, fig_model,
-                             dff)  # also update coloraxis
+            update_coloraxis(plotstate, fig_model, dff,
+                             update_data=False)  # also update coloraxis
 
     def update_filter():
         """Filter update"""
