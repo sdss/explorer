@@ -22,7 +22,7 @@ from solara.components.file_drop import FileInfo
 from solara.lab import Menu
 
 from state import PlotState, df, GridState
-from plots import ScatterPlot, HeatmapPlot, index_context
+from plots import HistogramPlot, ScatterPlot, HeatmapPlot, index_context
 
 
 class GridLayout(v.VuetifyTemplate):
@@ -60,8 +60,10 @@ def show_plot(plottype, remover, *args, **kwargs):
                     classes=["grey darken-3" if dark else "grey lighten-3"]):
                 if plottype == "heatmap":
                     HeatmapPlot(plotstate)
-                else:
+                elif plottype == "scatter":
                     ScatterPlot(plotstate)
+                elif plottype == "histogram":
+                    HistogramPlot(plotstate)
                 btn = sl.Button(
                     icon_name="mdi-settings",
                     outlined=False,
@@ -75,30 +77,36 @@ def show_plot(plottype, remover, *args, **kwargs):
                                 value=plotstate.x,
                                 values=df.get_column_names(),
                             )
-                            sl.Select(
-                                label="x",
-                                value=plotstate.y,
-                                values=df.get_column_names(),
-                            )
-                        with sl.Columns([1, 1]):
+                            if plottype != "histogram":
+                                sl.Select(
+                                    label="x",
+                                    value=plotstate.y,
+                                    values=df.get_column_names(),
+                                )
+                        if plottype != "histogram":
+                            with sl.Columns([1, 1]):
+                                sl.Select(
+                                    label="color",
+                                    value=plotstate.color,
+                                    values=df.get_column_names(),
+                                )
+                                if plottype == "heatmap":
+                                    sl.Select(
+                                        label="bintype",
+                                        value=plotstate.bintype,
+                                        values=[
+                                            "count",
+                                            "mean",
+                                            "min",
+                                            "max",
+                                            "median",
+                                        ],
+                                    )
                             sl.Select(
                                 label="color",
-                                value=plotstate.color,
-                                values=df.get_column_names(),
+                                value=plotstate.colorscale,
+                                values=colormaps,
                             )
-                            if plottype == "heatmap":
-                                sl.Select(
-                                    label="bintype",
-                                    value=plotstate.bintype,
-                                    values=[
-                                        "count", "mean", "min", "max", "median"
-                                    ],
-                                )
-                        sl.Select(
-                            label="color",
-                            value=plotstate.colorscale,
-                            values=colormaps,
-                        )
                         with sl.Columns([1, 1]):
                             with sl.Column():
                                 sl.Checkbox(label="xlog", value=plotstate.logx)
@@ -106,10 +114,11 @@ def show_plot(plottype, remover, *args, **kwargs):
                             with sl.Column():
                                 sl.Checkbox(label="xflip",
                                             value=plotstate.flipx)
-                                sl.Checkbox(label="yflip",
-                                            value=plotstate.flipy)
-                            sl.Checkbox(label="logcolor",
-                                        value=plotstate.logcolor)
+                                if plottype != "histogram":
+                                    sl.Checkbox(label="yflip",
+                                                value=plotstate.flipy)
+                                    sl.Checkbox(label="logcolor",
+                                                value=plotstate.logcolor)
                         sl.SliderInt(
                             label="nbins",
                             value=plotstate.nbins,

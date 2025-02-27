@@ -237,15 +237,23 @@ def generate_label(plotstate: PlotState, axis: str = "x") -> str:
         A formatted, pretty axis label
     """
     assert axis in ("x", "y", "color")
-    col = getattr(plotstate, axis).value
+    if (plotstate.plottype == "histogram") and (axis == "y"):
+        col = getattr(plotstate, "x").value
+    else:
+        col = getattr(plotstate, axis).value
     log = getattr(plotstate, f"log{axis}").value
-    cond = log and not check_categorical(col)
+    cond = log
+    if plotstate.plottype != "histogram":
+        cond = cond and not check_categorical(col)
     if (axis == "color") and (plotstate.plottype == "heatmap"):
         bintype = getattr(plotstate, "bintype").value
         bincond = (bintype != "count") and (bintype != "")
         if bintype == "count":
             # no col data if just counting
             col = ""
+    elif (plotstate.plottype == "histogram") and (axis == "y"):
+        bintype = "count"
+        bincond = True
     else:
         bintype = ""
         bincond = False
@@ -304,11 +312,11 @@ def add_callbacks(
     # add reset range event
     def on_reset(event):
         """Range resets"""
-        newx = calculate_range(plotstate, dff, "x")
-        newy = calculate_range(plotstate, dff, "y")
+        from plot_actions import reset_range  # NOTE: this makes non-circular import
+
         with p.hold(render=True):
-            p.x_range.update(start=newx[0], end=newx[1])
-            p.y_range.update(start=newy[0], end=newy[1])
+            reset_range(plotstate, p, dff, axis="x")
+            reset_range(plotstate, p, dff, axis="y")
 
     p.on_event("reset", on_reset)
 
@@ -349,7 +357,10 @@ def calculate_range(plotstate, dff, axis: str = "x") -> tuple[float, float]:
     assert axis in ("x", "y"), f"expected axis x or y but got {axis}"
 
     # fetch
-    col = plotstate.x.value if axis == "x" else plotstate.y.value
+    if (plotstate.plottype == "histogram") and (axis == "y"):
+        raise Exception("shouldnt be here")
+    else:
+        col = plotstate.x.value if axis == "x" else plotstate.y.value
     flip = plotstate.flipx.value if axis == "x" else plotstate.flipy.value
     log = plotstate.logx.value if axis == "x" else plotstate.logy.value
 
@@ -424,12 +435,16 @@ def generate_categorical_hover_formatter(plotstate, axis: str = "x"):
     """
     assert axis in ("x", "y", "color"), (
         f'expected axis to be "x","y", or "color" but got {axis}')
-    col = getattr(plotstate, axis).value
+    if (plotstate.plottype == "histogram") and (axis == "y"):
+        # early exit
+        return CustomJSHover(code="return value.toFixed(4);")
+    else:
+        col = getattr(plotstate, axis).value
     mapping = getattr(plotstate, f"{axis}mapping")
     if check_categorical(col):
         cjs = f"return ({json.dumps({v: k for k, v in mapping.items()})})[Math.floor(value)];"
     else:
-        cjs = """return value.toFixed(4);"""
+        cjs = "return value.toFixed(4);"
 
     return CustomJSHover(code=cjs)
 

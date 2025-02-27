@@ -125,8 +125,11 @@ def add_common_effects(
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model = fig_widget._model
-            if plotstate.logy.value and not check_categorical(
-                    plotstate.y.value):
+            if plotstate.plottype != "histogram":
+                if plotstate.logy.value and not check_categorical(
+                        plotstate.y.value):
+                    fig_model.y_scale = fig_model.extra_y_scales["log"]
+            elif plotstate.logy.value:
                 fig_model.y_scale = fig_model.extra_y_scales["log"]
             else:
                 fig_model.y_scale = fig_model.extra_y_scales["lin"]
@@ -175,7 +178,8 @@ def add_common_effects(
     try:
         sl.use_effect(update_height, dependencies=[debounced_height.finished])
         sl.use_effect(update_flipx, dependencies=[plotstate.flipx.value])
-        sl.use_effect(update_flipy, dependencies=[plotstate.flipy.value])
+        if plotstate.plottype != "histogram":
+            sl.use_effect(update_flipy, dependencies=[plotstate.flipy.value])
         if plotstate.plottype != "heatmap":
             sl.use_effect(update_logx, dependencies=[plotstate.logx.value])
             sl.use_effect(update_logy, dependencies=[plotstate.logy.value])

@@ -3,21 +3,13 @@
 from reacton.ipyvuetify import ValueElement
 import numpy as np
 import solara as sl
-import xarray
 from bokeh.models import (
-    BoxSelectTool,
-    HoverTool,
+    Quad,
     Rect,
     Scatter,
-    TapTool,
 )
-from bokeh.models.mappers import (
-    LinearColorMapper, )
-from bokeh.models import CustomJS
 from bokeh.palettes import __palettes__ as colormaps
-from bokeh.models.ui import ActionItem, Menu as BokehMenu
-from bokeh.plotting import ColumnDataSource, figure
-from jupyter_bokeh import BokehModel
+from bokeh.plotting import ColumnDataSource
 
 from plot_utils import (
     add_all_tools,
@@ -38,11 +30,73 @@ from plot_actions import aggregate_data, fetch_data, update_tooltips
 colormaps = [x for x in colormaps if "256" in x]
 
 index_context = sl.create_context(0)
-# https://docs.bokeh.org/en/latest/docs/user_guide/interaction/js_callbacks.html#customjs-for-topics-events
+
+
+@sl.component()
+def HistogramPlot(plotstate: PlotState) -> ValueElement:
+    """Histogram plot"""
+    filter, set_filter = sl.use_cross_filter(id(df), name="scatter")
+    i = sl.use_context(index_context)
+    layout, set_layout = sl.use_state({"w": 6, "h": 10, "i": i})
+
+    def update_grid():
+        # TODO: fix to make its own reactive var (computed) thing
+        # fetch from gridstate
+        for spec in GridState.grid_layout.value:
+            if spec["i"] == i:
+                set_layout(spec)
+                break
+
+    sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
+    if filter is not None:
+        dff = df[filter]
+    else:
+        dff = df
+
+    def generate_cds():
+        edges, counts = aggregate_data(plotstate, dff)
+        return ColumnDataSource(data={
+            "left": edges[:-1],
+            "right": edges[1:],
+            "y": counts,
+        })
+
+    source = sl.use_memo(generate_cds, dependencies=[])
+
+    def create_figure():
+        """Creates figure with relevant objects"""
+        # obtain data
+        p, menu = generate_plot()
+        add_axes(plotstate, p)
+
+        # generate rectangles
+        glyph = Quad(
+            top="y",
+            bottom=0,
+            left="left",
+            right="right",
+            fill_color="skyblue",
+        )
+        gr = p.add_glyph(source, glyph)
+        p.y_range.bounds = [0, None]
+
+        # create hovertool, bound to figure object
+        add_all_tools(p, generate_tooltips(plotstate))
+        update_tooltips(plotstate, p)
+        add_callbacks(plotstate, dff, p, source, set_filter=None)
+        return p
+
+    p = sl.use_memo(create_figure, dependencies=[])
+
+    pfig = FigureBokeh(p, dark_theme=DARKTHEME, light_theme=LIGHTTHEME)
+    # add_heatmap_effects(pfig, plotstate, dff, filter)
+    add_common_effects(pfig, plotstate, dff, layout)
+    return pfig
 
 
 @sl.component()
 def HeatmapPlot(plotstate: PlotState) -> ValueElement:
+    """2D Histogram (heatmap) plot"""
     filter, set_filter = sl.use_cross_filter(id(df), name="scatter")
     i = sl.use_context(index_context)
     layout, set_layout = sl.use_state({"w": 6, "h": 10, "i": i})

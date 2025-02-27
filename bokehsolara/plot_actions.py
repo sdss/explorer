@@ -39,14 +39,21 @@ def update_tooltips(plotstate: PlotState, fig_model: Plot) -> None:
     for tool in fig_model.toolbar.tools:
         if isinstance(tool, HoverTool):
             tool.tooltips = generate_tooltips(plotstate)
-            tool.formatters = {
-                "$snap_x":
-                generate_categorical_hover_formatter(plotstate, axis="x"),
-                "$snap_y":
-                generate_categorical_hover_formatter(plotstate, axis="y"),
-                "@color":
-                generate_categorical_hover_formatter(plotstate, axis="color"),
-            }
+            if plotstate.plottype == "histogram":
+                tool.formatters = {
+                    "$snap_x":
+                    generate_categorical_hover_formatter(plotstate, axis="x"),
+                }
+            else:
+                tool.formatters = {
+                    "$snap_x":
+                    generate_categorical_hover_formatter(plotstate, axis="x"),
+                    "$snap_y":
+                    generate_categorical_hover_formatter(plotstate, axis="y"),
+                    "@color":
+                    generate_categorical_hover_formatter(plotstate,
+                                                         axis="color"),
+                }
 
 
 def update_axis(
@@ -90,13 +97,23 @@ def reset_range(plotstate: PlotState, fig_model: Plot, dff, axis: str = "x"):
 
     """
     assert axis in ("x", "y", "color"), f"expected axis x or y but got {axis}"
-    if axis == "color":
+    if (plotstate.plottype == "histogram") and (axis == "y"):
+        _reset_histogram_yrange(plotstate, fig_model, dff)
+    elif axis == "color":
         update_color_mapper(plotstate, fig_model)
     else:
         datarange = getattr(fig_model, f"{axis}_range")
         # NOTE: flip/log is automatically by the calculation function
         newrange = calculate_range(plotstate, dff, axis=axis)
         datarange.update(start=newrange[0], end=newrange[1])
+
+
+def _reset_histogram_yrange(plotstate, fig_model, dff):
+    _, counts = aggregate_data(plotstate, dff)
+    start = 0 if not plotstate.logy.value else 1
+    end = counts.max()
+    fig_model.renderers[0].glyph.bottom = start
+    fig_model.y_range.update(start=start, end=end)
 
 
 def update_label(plotstate: PlotState,
@@ -177,7 +194,11 @@ def change_formatter(
         axis: axis to update. any of 'x', 'y', or 'color'
     """
     assert axis in ("x", "y", "color"), f"expected axis x or y but got {axis}"
-    col = getattr(plotstate, axis).value  # column name
+    if (plotstate.plottype == "histogram") and (axis == "y"):
+        col = ""
+        pass
+    else:
+        col = getattr(plotstate, axis).value  # column name
     log = getattr(plotstate, f"log{axis}").value  # whether log
     mapping = getattr(plotstate, f"{axis}mapping")  # categorical datamap
 
@@ -186,8 +207,9 @@ def change_formatter(
 
     # get place and set it
     ax = getattr(fig_model, loc)[0]
-    if check_categorical(col):
-        formatter = generate_categorical_tick_formatter(mapping)
+    if plotstate.plottype != "histogram":
+        if check_categorical(col):
+            formatter = generate_categorical_tick_formatter(mapping)
     else:
         formatter = (LogTickFormatter() if log and
                      (axis != "color") else BasicTickFormatter())
@@ -233,8 +255,9 @@ def fetch_data(plotstate: PlotState,
 
 
 def aggregate_data(
-        plotstate: PlotState, dff: vx.DataFrame
-) -> tuple[ndarray, ndarray, ndarray, list[list[float]]]:
+    plotstate: PlotState, dff: vx.DataFrame
+) -> tuple[ndarray, ndarray, ndarray, list[list[float]]] | tuple[ndarray,
+                                                                 ndarray]:
     """
     Create aggregated data expressions for heatmap and histogram
 
@@ -257,96 +280,99 @@ def aggregate_data(
 
     # TODO: histogram logic
     # TODO: categorical for hist
-
-    # update mappings if needed
-    if check_categorical(dff[plotstate.x.value]):
-        update_mapping(plotstate, axis="x")
-    if check_categorical(dff[plotstate.y.value]):
-        update_mapping(plotstate, axis="y")
-    assert not check_categorical(dff[plotstate.color.value]), (
-        "cannot perform aggregations on categorical data")
-
-    expr = (
-        # dff[plotstate.x.value],
-        # dff[plotstate.y.value],
-        fetch_data(plotstate, dff, axis="x"),
-        fetch_data(plotstate, dff, axis="y"),
-    )
-    expr_c = dff[plotstate.color.value]
-    bintype = plotstate.bintype.value
-
-    # try and except for stride != 1 bug
-    if not check_categorical(expr[1]):
-        limits = expr[1]
-
-    # try:
-    #    limits = [
-    #        expr[0].minmax(),
-    #        expr[1].minmax(),
-    #    ]
-    # except Exception:
-    #    # NOTE: empty tuple acts as index for the 0th of 0D array
-    #    limits = [
-    #        [
-    #            expr[0].min()[()],
-    #            expr[0].max()[()],
-    #        ],
-    #        [
-    #            expr[1].min()[()],
-    #            expr[1].max()[()],
-    #        ],
-    #    ]
-
-    # get bin centers and shape
-    # NOTE: ideally this method is delayed; but its not supported to send promises
-    edges = [[], []]
-    shape = [plotstate.nbins.value, plotstate.nbins.value]
-    widths = [1, 1]
-    for i in range(2):
-        col = (plotstate.x.value, plotstate.y.value)[i]
-        if check_categorical(dff[col]):
-            edges[i] = expr[i].unique(array_type="numpy")
-            shape[i] = len(edges[i])
-            widths[i] = 1
+    if plotstate.plottype == "histogram":
+        if check_categorical(dff[plotstate.x.value]):
+            update_mapping(plotstate, axis="x")
+            nbins = len(plotstate.xmapping)
+        else:
+            nbins = plotstate.nbins.value
+        expr = fetch_data(plotstate, dff, axis="x")
+        if check_categorical(dff[plotstate.x.value]):
+            edges = expr.unique(array_type="numpy")
         else:
             try:
-                limits = expr[i].minmax()
-            except Exception:
-                limits = [expr[i].min()[()], expr[i].max()[()]]
-            edges[i] = dff.bin_centers(
-                expression=expr[i],
-                limits=limits,
-                shape=plotstate.nbins.value,
-            )
-            shape[i] = plotstate.nbins.value
-            widths[i] = (limits[1] - limits[0]) / shape[i]
+                limits = expr.minmax()
+            except Exception:  # stride bug catch
+                limits = [expr.min()[()], expr.max()[()]]
+            edges = dff.bin_edges(expr, limits=limits, shape=nbins)
+        counts = dff.count(binby=expr,
+                           shape=nbins,
+                           delay=True,
+                           array_type="numpy")
+        dff.execute()
+        counts = counts.get().flatten()
+        print(counts.shape)
 
-    # pull the aggregation function pointer and call it with our kwargs
-    if bintype == "median":
-        aggFunc = getattr(dff, "median_approx")
-    else:
-        aggFunc = getattr(dff, bintype)
-    color = aggFunc(
-        expression=expr_c if bintype != "count" else None,
-        binby=expr,
-        # limits=limits,
-        shape=shape,
-        delay=True,
-    )
+        return edges, counts
 
-    # execute!
-    dff.execute()
-    color = color.get()
+    elif plotstate.plottype == "heatmap":
+        # update mappings if needed
+        if check_categorical(dff[plotstate.x.value]):
+            update_mapping(plotstate, axis="x")
+        if check_categorical(dff[plotstate.y.value]):
+            update_mapping(plotstate, axis="y")
+        assert not check_categorical(dff[plotstate.color.value]), (
+            "cannot perform aggregations on categorical data")
 
-    # convert because it breaks
-    if bintype == "count":
-        color = color.astype("float")
-        color[color == 0] = np.nan
-    color[np.abs(color) == np.inf] = np.nan
+        expr = (
+            # dff[plotstate.x.value],
+            # dff[plotstate.y.value],
+            fetch_data(plotstate, dff, axis="x"),
+            fetch_data(plotstate, dff, axis="y"),
+        )
+        expr_c = dff[plotstate.color.value]
+        bintype = plotstate.bintype.value
 
-    # scale if needed
-    if plotstate.logcolor.value:
-        color = np.log10(color)  # only take log if count
-    assert not np.all(np.isnan(color)), "all nan"
+        # get bin widths and props
+        # NOTE: ideally this method is delayed; but its not supported to send promises
+        edges = [[], []]
+        shape = [plotstate.nbins.value, plotstate.nbins.value]
+        widths = [1, 1]
+        for i in range(2):
+            col = (plotstate.x.value, plotstate.y.value)[i]
+            if check_categorical(dff[col]):
+                edges[i] = expr[i].unique(array_type="numpy")
+                shape[i] = len(edges[i])
+                widths[i] = 1
+            else:
+                try:
+                    limits = expr[i].minmax()
+                except Exception:  # stride bug catch
+                    limits = [expr[i].min()[()], expr[i].max()[()]]
+                edges[i] = dff.bin_centers(
+                    expression=expr[i],
+                    limits=limits,
+                    shape=plotstate.nbins.value,
+                )
+                shape[i] = plotstate.nbins.value
+                widths[i] = (limits[1] - limits[0]) / shape[i]
 
-    return color, edges[0], edges[1], widths
+        # pull the aggregation function pointer and call it with our kwargs
+        if bintype == "median":
+            aggFunc = getattr(dff, "median_approx")
+        else:
+            aggFunc = getattr(dff, bintype)
+        color = aggFunc(
+            expression=expr_c if bintype != "count" else None,
+            binby=expr,
+            # limits=limits,
+            shape=shape,
+            delay=True,
+        )
+
+        # execute!
+        dff.execute()
+        color = color.get()
+
+        # convert because it breaks
+        if bintype == "count":
+            color = color.astype("float")
+            color[color == 0] = np.nan
+        color[np.abs(color) == np.inf] = np.nan
+
+        # scale if needed
+        if plotstate.logcolor.value:
+            color = np.log10(color)  # only take log if count
+        assert not np.all(np.isnan(color)), "all nan"
+
+        return color, edges[0], edges[1], widths
