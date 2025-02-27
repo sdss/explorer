@@ -106,8 +106,6 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
         p.x_range.end = xlimits[1]
         p.y_range.start = ylimits[0]
         p.y_range.end = ylimits[1]
-        p.x_range.bounds = "auto"  # lock to image
-        p.y_range.bounds = "auto"  # lock to image
 
         # create hovertool, bound to figure object
         add_all_tools(p, generate_tooltips(plotstate))

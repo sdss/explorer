@@ -225,7 +225,10 @@ def fetch_data(plotstate: PlotState,
         mapping = getattr(plotstate, f"{axis}mapping")  # categorical datamap
         colData = dff[col].map(mapping)
     else:
-        colData = dff[col]
+        if (axis == "color") and plotstate.logcolor.value:
+            colData = np.log10(dff[col])
+        else:
+            colData = dff[col]
     return colData
 
 
@@ -290,18 +293,21 @@ def aggregate_data(
             ],
         ]
 
-    # get bin centers
+    # get bin centers and shape
     # NOTE: ideally this method is delayed; but its not supported
-    x_edges = dff.bin_centers(
-        expression=expr[0],
-        limits=limits[0],
-        shape=plotstate.nbins.value,
-    )
-    y_edges = dff.bin_centers(
-        expression=expr[1],
-        limits=limits[1],
-        shape=plotstate.nbins.value,
-    )
+    edges = [[], []]
+    shape = [plotstate.nbins.value, plotstate.nbins.value]
+    for i in range(2):
+        if check_categorical(expr[i]):
+            edges[i] = expr[i].unique(array_type="numpy")
+            shape[i] = len(edges[i])
+        else:
+            edges[i] = dff.bin_centers(
+                expression=expr[i],
+                limits=limits[i],
+                shape=plotstate.nbins.value,
+            )
+            shape[i] = plotstate.nbins.value
 
     # pull the aggregation function pointer and call it with our kwargs
     if bintype == "median":
@@ -312,7 +318,7 @@ def aggregate_data(
         expression=expr_c if bintype != "count" else None,
         binby=expr,
         limits=limits,
-        shape=plotstate.nbins.value,
+        shape=shape,
         delay=True,
     )
 
@@ -330,5 +336,7 @@ def aggregate_data(
         color[color == 0] = np.nan
     color[color == np.inf] = np.nan
     color[color == -np.inf] = np.nan
+    print(shape, edges)
+    print(plotstate.x.value, color.shape)
 
-    return color, x_edges, y_edges, limits
+    return color, edges[0], edges[1], limits

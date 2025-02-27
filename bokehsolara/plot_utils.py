@@ -425,8 +425,7 @@ def generate_categorical_hover_formatter(plotstate, axis: str = "x"):
     col = getattr(plotstate, axis).value
     mapping = getattr(plotstate, f"{axis}mapping")
     if check_categorical(col):
-        cjs = f"""console.log(Math.floor(value));
-        return ({json.dumps(mapping)})[Math.floor(value)];"""
+        cjs = f"return ({json.dumps({v: k for k, v in mapping.items()})})[Math.floor(value)];"
     else:
         cjs = """return value.toFixed(4);"""
 

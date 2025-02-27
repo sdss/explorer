@@ -82,7 +82,9 @@ def add_scatter_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
     sl.use_effect(update_filter, dependencies=[filter])
     sl.use_effect(update_x, dependencies=[plotstate.x.value])
     sl.use_effect(update_y, dependencies=[plotstate.y.value])
-    sl.use_effect(update_color, dependencies=[plotstate.color.value])
+    sl.use_effect(
+        update_color,
+        dependencies=[plotstate.color.value, plotstate.logcolor.value])
     sl.use_effect(update_cmap, dependencies=[plotstate.colorscale.value])
     return
 
