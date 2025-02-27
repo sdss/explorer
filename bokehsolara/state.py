@@ -23,9 +23,13 @@ from solara.lab import Menu
 
 df = vx.example()[:30_000]
 data = np.array(["foo" if i < len(df) // 2 else "bar" for i in range(len(df))])
-data[:500] = "teothje"
+data[:10_000] = "teodddd"
+data2 = np.array(
+    ["lco25m" if i < len(df) // 3 else "apo25m" for i in range(len(df))])
 df["category"] = data
+df["category2"] = data2
 df = df.materialize("category")
+df = df.materialize("category2")
 
 
 def gen_tooltips(state):

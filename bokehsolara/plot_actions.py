@@ -256,7 +256,6 @@ def aggregate_data(
             "no assigned bintype for aggregation. bug somewhere in settings.")
 
     # TODO: histogram logic
-    # TODO: categorical datum for heatmap
     # TODO: categorical for hist
 
     # update mappings if needed
@@ -268,6 +267,8 @@ def aggregate_data(
         "cannot perform aggregations on categorical data")
 
     expr = (
+        # dff[plotstate.x.value],
+        # dff[plotstate.y.value],
         fetch_data(plotstate, dff, axis="x"),
         fetch_data(plotstate, dff, axis="y"),
     )
@@ -275,39 +276,50 @@ def aggregate_data(
     bintype = plotstate.bintype.value
 
     # try and except for stride != 1 bug
-    try:
-        limits = [
-            expr[0].minmax(),
-            expr[1].minmax(),
-        ]
-    except Exception:
-        # NOTE: empty tuple acts as index for the 0th of 0D array
-        limits = [
-            [
-                expr[0].min(),
-                expr[0].max(),
-            ],
-            [
-                expr[1].min(),
-                expr[1].max(),
-            ],
-        ]
+    if not check_categorical(expr[1]):
+        limits = expr[1]
+
+    # try:
+    #    limits = [
+    #        expr[0].minmax(),
+    #        expr[1].minmax(),
+    #    ]
+    # except Exception:
+    #    # NOTE: empty tuple acts as index for the 0th of 0D array
+    #    limits = [
+    #        [
+    #            expr[0].min()[()],
+    #            expr[0].max()[()],
+    #        ],
+    #        [
+    #            expr[1].min()[()],
+    #            expr[1].max()[()],
+    #        ],
+    #    ]
 
     # get bin centers and shape
-    # NOTE: ideally this method is delayed; but its not supported
+    # NOTE: ideally this method is delayed; but its not supported to send promises
     edges = [[], []]
     shape = [plotstate.nbins.value, plotstate.nbins.value]
+    widths = [1, 1]
     for i in range(2):
-        if check_categorical(expr[i]):
+        col = (plotstate.x.value, plotstate.y.value)[i]
+        if check_categorical(dff[col]):
             edges[i] = expr[i].unique(array_type="numpy")
             shape[i] = len(edges[i])
+            widths[i] = 1
         else:
+            try:
+                limits = expr[i].minmax()
+            except Exception:
+                limits = [expr[i].min()[()], expr[i].max()[()]]
             edges[i] = dff.bin_centers(
                 expression=expr[i],
-                limits=limits[i],
+                limits=limits,
                 shape=plotstate.nbins.value,
             )
             shape[i] = plotstate.nbins.value
+            widths[i] = (limits[1] - limits[0]) / shape[i]
 
     # pull the aggregation function pointer and call it with our kwargs
     if bintype == "median":
@@ -317,7 +329,7 @@ def aggregate_data(
     color = aggFunc(
         expression=expr_c if bintype != "count" else None,
         binby=expr,
-        limits=limits,
+        # limits=limits,
         shape=shape,
         delay=True,
     )
@@ -326,17 +338,15 @@ def aggregate_data(
     dff.execute()
     color = color.get()
 
-    # scale if needed
-    if plotstate.logcolor.value:
-        color = np.log10(color)
-
     # convert because it breaks
     if bintype == "count":
         color = color.astype("float")
         color[color == 0] = np.nan
-    color[color == np.inf] = np.nan
-    color[color == -np.inf] = np.nan
-    print(shape, edges)
-    print(plotstate.x.value, color.shape)
+    color[np.abs(color) == np.inf] = np.nan
 
-    return color, edges[0], edges[1], limits
+    # scale if needed
+    if plotstate.logcolor.value:
+        color = np.log10(color)  # only take log if count
+    assert not np.all(np.isnan(color)), "all nan"
+
+    return color, edges[0], edges[1], widths

@@ -238,8 +238,7 @@ def generate_label(plotstate: PlotState, axis: str = "x") -> str:
     """
     assert axis in ("x", "y", "color")
     col = getattr(plotstate, axis).value
-    log = getattr(plotstate,
-                  "logcolor" if axis == "color" else f"log{axis}").value
+    log = getattr(plotstate, f"log{axis}").value
     cond = log and not check_categorical(col)
     if (axis == "color") and (plotstate.plottype == "heatmap"):
         bintype = getattr(plotstate, "bintype").value
@@ -376,6 +375,9 @@ def calculate_range(plotstate, dff, axis: str = "x") -> tuple[float, float]:
     if plotstate.plottype != "heatmap":
         start = start - pad
         end = end + pad
+    elif (plotstate.plottype == "heatmap") and check_categorical(dff[col]):
+        start = start - 0.5
+        end = end + 0.5
     if log:
         start = 10**start
         end = 10**end

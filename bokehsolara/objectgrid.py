@@ -110,6 +110,13 @@ def show_plot(plottype, remover, *args, **kwargs):
                                             value=plotstate.flipy)
                             sl.Checkbox(label="logcolor",
                                         value=plotstate.logcolor)
+                        sl.SliderInt(
+                            label="nbins",
+                            value=plotstate.nbins,
+                            step=20,
+                            min=20,
+                            max=500,
+                        )
                         sl.Button(
                             icon_name="mdi-delete",
                             color="red",

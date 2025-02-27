@@ -194,10 +194,11 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
             fig_model: Plot = fig_widget._model
             try:
                 assert len(dff) > 0
-                color, x_centers, y_centers, limits = aggregate_data(
+                color, x_centers, y_centers, widths = aggregate_data(
                     plotstate, dff)
-            except Exception:
+            except Exception as e:
                 logger.debug("0 length, leaving")
+                print("exception on update_data", e)
                 return
             with fig_model.hold(render=True):
                 source = fig_model.renderers[0].data_source
@@ -211,10 +212,8 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
                 glyph = Rect(
                     x="x",
                     y="y",
-                    width=(limits[0][1] - limits[0][0]) /
-                    plotstate.nbins.value,
-                    height=(limits[1][1] - limits[1][0]) /
-                    plotstate.nbins.value,
+                    width=widths[0],
+                    height=widths[1],
                     dilate=True,
                     line_color=None,
                     fill_color=fill_color,
