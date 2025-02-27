@@ -16,6 +16,7 @@ from bokeh.models.tools import (
     BoxZoomTool,
     CustomJSHover,
     LassoSelectTool,
+    SaveTool,
     WheelZoomTool,
     HoverTool,
     ExamineTool,
@@ -57,7 +58,8 @@ def add_all_tools(p: Plot, tooltips: Optional[str] = None) -> list[Model]:
     box_select = BoxSelectTool()
     lasoo = LassoSelectTool()
     reset = ResetTool()
-    tools = [pan, boxzoom, box_select, lasoo, hover, wz, reset]
+    save = SaveTool()
+    tools = [pan, boxzoom, box_select, lasoo, hover, wz, save, reset]
 
     if DEV:
         tools.append(ExamineTool())  # debugging tool
@@ -114,17 +116,10 @@ def generate_plot():
     )
     name = "menu-propogate"
     items = [
-        ActionItem(label="View table of selected targets",
-                   disabled=True,
-                   name="menu-table"),
-        ActionItem(
-            label="Propagate selection to new subset",
-            disabled=True,
-            name="menu-propogate",
-        ),
         ActionItem(label="Clear selection", disabled=True, name="menu-clear"),
         ActionItem(
             label="Reset plot",
+            name="reset-view",
             action=CustomJS(args=dict(p=p), code="""p.reset.emit()"""),
         ),
     ]
@@ -278,20 +273,22 @@ def add_callbacks(
         set_filter: filter setter function
     """
     # grab via names set in generate_plot
-    items = [
-        p.select(name="menu-propogate")[0],
-        p.select(name="menu-table")[0],
-        p.select(name="menu-clear")[0],
-    ]
+    item = p.select(name="menu-clear")[0]
+    item.action = CustomJS(
+        args=dict(source=source),
+        code="""
+             source.selected.indices = [];
+             source.change.emit();
+             """,
+    )
 
     # selection callback to disable/enable these items
     def on_select(attr, old, new):
-        for item in items:
-            if len(new) == 0:
-                # disable button
-                item.update(disabled=True)
-            else:
-                item.update(disabled=False)
+        if len(new) == 0:
+            # disable button
+            item.update(disabled=True)
+        else:
+            item.update(disabled=False)
 
     source.selected.on_change("indices", on_select)
 
@@ -428,9 +425,10 @@ def generate_categorical_hover_formatter(plotstate, axis: str = "x"):
     col = getattr(plotstate, axis).value
     mapping = getattr(plotstate, f"{axis}mapping")
     if check_categorical(col):
-        cjs = f"return ({json.dumps(mapping)})[Math.floor(value)];"
+        cjs = f"""console.log(Math.floor(value));
+        return ({json.dumps(mapping)})[Math.floor(value)];"""
     else:
-        cjs = """return value.toFixed(4)"""
+        cjs = """return value.toFixed(4);"""
 
     return CustomJSHover(code=cjs)
 

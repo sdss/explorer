@@ -34,6 +34,7 @@ darkprops = {
         "background_fill_color": "#424242",
         "title_text_color": "#FFFFFF",
         "major_label_text_color": "#FFFFFF",
+        "major_label_text_font_size": "11pt",
         "title_text_font_size": "16pt",
     },
     "Text": {
@@ -71,6 +72,7 @@ lightprops = {
         "background_fill_color": "#EEEEEE",
         "title_text_color": "#212121",
         "major_label_text_color": "#212121",
+        "major_label_text_font_size": "11pt",
         "title_text_font_size": "16pt",
     },
     "Text": {
