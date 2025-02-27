@@ -30,8 +30,10 @@
             </div>
             <v-toolbar color="blue-grey" title="Click on this toolbar to drag." height="18px"></v-toolbar>
             <div v-if="items[item.i]"
-                  class="no-drag">
-              <jupyter-widget :widget="items[item.i]" :key="'child_' + item.i"></jupyter-widget>
+                  class="no-drag"
+                  style="height: 100%;"
+                  >
+              <jupyter-widget :widget="items[item.i]" :key="'child_' + item.i" style="height: 100%;"></jupyter-widget>
             </div>
         </grid-item>
     </grid-layout>

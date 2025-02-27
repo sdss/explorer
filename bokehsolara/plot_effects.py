@@ -1,5 +1,6 @@
 """Main functions for plot effects"""
 
+import asyncio
 from bokeh.models.plots import Plot
 import numpy as np
 import reacton.ipyvuetify as rv
@@ -23,7 +24,7 @@ __all__ = ["add_scatter_effects", "add_heatmap_effects"]
 
 
 def add_scatter_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
-                        filter, layout) -> None:
+                        filter) -> None:
     """Scatter-glyph specific effects"""
 
     def update_x():
@@ -50,8 +51,12 @@ def add_scatter_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
-            fig_model.right[
-                0].color_mapper.palette = plotstate.colorscale.value
+
+            with fig_model.hold(render=True):
+                fig_model.right[
+                    0].color_mapper.palette = plotstate.colorscale.value
+                fig_model.renderers[0].glyph.fill_color[
+                    "transform"].palette = plotstate.colorscale.value
 
     def update_filter():
         """Complete filter update"""
@@ -67,6 +72,29 @@ def add_scatter_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
                 z=dff[plotstate.color.value].values,
                 sdss_id=dff["L"].values,
             )
+
+    sl.use_effect(update_filter, dependencies=[filter])
+    sl.use_effect(update_x, dependencies=[plotstate.x.value])
+    sl.use_effect(update_y, dependencies=[plotstate.y.value])
+    sl.use_effect(update_color, dependencies=[plotstate.color.value])
+    sl.use_effect(update_cmap, dependencies=[plotstate.colorscale.value])
+    return
+
+
+def add_common_effects(
+    pfig: rv.ValueElement,
+    plotstate: PlotState,
+    layout,
+):
+    """Adds common effects across plots.
+
+    Specifically adds flips, logs, and height resizing.
+
+    Args:
+        pfig: figure element
+        plotstate: plot variables
+        layout: grid layout dictionary for the card.
+    """
 
     def update_logx():
         """X-axis log scale callback"""
@@ -115,28 +143,38 @@ def add_scatter_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
             fig_model.y_range.flipped = plotstate.flipx.value
 
     def update_height():
-        """Height linking callback, because auto-sizing doesn't work"""
+        """Height linking callback, because auto-sizing doesn't work. Only runs if debounce completes"""
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model = fig_widget._model
-            fig_model.height = layout["h"] * 45 - 90
-            print(fig_model.height)
+            with fig_model.hold(render=True):
+                if debounced_height.finished:
+                    if height == debounced_height.value:
+                        fig_model.height = debounced_height.value
 
-    sl.use_effect(update_filter, dependencies=[filter])
-    sl.use_effect(update_height, dependencies=[layout["h"]])
-    sl.use_effect(update_x, dependencies=[plotstate.x.value])
-    sl.use_effect(update_y, dependencies=[plotstate.y.value])
-    sl.use_effect(update_color, dependencies=[plotstate.color.value])
-    sl.use_effect(update_cmap, dependencies=[plotstate.colorscale.value])
-    sl.use_effect(update_flipx, dependencies=[plotstate.flipx.value])
-    sl.use_effect(update_flipy, dependencies=[plotstate.flipy.value])
-    sl.use_effect(update_logx, dependencies=[plotstate.logx.value])
-    sl.use_effect(update_logy, dependencies=[plotstate.logy.value])
-    return
+    def get_height():
+        return layout["h"] * 45 - 90
+
+    height = sl.use_memo(get_height, dependencies=[layout["h"]])
+
+    async def debounce_height():
+        await asyncio.sleep(0.05)
+        return height
+
+    debounced_height = sl.lab.use_task(debounce_height, dependencies=[height])
+    try:
+        sl.use_effect(update_height, dependencies=[debounced_height.finished])
+        sl.use_effect(update_flipx, dependencies=[plotstate.flipx.value])
+        sl.use_effect(update_flipy, dependencies=[plotstate.flipy.value])
+        if plotstate.plottype != "heatmap":
+            sl.use_effect(update_logx, dependencies=[plotstate.logx.value])
+            sl.use_effect(update_logy, dependencies=[plotstate.logy.value])
+    except Exception as e:
+        print("effect bind error", e)
 
 
 def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
-                        filter, layout) -> None:
+                        filter) -> None:
     """Heatmap (rect glyph) specific effects"""
 
     def update_data():
@@ -147,7 +185,7 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
             with fig_model.hold(render=True):
                 z, x_centers, y_centers, limits = aggregate_data(
                     plotstate, dff)
-                print("effect, z from return", len(z))
+                print("effect, z from return", len(z.flatten()))
 
                 source = fig_model.renderers[0].data_source
                 source.data = {
@@ -197,32 +235,7 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
             fig_model.right[
                 0].color_mapper.palette = plotstate.colorscale.value
 
-    def update_flipx():
-        """X-axis flip update"""
-        fig_widget: BokehModel = sl.get_widget(pfig)
-        if isinstance(fig_widget, BokehModel):
-            fig_model: Plot = fig_widget._model
-            reset_range(plotstate, fig_model, dff, axis="x")
-            fig_model.x_range.flipped = plotstate.flipx.value
-
-    def update_flipy():
-        """Y-axis flip update"""
-        fig_widget: BokehModel = sl.get_widget(pfig)
-        if isinstance(fig_widget, BokehModel):
-            fig_model: Plot = fig_widget._model
-            reset_range(plotstate, fig_model, dff, axis="y")
-            fig_model.y_range.flipped = plotstate.flipx.value
-
-    def update_height():
-        """Height linking callback, because auto-sizing doesn't work"""
-        fig_widget: BokehModel = sl.get_widget(pfig)
-        if isinstance(fig_widget, BokehModel):
-            fig_model = fig_widget._model
-            fig_model.height = layout["h"] * 45 - 90
-            print(fig_model.height)
-
     sl.use_effect(update_filter, dependencies=[filter])
-    sl.use_effect(update_height, dependencies=[layout["h"]])
     sl.use_effect(
         update_data,
         dependencies=[plotstate.x.value, plotstate.y.value],
@@ -236,5 +249,3 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
         ],
     )
     sl.use_effect(update_cmap, dependencies=[plotstate.colorscale.value])
-    sl.use_effect(update_flipx, dependencies=[plotstate.flipx.value])
-    sl.use_effect(update_flipy, dependencies=[plotstate.flipy.value])

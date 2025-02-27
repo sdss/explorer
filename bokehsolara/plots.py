@@ -40,7 +40,7 @@ index_context = sl.create_context(0)
 # https://docs.bokeh.org/en/latest/docs/user_guide/interaction/js_callbacks.html#customjs-for-topics-events
 
 from plot_themes import LIGHTTHEME, DARKTHEME
-from plot_effects import add_scatter_effects, add_heatmap_effects
+from plot_effects import add_scatter_effects, add_heatmap_effects, add_common_effects
 from plot_actions import aggregate_data
 
 
@@ -66,7 +66,7 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
 
     def generate_cds():
         z, x_centers, y_centers, _ = aggregate_data(plotstate, dff)
-        print("init z", z.shape)
+        print("init z", z.flatten().shape)
         return ColumnDataSource(
             data={
                 "x": np.repeat(x_centers, len(y_centers)),
@@ -101,12 +101,15 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
         # create hovertool, bound to figure object
         add_all_tools(p, generate_tooltips(plotstate))
         add_callbacks(plotstate, dff, p, source, set_filter=None)
+        # cjs = CustomJS(args=dict(p=p), code="""p.change.emit()""")
+        # p.js_on_change("height", cjs)
         return p
 
     p = sl.use_memo(create_figure, dependencies=[])
 
     pfig = FigureBokeh(p)
-    add_heatmap_effects(pfig, plotstate, dff, filter, layout)
+    add_heatmap_effects(pfig, plotstate, dff, filter)
+    add_common_effects(pfig, plotstate, layout)
     return pfig
 
 
@@ -177,5 +180,6 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
         light_theme=LIGHTTHEME,
     )
 
-    add_scatter_effects(pfig, plotstate, dff, filter, layout)
+    add_scatter_effects(pfig, plotstate, dff, filter)
+    add_common_effects(pfig, plotstate, layout)
     return pfig

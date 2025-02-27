@@ -22,10 +22,7 @@ from solara.components.file_drop import FileInfo
 from solara.lab import Menu
 
 from state import PlotState, df, GridState
-from plots import ScatterPlot, HeatmapPlot
-from plot_themes import DARKTHEME, LIGHTTHEME
-
-dark = True
+from plots import ScatterPlot, HeatmapPlot, index_context
 
 
 class GridLayout(v.VuetifyTemplate):
@@ -50,7 +47,7 @@ class GridLayout(v.VuetifyTemplate):
 GridDraggableToolbar = r.core.ComponentWidget(GridLayout)
 
 
-# @sl.component
+@sl.component
 def show_plot(plottype, remover, *args, **kwargs):
     dark = sl.lab.use_dark_effective()
     plotstate = PlotState(plottype=plottype, current_key=0, **kwargs)
@@ -144,6 +141,7 @@ def ViewCard(plottype, i, **kwargs):
         # INFO: cannot be deleted because it breaks all renders
         GridState.objects.value[i] = rv.Card()
 
+    index_context.provide(i)
     main = show_plot(plottype, lambda: remove(i), **kwargs)  # plot shower
     return main
 

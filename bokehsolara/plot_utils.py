@@ -90,12 +90,14 @@ def generate_plot():
     menu.styles = {"color": "black", "font-size": "16px"}
 
     # generate main Plot model
+    # NOTE: if you change default viewcard height, this must also change
     p = Plot(
         context_menu=menu,
         toolbar_location="above",
-        height=
-        360,  # NOTE: if you change default viewcard height, this must also change
-        # height_policy='max', # NOTE: this doesn't work in the Lumino context of the cards
+        height=360,
+        height_policy="fixed",
+        # height_policy=
+        # "fit",  # NOTE: this doesn't work in the Lumino context of the cards
         width_policy="max",
         reset_policy=
         "event_only",  # NOTE: we handle resets ourselves bc changing scales crashes it
