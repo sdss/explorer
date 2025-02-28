@@ -127,45 +127,42 @@ def CommonSettings(plotstate: PlotState) -> ValueElement:
 
 
 @sl.component()
-def SkymapMenu(plotstate, columns, name, names):
+def SkymapMenu(plotstate, columns):
     """Settings for SkymapPlot"""
 
-    with sl.Columns([1, 1]):
-        with sl.Column():
-            sl.ToggleButtonsSingle(value=plotstate.geo_coords,
-                                   values=["celestial", "galactic"])
-            SingleAutocomplete(
-                label="Projection",
-                value=plotstate.projection.value,
-                on_value=plotstate.projection.set,
-                values=plotstate.Lookup["projections"],
-            )
-        with sl.Row():
-            SingleAutocomplete(
-                label="Color",
-                values=columns,
-                value=plotstate.color.value,
-                on_value=plotstate.color,
-            )
-            SingleAutocomplete(
-                label="Colorscale",
-                values=plotstate.Lookup["colorscales"],
-                value=plotstate.colorscale.value,
-                on_value=plotstate.colorscale.set,
-            )
-            SingleAutocomplete(
-                label="Color log",
-                values=plotstate.Lookup["binscales"],
-                value=plotstate.logcolor.value,
-                on_value=plotstate.logcolor.set,
-                # allow_none=True,
-            )
+    with sl.Column():
         with Card(margin=0):
-            with Columns([1, 1]):
-                with sl.Column():
-                    sl.Switch(label="Flip x", value=plotstate.flipx)
-                with sl.Column():
-                    sl.Switch(label="Flip y", value=plotstate.flipy)
+            with sl.Column():
+                sl.ToggleButtonsSingle(value=plotstate.geo_coords,
+                                       values=["celestial", "galactic"])
+                SingleAutocomplete(
+                    label="Projection",
+                    value=plotstate.projection.value,
+                    on_value=plotstate.projection.set,
+                    values=plotstate.Lookup["projections"],
+                )
+        with Card(margin=0):
+            with sl.Column():
+                SingleAutocomplete(
+                    label="Color",
+                    values=columns,
+                    value=plotstate.color.value,
+                    on_value=plotstate.color,
+                )
+            with sl.Row():
+                SingleAutocomplete(
+                    label="Colorscale",
+                    values=plotstate.Lookup["colorscales"],
+                    value=plotstate.colorscale.value,
+                    on_value=plotstate.colorscale.set,
+                )
+                SingleAutocomplete(
+                    label="Color log",
+                    values=plotstate.Lookup["binscales"],
+                    value=plotstate.logcolor.value,
+                    on_value=plotstate.logcolor.set,
+                    # allow_none=True,
+                )
 
 
 @sl.component()

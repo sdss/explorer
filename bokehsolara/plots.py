@@ -1,6 +1,8 @@
 """Individual plot viewcards"""
 
+import asyncio
 from reacton.ipyvuetify import ValueElement
+import operator
 import numpy as np
 import solara as sl
 from bokeh.models import (
@@ -194,6 +196,8 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
     i = sl.use_context(index_context)
     layout, set_layout = sl.use_state({"w": 6, "h": 10, "i": i})
 
+    from functools import reduce
+
     def update_grid():
         # fetch from gridstate
         for spec in GridState.grid_layout.value:
@@ -202,15 +206,14 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
                 break
 
     sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
-    dff = df[:30_000]
 
     def generate_cds():
         source = ColumnDataSource(
             data={
-                "x": fetch_data(plotstate, dff, "x").values,
-                "y": fetch_data(plotstate, dff, "y").values,
-                "color": fetch_data(plotstate, dff, "color").values,
-                "sdss_id": dff["sdss_id"].values,  # temp
+                "x": fetch_data(plotstate, df, "x").values,
+                "y": fetch_data(plotstate, df, "y").values,
+                "color": fetch_data(plotstate, df, "color").values,
+                "sdss_id": df["sdss_id"].values,  # temp
             })
         return source
 
@@ -257,6 +260,55 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
         dependencies=[],
     )
 
+    # NOTE: adaptive updates done AFTER definition of p
+    def update_filter():
+        xfilter = None
+        yfilter = None
+
+        try:
+            lims = np.array([p.x_range.start, p.x_range.end])
+            assert not np.all(lims == np.nan)
+            xmax = np.nanmax(lims)
+            xmin = np.nanmin(lims)
+            if plotstate.logx.value:
+                xmin = 10**xmin
+                xmax = 10**xmax
+            xfilter = df[
+                f"(({plotstate.x.value} > {xmin}) & ({plotstate.x.value} < {xmax}))"]
+        except Exception:
+            pass
+        try:
+            lims = np.array([p.y_range.start, p.y_range.end])
+            assert not np.all(lims == np.nan)
+            ymax = np.nanmax(lims)
+            ymin = np.nanmin(lims)
+            if plotstate.logy.value:
+                ymin = 10**ymin
+                ymax = 10**ymax
+            yfilter = df[
+                f"(({plotstate.y.value} > {ymin}) & ({plotstate.y.value} < {ymax}))"]
+
+        except Exception:
+            pass
+        if xfilter is not None and yfilter is not None:
+            filters = [xfilter, yfilter]
+        else:
+            filters = [xfilter if xfilter is not None else yfilter]
+        combined = reduce(operator.and_, filters[1:], filters[0])
+        return combined
+
+    # if start changes end changes too (likely)
+    local_filter = sl.use_memo(update_filter,
+                               dependencies=[p.x_range.start, p.y_range.start])
+
+    async def debounced_filter():
+        await asyncio.sleep(0.1)
+        return local_filter
+
+    debounced_local_filter = sl.lab.use_task(debounced_filter,
+                                             dependencies=[local_filter],
+                                             prefer_threaded=False)
+
     pfig = FigureBokeh(
         p,
         dependencies=[],
@@ -264,6 +316,7 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
         light_theme=LIGHTTHEME,
     )
 
-    add_scatter_effects(pfig, plotstate, dff, filter)
-    add_common_effects(pfig, plotstate, dff, layout)
+    add_scatter_effects(pfig, plotstate, df, filter, local_filter,
+                        debounced_local_filter)
+    add_common_effects(pfig, plotstate, df, layout)
     return pfig

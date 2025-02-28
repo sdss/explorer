@@ -1,6 +1,8 @@
 """Main functions for plot effects"""
 
 import asyncio
+import operator
+from functools import reduce
 import logging
 from bokeh.models.plots import Plot
 from bokeh.models import BooleanFilter, Rect
@@ -134,8 +136,14 @@ def add_common_effects(
         print("effect bind error", e)
 
 
-def add_scatter_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
-                        filter) -> None:
+def add_scatter_effects(
+    pfig: rv.ValueElement,
+    plotstate: PlotState,
+    dff,
+    filter,
+    local_filter,
+    debounced_local_filter,
+) -> None:
     """Scatter-glyph specific effects
 
     Args:
@@ -181,12 +189,19 @@ def add_scatter_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
-            # TODO: categorical support with jittering
-            fig_model.renderers[0].view.filter = BooleanFilter(
-                filter.values.to_numpy(
-                ).astype("bool") if filter is not None else None)
+            alls = [filter]
+            if debounced_local_filter.value == local_filter.value:
+                alls.append(debounced_local_filter)
+            filters = [f for f in alls if f is not None]
+            if filters:
+                fig_model.renderers[0].view.filter.booleans = (reduce(
+                    operator.and_, filters[1:],
+                    filters).values.to_numpy().astype("bool"))
+            else:
+                fig_model.renderers[0].view.filter.booleans = None
 
-    sl.use_effect(update_filter, dependencies=[dff, filter])
+    sl.use_effect(update_filter,
+                  dependencies=[dff, filter, debounced_local_filter.finished])
     sl.use_effect(update_x, dependencies=[plotstate.x.value])
     sl.use_effect(update_y, dependencies=[plotstate.y.value])
     sl.use_effect(
