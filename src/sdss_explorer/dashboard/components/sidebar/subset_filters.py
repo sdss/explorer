@@ -18,7 +18,7 @@ from ....util.filters import (
 )
 
 from ...dataclass import Alert, State, SubsetState, use_subset, VCData
-from ..textfield import InputTextExposed
+from ..textfield import ExpressionField, InputTextExposed
 from .autocomplete import AutocompleteSelect, SingleAutocomplete
 from .glossary import Help
 
@@ -92,52 +92,20 @@ def ExprEditor(key: str, invert) -> ValueElement:
         errorFound = False
         message = None
 
-    def add_effect(el: sl.Element):
-
-        def add_append_handler():
-
-            def on_click(widget, event, data):
-                Help.update("expressions")
-
-            widget = sl.get_widget(el)
-            widget.on_event("click:append", on_click)
-
-            def cleanup():
-                widget.on_event("click:append", on_click, remove=True)
-
-            return cleanup
-
-        def add_clear_handler():
-
-            def on_click(widget, event, data):
-                set_expression("")
-                widget.v_model = ""
-
-            widget = sl.get_widget(el)
-            widget.on_event("click:clear", on_click)
-
-            def cleanup():
-                widget.on_event("click:clear", on_click, remove=True)
-
-            return cleanup
-
-        sl.use_effect(add_append_handler, dependencies=[])
-        sl.use_effect(add_clear_handler, dependencies=[])
+    def on_append(*args, **kwargs):
+        """Append Python-side callback; open expressions help"""
+        Help.update("expressions")
 
     # expression editor
     with sl.Column(gap="0px") as main:
         with sl.Row(justify="center", style={"align-items": "center"}):
-            el = InputTextExposed(
-                label="Enter an expression",
+            ExpressionField(
                 value=expression,
                 on_value=set_expression,
-                message=message,
-                error=errorFound,
-                append_icon="mdi-information-outline",
-                clearable=True,
-                placeholder="teff < 15e3 & (mg_h > -1 | fe_h < -2)",
+                event_on_append=on_append,
+                messages=[message],
+                error=bool(errorFound),
             )
-            add_effect(el)
     return main
 
 

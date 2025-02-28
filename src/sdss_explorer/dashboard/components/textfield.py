@@ -1,10 +1,22 @@
-"""Text field with exposed components"""
-from typing import Optional, List, Union, Callable, Dict
+"""Text fields with exposed components"""
+
+from typing import Optional, List, Union, Callable, Dict, Any
 
 import solara as sl
 import reacton.ipyvuetify as rv
 
-__all__ = ['InputTextExposed']
+__all__ = ["InputTextExposed", "ExpressionField"]
+
+
+@sl.component_vue(vue_path="expressionfield.vue")
+def ExpressionField(
+    value: str,
+    on_value: Callable[[str], Any],
+    event_on_append: Callable,
+    messages: list[str] = [],
+    error: bool = False,
+):
+    pass
 
 
 @sl.component()
@@ -79,8 +91,11 @@ def InputTextExposed(
         **kwargs,
     )
     from solara.components.input import use_change
-    use_change(text_field,
-               set_value_cast,
-               enabled=not continuous_update,
-               update_events=update_events)
+
+    use_change(
+        text_field,
+        set_value_cast,
+        enabled=not continuous_update,
+        update_events=update_events,
+    )
     return text_field
