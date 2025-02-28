@@ -23,6 +23,7 @@ from solara.lab import Menu
 
 from state import PlotState, df, GridState
 from plots import HistogramPlot, ScatterPlot, HeatmapPlot, index_context
+from plot_settings import show_settings
 
 
 class GridLayout(v.VuetifyTemplate):
@@ -71,61 +72,10 @@ def show_plot(plottype, remover, *args, **kwargs):
                 )
                 with Menu(activator=btn, close_on_content_click=False):
                     with sl.Card(margin=0):
-                        with sl.Columns([1, 1]):
-                            sl.Select(
-                                label="x",
-                                value=plotstate.x,
-                                values=df.get_column_names(),
-                            )
-                            if plottype != "histogram":
-                                sl.Select(
-                                    label="x",
-                                    value=plotstate.y,
-                                    values=df.get_column_names(),
-                                )
-                        if plottype != "histogram":
-                            with sl.Columns([1, 1]):
-                                sl.Select(
-                                    label="color",
-                                    value=plotstate.color,
-                                    values=df.get_column_names(),
-                                )
-                                if plottype == "heatmap":
-                                    sl.Select(
-                                        label="bintype",
-                                        value=plotstate.bintype,
-                                        values=[
-                                            "count",
-                                            "mean",
-                                            "min",
-                                            "max",
-                                            "median",
-                                        ],
-                                    )
-                            sl.Select(
-                                label="color",
-                                value=plotstate.colorscale,
-                                values=colormaps,
-                            )
-                        with sl.Columns([1, 1]):
-                            with sl.Column():
-                                sl.Checkbox(label="xlog", value=plotstate.logx)
-                                sl.Checkbox(label="ylog", value=plotstate.logy)
-                            with sl.Column():
-                                sl.Checkbox(label="xflip",
-                                            value=plotstate.flipx)
-                                if plottype != "histogram":
-                                    sl.Checkbox(label="yflip",
-                                                value=plotstate.flipy)
-                                    sl.Checkbox(label="logcolor",
-                                                value=plotstate.logcolor)
-                        sl.SliderInt(
-                            label="nbins",
-                            value=plotstate.nbins,
-                            step=20,
-                            min=20,
-                            max=500,
-                        )
+                        try:
+                            show_settings(plottype, plotstate)
+                        except Exception as e:
+                            print("failed to bind settings", e)
                         sl.Button(
                             icon_name="mdi-delete",
                             color="red",

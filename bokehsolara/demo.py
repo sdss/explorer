@@ -67,7 +67,7 @@ def Page():
                 "x": df[plotstate.x.value].values,
                 "y": df[plotstate.y.value].values,
                 "z": z,
-                "sdss_id": df["L"].values,  # temp
+                "sdss_id": df["sdss_id"].values,  # temp
             }),
         dependencies=[],
     )

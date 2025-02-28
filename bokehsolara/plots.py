@@ -4,6 +4,9 @@ from reacton.ipyvuetify import ValueElement
 import numpy as np
 import solara as sl
 from bokeh.models import (
+    BooleanFilter,
+    CDSView,
+    HoverTool,
     Quad,
     Rect,
     Scatter,
@@ -24,8 +27,17 @@ from plot_utils import (
 from state import PlotState, df, GridState
 from figurebokeh import FigureBokeh
 from plot_themes import LIGHTTHEME, DARKTHEME
-from plot_effects import add_scatter_effects, add_heatmap_effects, add_common_effects
-from plot_actions import aggregate_data, fetch_data, update_tooltips
+from plot_effects import (
+    add_histogram_effects,
+    add_scatter_effects,
+    add_heatmap_effects,
+    add_common_effects,
+)
+from plot_actions import (
+    aggregate_data,
+    fetch_data,
+    update_tooltips,
+)
 
 colormaps = [x for x in colormaps if "256" in x]
 
@@ -54,12 +66,14 @@ def HistogramPlot(plotstate: PlotState) -> ValueElement:
         dff = df
 
     def generate_cds():
-        edges, counts = aggregate_data(plotstate, dff)
-        return ColumnDataSource(data={
-            "left": edges[:-1],
-            "right": edges[1:],
-            "y": counts,
-        })
+        centers, edges, counts = aggregate_data(plotstate, dff)
+        return ColumnDataSource(
+            data={
+                "centers": centers,
+                "left": edges[:-1],
+                "right": edges[1:],
+                "y": counts,
+            })
 
     source = sl.use_memo(generate_cds, dependencies=[])
 
@@ -78,18 +92,23 @@ def HistogramPlot(plotstate: PlotState) -> ValueElement:
             fill_color="skyblue",
         )
         gr = p.add_glyph(source, glyph)
-        p.y_range.bounds = [0, None]
+        # p.y_range.bounds = [0, None] NOTE: tried this but it makes it janky to zoom
+
+        p.y_range.start = 0  # force set 0 at start
 
         # create hovertool, bound to figure object
         add_all_tools(p, generate_tooltips(plotstate))
+        for tool in p.toolbar.tools:
+            if isinstance(tool, HoverTool):
+                tool.point_policy = "follow_mouse"
         update_tooltips(plotstate, p)
-        add_callbacks(plotstate, dff, p, source, set_filter=None)
+        add_callbacks(plotstate, dff, p, source, set_filter=set_filter)
         return p
 
     p = sl.use_memo(create_figure, dependencies=[])
 
     pfig = FigureBokeh(p, dark_theme=DARKTHEME, light_theme=LIGHTTHEME)
-    # add_heatmap_effects(pfig, plotstate, dff, filter)
+    add_histogram_effects(pfig, plotstate, dff, filter)
     add_common_effects(pfig, plotstate, dff, layout)
     return pfig
 
@@ -129,7 +148,7 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
     def create_figure():
         """Creates figure with relevant objects"""
         # obtain data
-        p, menu = generate_plot()
+        p, menu = generate_plot(range_padding=0.0)
         xlimits = calculate_range(plotstate, dff, axis="x")
         ylimits = calculate_range(plotstate, dff, axis="y")
 
@@ -155,16 +174,10 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
         add_colorbar(plotstate, p, mapper, source.data["color"])
         gr = p.add_glyph(source, glyph)
 
-        # force reset ranges, we want no pad
-        p.x_range.start = xlimits[0]
-        p.x_range.end = xlimits[1]
-        p.y_range.start = ylimits[0]
-        p.y_range.end = ylimits[1]
-
         # create hovertool, bound to figure object
         add_all_tools(p, generate_tooltips(plotstate))
         update_tooltips(plotstate, p)
-        add_callbacks(plotstate, dff, p, source, set_filter=None)
+        add_callbacks(plotstate, dff, p, source, set_filter=set_filter)
         return p
 
     p = sl.use_memo(create_figure, dependencies=[])
@@ -189,19 +202,25 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
                 break
 
     sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
-    if filter is not None:
-        dff = df[filter]
-    else:
-        dff = df
+    dff = df[:30_000]
 
-    source = sl.use_memo(
-        lambda: ColumnDataSource(
+    def generate_cds():
+        source = ColumnDataSource(
             data={
                 "x": fetch_data(plotstate, dff, "x").values,
                 "y": fetch_data(plotstate, dff, "y").values,
                 "color": fetch_data(plotstate, dff, "color").values,
-                "sdss_id": dff["L"].values,  # temp
-            }),
+                "sdss_id": dff["sdss_id"].values,  # temp
+            })
+        return source
+
+    source = sl.use_memo(
+        generate_cds,
+        dependencies=[],
+    )
+    view = sl.use_memo(
+        lambda: CDSView(filter=BooleanFilter(filter.values.to_numpy().astype(
+            "bool") if filter is not None else None)),
         dependencies=[],
     )
 
@@ -222,13 +241,14 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
                             "field": "color",
                             "transform": mapper
                         })
-        p.add_glyph(source, glyph)
+        gr = p.add_glyph(source, glyph, view=view)
+        # gr.view = view
         add_colorbar(plotstate, p, mapper, source.data["color"])
 
         # add all tools; custom hoverinfo
         add_all_tools(p)
         update_tooltips(plotstate, p)
-        add_callbacks(plotstate, dff, p, source)
+        add_callbacks(plotstate, df, p, source, set_filter=set_filter)
 
         return p
 

@@ -41,7 +41,7 @@ def update_tooltips(plotstate: PlotState, fig_model: Plot) -> None:
             tool.tooltips = generate_tooltips(plotstate)
             if plotstate.plottype == "histogram":
                 tool.formatters = {
-                    "$snap_x":
+                    "@centers":
                     generate_categorical_hover_formatter(plotstate, axis="x"),
                 }
             else:
@@ -76,7 +76,12 @@ def update_axis(
     if check_categorical(col):
         # update before datafetch
         update_mapping(plotstate, axis=axis)
-    colData = fetch_data(plotstate, dff, axis=axis)
+    try:
+        colData = fetch_data(plotstate, dff, axis=axis)
+    except Exception as e:
+        print("fetch update", e)
+        # TODO: Alert.update(f"Color update failed! {e}",color='warning')
+        return
     with fig_model.hold(render=True):
         change_formatter(plotstate, fig_model,
                          axis=axis)  # change formatter to cat if needed
@@ -87,7 +92,10 @@ def update_axis(
         update_tooltips(plotstate, fig_model)
 
 
-def reset_range(plotstate: PlotState, fig_model: Plot, dff, axis: str = "x"):
+def reset_range(plotstate: PlotState,
+                fig_model: Plot,
+                dff: vx.DataFrame,
+                axis: str = "x"):
     """Resets given axis range on a figure model.
 
     Args:
@@ -108,10 +116,18 @@ def reset_range(plotstate: PlotState, fig_model: Plot, dff, axis: str = "x"):
         datarange.update(start=newrange[0], end=newrange[1])
 
 
-def _reset_histogram_yrange(plotstate, fig_model, dff):
-    _, counts = aggregate_data(plotstate, dff)
+def _reset_histogram_yrange(plotstate: PlotState, fig_model: Plot,
+                            dff: vx.DataFrame):
+    """Helper for histogram y-range reset.
+
+    Args:
+        plotstate: plot variables
+        fig_model: figure object
+        dff: filtered dataframe
+    """
+    _, __, counts = aggregate_data(plotstate, dff)
     start = 0 if not plotstate.logy.value else 1
-    end = counts.max()
+    end = counts.max() * 1.2
     fig_model.renderers[0].glyph.bottom = start
     fig_model.y_range.update(start=start, end=end)
 
@@ -194,9 +210,10 @@ def change_formatter(
         axis: axis to update. any of 'x', 'y', or 'color'
     """
     assert axis in ("x", "y", "color"), f"expected axis x or y but got {axis}"
+
+    # histogram exception
     if (plotstate.plottype == "histogram") and (axis == "y"):
         col = ""
-        pass
     else:
         col = getattr(plotstate, axis).value  # column name
     log = getattr(plotstate, f"log{axis}").value  # whether log
@@ -207,12 +224,14 @@ def change_formatter(
 
     # get place and set it
     ax = getattr(fig_model, loc)[0]
-    if plotstate.plottype != "histogram":
+    if (plotstate.plottype == "histogram") and (axis == "y"):
+        formatter = BasicTickFormatter()
+    else:
         if check_categorical(col):
             formatter = generate_categorical_tick_formatter(mapping)
-    else:
-        formatter = (LogTickFormatter() if log and
-                     (axis != "color") else BasicTickFormatter())
+        else:
+            formatter = (LogTickFormatter() if
+                         (log and (axis != "color")) else BasicTickFormatter())
     if axis == "color":
         if check_categorical(col):
             ax.ticker.ticks = [v for v in mapping.values()]
@@ -238,6 +257,10 @@ def fetch_data(plotstate: PlotState,
     Returns:
         Expression of mapped categorical data or raw expression.
 
+    Raises:
+        AssertionError: if unexpected axis
+        ValueError: if all nan in color
+
     """
     assert axis in ("x", "y", "color"), f"expected axis x or y but got {axis}"
     col = getattr(plotstate, axis).value  # column name
@@ -249,6 +272,13 @@ def fetch_data(plotstate: PlotState,
     else:
         if (axis == "color") and plotstate.logcolor.value:
             colData = np.log10(dff[col])
+            try:
+                test = colData.values
+                test[np.abs(test) == np.inf] = np.nan
+                assert not np.all(np.isnan(test))
+            except AssertionError:
+                raise ValueError(
+                    "taking log of color gives no data, not updating.")
         else:
             colData = dff[col]
     return colData
@@ -256,8 +286,8 @@ def fetch_data(plotstate: PlotState,
 
 def aggregate_data(
     plotstate: PlotState, dff: vx.DataFrame
-) -> tuple[ndarray, ndarray, ndarray, list[list[float]]] | tuple[ndarray,
-                                                                 ndarray]:
+) -> (tuple[ndarray, ndarray, ndarray, list[list[float]]]
+      | tuple[ndarray, ndarray, ndarray]):
     """
     Create aggregated data expressions for heatmap and histogram
 
@@ -295,15 +325,15 @@ def aggregate_data(
             except Exception:  # stride bug catch
                 limits = [expr.min()[()], expr.max()[()]]
             edges = dff.bin_edges(expr, limits=limits, shape=nbins)
+            centers = dff.bin_centers(expr, limits=limits, shape=nbins)
         counts = dff.count(binby=expr,
                            shape=nbins,
                            delay=True,
                            array_type="numpy")
         dff.execute()
         counts = counts.get().flatten()
-        print(counts.shape)
 
-        return edges, counts
+        return centers, edges, counts
 
     elif plotstate.plottype == "heatmap":
         # update mappings if needed

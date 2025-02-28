@@ -88,7 +88,7 @@ def add_axes(plotstate: PlotState, p: Plot) -> None:
     p.add_layout(grid_y, "center")
 
 
-def generate_plot():
+def generate_plot(range_padding: float = 0.1):
     """Generates basic plot object with context menu, with object bindings."""
     # create menu
     menu = BokehMenu()
@@ -113,6 +113,8 @@ def generate_plot():
         lod_interval=300,
         lod_threshold=1000,
         lod_timeout=10000,
+        x_range=DataRange1d(range_padding=range_padding),
+        y_range=DataRange1d(range_padding=range_padding),
     )
     name = "menu-propogate"
     items = [
@@ -136,12 +138,12 @@ def generate_plot():
         "log": LogScale(),
     }
     p.extra_x_ranges = {
-        "lin": DataRange1d(),
-        "log": DataRange1d(),
+        "lin": DataRange1d(range_padding=range_padding),
+        "log": DataRange1d(range_padding=range_padding),
     }
     p.extra_y_ranges = {
-        "lin": DataRange1d(),
-        "log": DataRange1d(),
+        "lin": DataRange1d(range_padding=range_padding),
+        "log": DataRange1d(range_padding=range_padding),
     }
 
     return p, menu
@@ -267,7 +269,7 @@ def add_callbacks(
     dff: vx.DataFrame,
     p: Plot,
     source: ColumnDataSource,
-    set_filter: Optional[Callable[[Any], Any]] = None,
+    set_filter: Callable,
 ) -> None:
     """
     Adds various callbacks, for filtering, context menu, and resets.
@@ -285,7 +287,7 @@ def add_callbacks(
         args=dict(source=source),
         code="""
              source.selected.indices = [];
-             source.change.emit();
+             source.selected.indices.change.emit();
              """,
     )
 
@@ -300,14 +302,38 @@ def add_callbacks(
     source.selected.on_change("indices", on_select)
 
     # selection callback to update the filter object
-    if set_filter is not None:  # TODO: remove this line make non optional
+    def propogate_select_to_filter(attr, old, new):
+        if len(new) > 0:
+            if plotstate.plottype == "histogram":
+                data = source.data["centers"][new]
+                col = plotstate.x.value
+                xmin = np.nanmin(data)
+                xmax = np.nanmax(data)
+                set_filter(dff[f"(({col}>={xmin})&({col}<={xmax}))"])
 
-        def propogate_select_to_filter(attr, old, new):
-            if len(new) > 0:
-                # TODO: filter function propogate
-                pass
+            elif plotstate.plottype == "heatmap":
+                datax = source.data["x"][new]
+                datay = source.data["y"][new]
+                colx = plotstate.x.value
+                coly = plotstate.y.value
+                xmin = np.nanmin(datax)
+                xmax = np.nanmax(datax)
+                ymin = np.nanmin(datay)
+                ymax = np.nanmax(datay)
+                set_filter(dff[
+                    f"(({colx}>={xmin})&({coly}<={xmax})&({coly}>={ymin})&({coly}<={ymax}))"]
+                           )
 
-        source.selected.on_change("indices", propogate_select_to_filter)
+            elif plotstate.plottype == "scatter":
+                datax = source.data["x"][new]
+                datay = source.data["y"][new]
+                colx = plotstate.x.value
+                coly = plotstate.y.value
+                set_filter(dff[colx].isin(datax) & dff[coly].isin(datay))
+        else:
+            set_filter(None)
+
+    source.selected.on_change("indices", propogate_select_to_filter)
 
     # add reset range event
     def on_reset(event):
@@ -359,8 +385,7 @@ def calculate_range(plotstate, dff, axis: str = "x") -> tuple[float, float]:
     # fetch
     if (plotstate.plottype == "histogram") and (axis == "y"):
         raise Exception("shouldnt be here")
-    else:
-        col = plotstate.x.value if axis == "x" else plotstate.y.value
+    col = plotstate.x.value if axis == "x" else plotstate.y.value
     flip = plotstate.flipx.value if axis == "x" else plotstate.flipy.value
     log = plotstate.logx.value if axis == "x" else plotstate.logy.value
 
@@ -383,12 +408,16 @@ def calculate_range(plotstate, dff, axis: str = "x") -> tuple[float, float]:
     pad = datarange / 20
     start = limits[0]
     end = limits[1]
-    if plotstate.plottype != "heatmap":
+    if plotstate.plottype == "heatmap":
+        if check_categorical(dff[col]):
+            start = start - 0.5
+            end = end + 0.5
+        else:
+            start = start
+            end = end
+    else:
         start = start - pad
         end = end + pad
-    elif (plotstate.plottype == "heatmap") and check_categorical(dff[col]):
-        start = start - 0.5
-        end = end + 0.5
     if log:
         start = 10**start
         end = 10**end
@@ -469,16 +498,19 @@ def generate_tooltips(plotstate: PlotState) -> str:
         """
 
     # define the labels and corresponding values based on plottype
-    labels_values = [
-        (generate_label(plotstate, axis="x"), "$snap_x{0}"),
-    ]
-    if plotstate.plottype != "histogram":
-        labels_values.extend([
+    if plotstate.plottype == "histogram":
+        labels_values = [
+            (generate_label(plotstate, axis="x"), "@centers{0}"),
+            (generate_label(plotstate, axis="y"), "@y{0}"),
+        ]
+    else:
+        labels_values = [
+            (generate_label(plotstate, axis="x"), "$snap_x{0}"),
             (generate_label(plotstate, axis="y"), "$snap_y{0}"),
             (generate_label(plotstate, axis="color"), "@color{0}"),
-        ])
-    if plotstate.plottype == "scatter":
-        labels_values.append(("sdss_id", "@sdss_id"))
+        ]
+        if plotstate.plottype == "scatter":
+            labels_values.append(("sdss_id", "@sdss_id"))
 
     # generate the rows dynamically
     rows = "".join(
