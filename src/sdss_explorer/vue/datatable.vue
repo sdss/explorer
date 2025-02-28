@@ -1,8 +1,8 @@
 <template>
   <v-slide-x-transition appear>
     <div class="solara-data-table__viewport">
-      <v-data-table dense hide-default-header hide-default-footer disable-pagination :headers="[...headers]" :items="items"
-         :options.sync="options"
+      <v-data-table dense hide-default-header :hide-default-footer="hide_footer" disable-pagination :headers="[...headers]" :items="items"
+                    :options.sync="options" :footer-props="footer_props"
         :items_per_page.sync="items_per_page" :server-items-length="total_length" :class="[
           'elevation-1',
           'solara-data-table',
@@ -11,7 +11,7 @@
         <template v-slot:header="props">
           <thead>
             <tr>
-              <th style="padding: 0 10px; width: 40px">Stat</th>
+              <th style="padding: 0 10px; width: 40px"> {{ label }}</th>
               <th style="padding: 0 1px; width: 30px" v-if="selection_enabled">
                 <v-btn icon color="primary" text small @click="apply_filter">
                   <v-icon>filter_list</v-icon>

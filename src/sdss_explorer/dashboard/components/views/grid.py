@@ -81,8 +81,14 @@ def add_view(plottype, layout: Optional[dict] = None, **kwargs):
         else:
             prev = GridState.grid_layout.value[-1]
         # TODO: better height logic
+        maxH = 40
+        minH = 7
         if plottype == "stats":
             height = 7
+        elif plottype == "targets":
+            height = 10
+            maxH = 10
+            minH = 10
         else:
             height = 10
         # horizontal or vertical offset depending on width
@@ -99,6 +105,8 @@ def add_view(plottype, layout: Optional[dict] = None, **kwargs):
             "y": y,
             "w": 6,
             "h": height,
+            "maxH": maxH,
+            "minH": minH,
             "moved": False,
         }
 
@@ -201,6 +209,10 @@ def ObjectGrid():
                                 sl.Button(
                                     label="skyplot",
                                     on_click=lambda: add_view("skyplot"),
+                                ),
+                                sl.Button(
+                                    label="targets",
+                                    on_click=lambda: add_view("targets"),
                                 ),
                                 # TODO: fix delta2d
                                 # BUG: delta2d is currently broken in many ways i need to fix

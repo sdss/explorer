@@ -4,20 +4,80 @@ import dataclasses
 import math
 import os
 from dataclasses import replace
-from typing import Any, Callable, List, Optional, cast
+from typing import Any, Callable, List, Optional, cast, Union
 
 import ipyvuetify as v
 import ipywidgets
-import reacton.ipyvuetify as rv
 import solara as sl
-import solara.hooks.dataframe
 import solara.lab
 import traitlets
 from solara.components.datatable import CellAction, ColumnAction
-from solara.lab import Menu, use_dark_effective
-from solara.lab.hooks.dataframe import use_df_column_names
 
-from ...dataclass import State, Subset, SubsetState
+# NOTE: these 'df' functions disable reactive bindings on DF and pre-compile the
+# component. they also cant be imported from the solara namespace
+
+
+def df_type(df):
+    return df.__class__.__module__.split(".")[0]
+
+
+def df_len(df) -> int:
+    """Return the number of rows in a dataframe."""
+    return len(df)
+
+
+def df_columns(df) -> List[str]:
+    """Return a list of column names from a dataframe."""
+    if df_type(df) == "vaex":
+        return df.get_column_names()
+    elif df_type(df) == "pandas":
+        return df.columns.tolist()
+    elif df_type(df) == "polars":
+        return df.columns
+    else:
+        raise TypeError(f"{type(df)} not supported")
+
+
+def df_row_names(df) -> List[Union[int, str]]:
+    """Return a list of row names from a dataframe."""
+    if df_type(df) == "vaex" or df_type(df) == "polars":
+        return list(range(df_len(df)))
+    elif df_type(df) == "pandas":
+        return df.index.tolist()
+    else:
+        raise TypeError(f"{type(df)} not supported")
+
+
+def df_slice(df, start: int, stop: int):
+    """Return a subset of rows from a dataframe."""
+    if df_type(df) == "pandas":
+        return df.iloc[start:stop]
+    else:
+        return df[start:stop]
+
+
+def df_records(df) -> List[dict]:
+    """A list of records from a dataframe."""
+    if df_type(df) == "pandas":
+        return df.to_dict("records")
+    elif df_type(df) == "polars":
+        return df.to_dicts()
+    elif df_type(df) == "vaex":
+        return df.to_records()
+    else:
+        raise TypeError(f"{type(df)} not supported")
+
+
+def df_unique(df, column, limit=None):
+    if df_type(df) == "vaex":
+        return df.unique(column,
+                         limit=limit + 1 if limit else None,
+                         limit_raise=False)
+    if df_type(df) == "pandas":
+        x = df[column].unique()  # .to_numpy()
+        return x[:limit]
+    else:
+        raise TypeError(f"{type(df)} not supported")
 
 
 @sl.component()
@@ -25,77 +85,6 @@ def Loading() -> None:
     sl.Markdown("## Loading")
     sl.Markdown("Loading your embeddings. Enjoy this fun animation for now")
     sl.ProgressLinear(True, color="purple")
-
-
-@sl.component()
-def TableView(del_func: Callable):
-    """Shows the table view, loading lazily via solara components."""
-    df = Subset.df
-    filter, set_filter = sl.use_cross_filter(id(df), name="filter-tableview")
-    column, set_column = sl.use_state(cast(Optional[str], None))
-    order, set_order = sl.use_state(cast(bool, None))
-    dark = use_dark_effective()
-    dff = df
-
-    def on_ascend(column):
-        set_order(True)
-        set_column(column)
-
-    def on_descend(column):
-        set_order(False)
-        set_column(column)
-
-    column_actions = [
-        sl.ColumnAction(icon="mdi-sort-ascending",
-                        name="Sort ascending",
-                        on_click=on_ascend),
-        sl.ColumnAction(icon="mdi-sort-descending",
-                        name="Sort descending",
-                        on_click=on_descend),
-    ]
-
-    if filter:
-        dff = dff[filter]
-    dff = dff[[
-        "sdss_id",
-        "gaia_dr3_source_id",
-        "telescope",
-        "release",
-        "teff",
-        "logg",
-        "fe_h",
-    ]]
-    if column is not None and order is not None:
-        dff = dff.sort(dff[column], ascending=order)
-
-    # TODO: add column add/remove functionality
-    with rv.Card(
-            class_="grey darken-3" if dark else "grey lighten-3",
-            style_="width: 100%; height: 100%",
-    ):
-        with rv.CardText():
-            with sl.Column(
-                    classes=["grey darken-3" if dark else "grey lighten-3"]):
-                sl.DataTable(
-                    dff,
-                    items_per_page=10,  # tablestate.height.value,
-                    scrollable=True,
-                    column_actions=column_actions,
-                )
-                btn = sl.Button(
-                    icon_name="mdi-settings",
-                    outlined=False,
-                    classes=["grey darken-3" if dark else "grey lighten-3"],
-                )
-                with Menu(activator=btn, close_on_content_click=False):
-                    with sl.Card(margin=0):
-                        sl.Button(
-                            icon_name="mdi-delete",
-                            color="red",
-                            block=True,
-                            on_click=del_func,
-                        )
-    return
 
 
 def format_default(df, column, row_index, value):
@@ -152,6 +141,9 @@ class DataTableWidget(v.VuetifyTemplate):
     selection_enabled = traitlets.Bool(True).tag(sync=True)
     highlighted = traitlets.Int(None, allow_none=True).tag(sync=True)
     scrollable = traitlets.Bool(False).tag(sync=True)
+    label = traitlets.Any("").tag(sync=True)
+    hide_footer = traitlets.Bool(False).tag(sync=True)
+    footer_props = traitlets.Dict({}).tag(sync=True)
 
     # for use with scrollable, when used in the default UI
     height = traitlets.Unicode(None, allow_none=True).tag(sync=True)
@@ -196,8 +188,7 @@ def ModdedDataTable(
     i1 = page * items_per_page
     i2 = min(total_length, (page + 1) * items_per_page)
 
-    columns = use_df_column_names(df)
-
+    columns = df.columns.tolist()
     items = []
     dfs = df.iloc[i1:i2]
     records = df.to_dict("records")
@@ -220,10 +211,93 @@ def ModdedDataTable(
     return DataTableWidget.element(
         total_length=total_length,
         items=items,
+        hide_footer=True,
+        headers=headers,
+        headers_selections=[],
+        options=options,
+        label="Stat",
+        items_per_page=items_per_page,
+        footer_props={},
+        selections=[],
+        selection_colors=[],
+        selection_enabled=False,
+        highlighted=None,
+        scrollable=scrollable,
+        on_options=set_options,
+        column_actions=column_actions,
+        cell_actions=cell_actions,
+        _column_actions_callbacks=column_actions_callbacks,
+        _cell_actions_callbacks=cell_actions_callbacks,
+        on_column_header_hover=on_column_header_hover,
+        column_header_widget=column_header_info,
+    )
+
+
+@sl.component
+def TargetsDataTable(
+    df,
+    columns,
+    page=0,
+    items_per_page=20,
+    format=None,
+    column_actions: List[ColumnAction] = [],
+    cell_actions: List[CellAction] = [],
+    scrollable=False,
+    on_column_header_hover: Optional[Callable[[Optional[str]], None]] = None,
+    column_header_info: Optional[sl.Element] = None,
+):
+    total_length = df_len(df)
+    options = {
+        "descending": False,
+        "page": page + 1,
+        "itemsPerPage": items_per_page,
+        "sortBy": [],
+        "totalItems": total_length,
+    }
+    options, set_options = solara.use_state(options, key="options")
+    format = format or format_default
+    # frontend does 1 base, we use 0 based
+    page = options["page"] - 1
+    items_per_page = options["itemsPerPage"]
+    i1 = page * items_per_page
+    i2 = min(total_length, (page + 1) * items_per_page)
+
+    rows = df_row_names(df)
+    items = []
+    dfs = df_slice(df, i1, i2)
+    records = df_records(dfs)
+
+    for i in range(i2 - i1):
+        item = {
+            "__row__": format(dfs, columns, i + 1, rows[i + i1])
+        }  # special key for the row number
+        for column in columns:
+            item[column] = format(dfs, column, i + i1, records[i][column])
+        items.append(item)
+
+    headers = [{
+        "text": name,
+        "value": name,
+        "sortable": False
+    } for name in columns]
+    column_actions_callbacks = [k.on_click for k in column_actions]
+    cell_actions_callbacks = [k.on_click for k in cell_actions]
+    column_actions = [replace(k, on_click=None) for k in column_actions]
+    cell_actions = [replace(k, on_click=None) for k in cell_actions]
+
+    return DataTableWidget.element(
+        total_length=total_length,
+        items=items,
         headers=headers,
         headers_selections=[],
         options=options,
         items_per_page=items_per_page,
+        footer_props={
+            "items-per-page-options": [],
+            "items-per-page-text": ""
+        },
+        rows_per_page_text="",
+        rows_per_page_items=[10],
         selections=[],
         selection_colors=[],
         selection_enabled=False,

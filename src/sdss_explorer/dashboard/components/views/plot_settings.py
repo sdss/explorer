@@ -20,10 +20,11 @@ def show_settings(type, plotstate):
     sl.lab.use_task(
         plotstate.reset_values,
         dependencies=[
+            subset.df,
+            subset.dataset,
             len(SubsetState.subsets.value),
             SubsetState.subsets.value,
             VCData.columns.value,
-            subset.dataset,
         ],
     )
     name, names = (
@@ -39,8 +40,8 @@ def show_settings(type, plotstate):
             value=name,
             on_value=plotstate.update_subset,
         )
-        if type == "stats":
-            StatisticsTableMenu(plotstate)
+        if (type == "stats") or (type == "targets"):
+            TableMenu(plotstate)
         else:
             with sl.Columns([1, 1]):
                 if type == "scatter":
@@ -52,6 +53,7 @@ def show_settings(type, plotstate):
                 elif type == "skyplot":
                     SkymapMenu(plotstate, columns)
                 CommonSettings(plotstate)
+        # NOTE: no settings for targets view except subset
     return
 
 
@@ -314,7 +316,7 @@ def HeatmapMenu(plotstate, columns):
 
 
 @sl.component()
-def StatisticsTableMenu(state):
+def TableMenu(state):
     """Settings menu for Statistics Table view."""
     with sl.Column():
         AutocompleteSelect(

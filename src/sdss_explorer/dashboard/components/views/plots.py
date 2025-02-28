@@ -4,7 +4,7 @@ import logging
 import operator
 import webbrowser as wb
 from functools import reduce
-from typing import cast
+from typing import cast, Optional
 
 import numpy as np
 import pandas as pd
@@ -18,9 +18,9 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.graph_objs._figurewidget import FigureWidget
 
-from ...dataclass import Alert, State, SubsetState, use_subset, GridState, VCData
+from ...dataclass import Alert, SubsetState, use_subset, GridState, VCData
 from ....util import check_categorical
-from .dataframe import ModdedDataTable
+from .dataframe import ModdedDataTable, TargetsDataTable
 from .plot_settings import show_settings
 
 logger = logging.getLogger("dashboard")
@@ -82,7 +82,9 @@ class PlotState:
         self.subset = sl.use_reactive(current_key)
 
         # main settings
-        self.columns = sl.use_reactive(["g_mag", "bp_mag"])
+        init_columns = (["g_mag", "bp_mag"] if plottype == "stats" else
+                        ["sdss_id", "gaia_dr3_source_id", "g_mag"])
+        self.columns = sl.use_reactive(kwargs.get("columns", init_columns))
         self.x = sl.use_reactive(kwargs.get("x", "snr"))
         self.y = sl.use_reactive(kwargs.get("y", "g_mag"))
         self.color = sl.use_reactive(kwargs.get("color", "g_mag"))
@@ -171,13 +173,16 @@ class PlotState:
             self.subset.value).columns + list(VCData.columns.value.keys())
 
         # columnar resets for table
-        if "stats" in self.plottype:
+        if (self.plottype == "stats") or (self.plottype == "targets"):
             for col in self.columns.value:
+                removed_cols = set()
                 if col not in valid_columns:
-                    # NOTE: i choose to remove quietly on stats table -- its very obvious when it disappears
-                    self.columns.set(
-                        list([q for q in self.columns.value if q != col]))
-                    return
+                    removed_cols.add(col)
+                # NOTE: i choose to remove quietly on stats table -- its very obvious when it disappears
+                # NOTE: you have to do it at the end, because a task can only send 1 state update for rerenders
+                self.columns.set(
+                    [q for q in self.columns.value if q not in removed_cols])
+                return
 
         # columnar resets for plots
         else:
@@ -261,9 +266,12 @@ def show_plot(plottype, del_func, **kwargs):
                 elif plottype == "skyplot":
                     SkymapPlot(plotstate)
                 elif plottype == "delta2d":
-                    DeltaHeatmapPlot(plotstate)
+                    pass
+                    # DeltaHeatmapPlot(plotstate)
                 elif plottype == "stats":
                     StatisticsTable(plotstate)
+                elif plottype == "targets":
+                    TargetsTable(plotstate)
                 btn = sl.Button(
                     icon_name="mdi-settings",
                     outlined=False,
@@ -1556,14 +1564,14 @@ def StatisticsTable(state):
 
 
 @sl.component()
-def DeltaHeatmapPlot(plotstate):
-    """Heatmap on regular grid for Subset A - Subset B"""
-    df = State.df.value
-    filterA, set_filterA = use_subset(id(df), plotstate.subset, "delta2d")
-    filterB, set_filterB = use_subset(id(df), plotstate.subset_b, "delta2d")
-    dark = use_dark_effective()
+def TargetsTable(plotstate):
+    """Shows the table view, loading lazily via solara components."""
+    subset = plotstate.subset.value
+    df = SubsetState.subsets.value[subset].df
+    filter, _ = use_subset(id(df), plotstate.subset, name="filter-tableview")
+
     i = sl.use_context(index_context)
-    layout, set_layout = sl.use_state(GridState.grid_layout.value[0])
+    layout, set_layout = sl.use_state({"w": 6, "h": 10, "i": i})
 
     def update_grid():
         # fetch from gridstate
@@ -1572,340 +1580,21 @@ def DeltaHeatmapPlot(plotstate):
                 set_layout(spec)
                 break
 
-    sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
+    use_task(update_grid, dependencies=[GridState.grid_layout.value])
 
-    if filterA:
-        dfa = df[filterA]
+    if filter:
+        dff = df[filter]
     else:
-        dfa = df
-    if filterB:
-        dfb = df[filterB]
-    else:
-        dfb = df
+        dff = df
+    if len(dff) < 10:
+        new_layout = layout.copy()
+        new_layout["h"] = len(dff)
+        set_layout(new_layout)
 
-    def perform_binning():
-        # create limits
+    dff = dff[plotstate.columns.value]
 
-        # the limits/grid must be of an identical size, so we MUST use the same limits
-        # for both dataframes
-        try:
-            limits = [
-                dfa.minmax(plotstate.x.value),
-                dfa.minmax(plotstate.y.value),
-            ]
-        except Exception:
-            # stride bug dodge
-            # NOTE: empty tuple acts as index for the 0th of 0D array
-            limits = [
-                [
-                    dfa.min(plotstate.x.value)[()],
-                    dfa.max(plotstate.x.value)[()],
-                ],
-                [
-                    dfa.min(plotstate.y.value)[()],
-                    dfa.max(plotstate.y.value)[()],
-                ],
-            ]
-
-        q = list()  # list for z nD promises
-
-        # iterate through
-        for dff in (dfa, dfb):
-            expr = (dff[plotstate.x.value], dff[plotstate.y.value])
-            expr_c = dff[plotstate.color.value]
-            bintype = str(plotstate.bintype.value)
-
-            # error checking
-            try:
-                assert len(dff) > 40, (
-                    "0")  # NOTE: trial and error found this value. arbitrary
-                assert plotstate.x.value != plotstate.y.value, "1"
-                assert len(SubsetState.subsets.value) != 1, "3"
-                assert plotstate.subset.value != plotstate.subset_b.value, "1"
-
-                assert not check_categorical(dff[plotstate.x.value]), "2"
-                assert not check_categorical(dff[plotstate.y.value]), "2"
-            except AssertionError as e:
-                msg = str(e)
-
-                # length checks
-                if msg == "0":
-                    Alert.update(
-                        "Subset too small to bin via aggregated. Use scatter view!",
-                        color="warning",
-                    )
-                    # generate a flat xarray
-                    y = xarray.DataArray(
-                        [[0, 0], [0, 0]],
-                        coords={
-                            plotstate.x.value: [0, 1],
-                            plotstate.y.value: [0, 1],
-                        },
-                    )
-                    return (y, 0, 1)
-                elif msg == "1":
-                    # NOTE: for autoswaps
-                    pass
-                elif msg == "2":
-                    Alert.update(
-                        "Catagorical data column set for aggregated -- not yet implemented! Not updating.",
-                        color="error",
-                    )
-                elif msg == "3":
-                    Alert.update(
-                        "Delta view is only informative with 2 subsets. Please create another subset to compare against.",
-                        color="info",
-                    )
-
-                return (None, None, None)
-
-            if bintype == "count":
-                y = dff.count(
-                    binby=expr,
-                    limits=limits,
-                    shape=plotstate.nbins.value,
-                    array_type="xarray",
-                    delay=True,
-                )
-            elif bintype == "sum":
-                y = dff.sum(
-                    expr_c,
-                    binby=expr,
-                    limits=limits,
-                    shape=plotstate.nbins.value,
-                    array_type="xarray",
-                    delay=True,
-                )
-            elif bintype == "mean":
-                y = dff.mean(
-                    expr_c,
-                    binby=expr,
-                    limits=limits,
-                    shape=plotstate.nbins.value,
-                    array_type="xarray",
-                    delay=True,
-                )
-            elif bintype == "median":
-                # y = dff.median_approx(
-                #    expr_c,
-                #    binby=expr,
-                #    limits=limits,
-                #    shape=plotstate.nbins.value,
-                #    delay=True,
-                # )
-                # generate a flat xarray
-                y = xarray.DataArray(
-                    [[0, 0], [0, 0]],
-                    coords={
-                        plotstate.x.value: [0, 1],
-                        plotstate.y.value: [0, 1],
-                    },
-                )
-                return (y, 0, 1)
-
-            elif bintype == "mode":
-                y = dff.mode(
-                    expression=expr_c,
-                    binby=expr,
-                    limits=limits,
-                    shape=plotstate.nbins.value,
-                    delay=True,
-                )
-            elif bintype == "min":
-                y = dff.min(
-                    expression=expr_c,
-                    binby=expr,
-                    limits=limits,
-                    shape=plotstate.nbins.value,
-                    array_type="xarray",
-                    delay=True,
-                )
-            elif bintype == "max":
-                y = dff.max(
-                    expression=expr_c,
-                    binby=expr,
-                    limits=limits,
-                    shape=plotstate.nbins.value,
-                    array_type="xarray",
-                    delay=True,
-                )
-            else:
-                raise ValueError("no assigned bintype for aggregated")
-            q.append(y)
-
-        df.execute()  # run all promises
-
-        for i, y in enumerate(q):
-            y = y.get()  # fetch numerical promise value
-            if bintype == "median":
-                # convert to xarray
-                if i == 0:
-                    dff = dfa
-                else:
-                    dff = dfb
-                expr = (dff[plotstate.x.value], dff[plotstate.y.value])
-
-                y = xarray.DataArray(
-                    y,
-                    coords={
-                        plotstate.x.value:
-                        dff.bin_centers(
-                            expression=expr[0],
-                            limits=limits[0],
-                            shape=plotstate.nbins.value,
-                        ),
-                        plotstate.y.value:
-                        dff.bin_centers(
-                            expression=expr[1],
-                            limits=limits[1],
-                            shape=plotstate.nbins.value,
-                        ),
-                    },
-                )
-            q[i] = y
-
-        y = q[0] - q[1]  # get differences
-
-        colorlog = str(plotstate.colorlog.value)
-        if colorlog == "log1p":
-            y = np.log1p(y)
-        elif colorlog == "log10":
-            y = np.log10(y)
-
-        # TODO: clean this code
-        y = y.where(np.abs(y) != np.inf, np.nan)
-        cmin = float(np.min(y).values)
-        cmax = float(np.max(y).values)
-        y = y.fillna(-999)
-        return y, cmin, cmax
-
-    def set_colorlabel():
-        if plotstate.bintype.value == "count":
-            return f"Delta count ({plotstate.colorlog.value})"
-        else:
-            return f"Delta {plotstate.color.value} ({plotstate.bintype.value})"
-
-    def create_fig():
-        z, cmin, cmax = perform_binning()
-        colorlabel = set_colorlabel()
-        fig = px.imshow(
-            z.T,
-            zmin=cmin,
-            zmax=cmax,
-            origin="lower",
-            color_continuous_scale=plotstate.colorscale.value,
-            labels={
-                "x": plotstate.x.value,
-                "y": plotstate.y.value,
-                "color": colorlabel,
-            },
-            template=DARK_TEMPLATE if dark else LIGHT_TEMPLATE,
-        )
-        return fig
-
-    # only instantiate the figure once
-    figure = sl.use_memo(create_fig, dependencies=[])
-
-    def add_effects(fig_element: sl.Element):
-
-        def set_xflip():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            if plotstate.flipx.value:
-                fig_widget.update_xaxes(autorange="reversed")
-            else:
-                fig_widget.update_xaxes(autorange=True)
-
-        def set_yflip():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            if plotstate.flipy.value:
-                fig_widget.update_yaxes(autorange="reversed")
-            else:
-                fig_widget.update_yaxes(autorange=False)
-                fig_widget.update_yaxes(autorange=True)
-
-        def update_data():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-
-            # error checker for color update
-            if not check_cat_color(dfa[plotstate.color.value]):
-                return
-            if not check_cat_color(dfb[plotstate.color.value]):
-                return
-
-            # update data information
-            z, cmin, cmax = perform_binning()
-            if z is None:
-                # TODO: in binning func return snackbar error based on check failure
-                return
-
-            colorlabel = set_colorlabel()
-
-            # update data
-            fig_widget.update_traces(
-                z=z.T.data,
-                x=z.coords[plotstate.x.value],
-                y=z.coords[plotstate.y.value],
-                hovertemplate=(f"{plotstate.x.value}" + ": %{x}<br>" +
-                               f"{plotstate.y.value}:" + " %{y}<br>" +
-                               f"{colorlabel}: " + "%{z}<extra></extra>"),
-            )
-            # update coloraxis & label information
-            fig_widget.update_coloraxes(
-                cmax=cmax,
-                cmin=cmin,
-                colorbar=dict(title=colorlabel),
-                colorscale=plotstate.colorscale.value,
-            )
-            fig_widget.update_layout(
-                xaxis_title=plotstate.x.value,
-                yaxis_title=plotstate.y.value,
-            )
-
-        def update_color():
-            # NOTE: only for updating colorscale, since any other change
-            # requires an entire plot change
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-
-            # update coloraxis information
-            fig_widget.update_coloraxes(
-                colorscale=plotstate.colorscale.value, )
-
-        def update_theme():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            fig_widget.update_layout(
-                template=DARK_TEMPLATE if dark else LIGHT_TEMPLATE)
-
-        sl.use_effect(
-            update_data,
-            dependencies=[
-                filterA,
-                filterB,
-                plotstate.x.value,
-                plotstate.y.value,
-                plotstate.color.value,
-                plotstate.bintype.value,
-                plotstate.colorlog.value,
-                plotstate.nbins.value,
-            ],
-        )
-        sl.use_effect(
-            update_color,
-            dependencies=[
-                plotstate.colorscale.value,
-            ],
-        )
-
-        def update_layout():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            fig_widget.update_layout(height=layout["h"] * 45 - 90)
-            fig_widget.update_layout(width=layout["w"] * 120)
-
-        sl.use_effect(update_layout, dependencies=[layout])
-        sl.use_effect(update_theme, dependencies=[dark])
-        sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
-        sl.use_effect(set_yflip, dependencies=[plotstate.flipy.value])
-
-    fig_el = sl.FigurePlotly(figure)
-    add_effects(fig_el)
-
-    return
+    return TargetsDataTable(
+        dff,
+        plotstate.columns.value,
+        items_per_page=10,
+    )
