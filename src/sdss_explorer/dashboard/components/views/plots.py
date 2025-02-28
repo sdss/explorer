@@ -77,45 +77,39 @@ class PlotState:
         # NOTE: this prevents a reactive update to override the initialization prop
         self.subset = sl.use_reactive(current_key)
 
-        if "stats" in plottype:
-            self.columns = sl.use_reactive(["g_mag", "bp_mag"])
-        else:
-            # common plot settings
-            self.x = sl.use_reactive(kwargs.get("x", "snr"))
-            self.flipx = sl.use_reactive(kwargs.get("flipx", ""))
-            self.flipy = sl.use_reactive(kwargs.get("flipy", ""))
+        # subset and type states
+        self.plottype = str(plottype)
+        self.subset = sl.use_reactive(current_key)
 
-            # moderately unique plot parameters/settings
-            if plottype != "histogram":
-                self.y = sl.use_reactive(kwargs.get("y", "g_mag"))
-                self.color = sl.use_reactive(kwargs.get("color", "g_mag"))
-                self.colorscale = sl.use_reactive(
-                    kwargs.get("colorscale", "cividis"))
-            if plottype != "aggregated" and plottype != "skyplot":
-                self.logx = sl.use_reactive(kwargs.get("logx", ""))
-                self.logy = sl.use_reactive(kwargs.get("logy", ""))
-            if plottype in ["scatter", "skyplot"]:
-                self.colorlog = sl.use_reactive(
-                    kwargs.get("colorlog", cast(str, None)))
+        # main settings
+        self.columns = sl.use_reactive(["g_mag", "bp_mag"])
+        self.x = sl.use_reactive(kwargs.get("x", "snr"))
+        self.y = sl.use_reactive(kwargs.get("y", "g_mag"))
+        self.color = sl.use_reactive(kwargs.get("color", "g_mag"))
 
-            # statistics settings
-            if plottype == "heatmap" or plottype == "histogram" or "delta" in plottype:
-                self.nbins = sl.use_reactive(200)
-                if plottype == "heatmap" or plottype == "delta2d":
-                    self.bintype = sl.use_reactive(
-                        kwargs.get("bintype", "mean"))
-                    self.binscale = sl.use_reactive(
-                        kwargs.get("binscale", None))
-                else:
-                    self.bintype = sl.use_reactive(
-                        kwargs.get("bintype", "count"))
+        # categorical data mappings
+        self.xmapping = dict()  # non-reactive
+        self.ymapping = dict()  # non-reactive
 
-            # skyplot settings
-            if plottype == "skyplot":
-                self.geo_coords = sl.use_reactive(
-                    kwargs.get("coords", "celestial"))
-                self.projection = sl.use_reactive(
-                    kwargs.get("projection", "hammer"))
+        # color props
+        self.colormapping = dict()  # non-reactive
+        self.colorscale = sl.use_reactive(kwargs.get("colorscale", "inferno"))
+        self.colorlog = sl.use_reactive(kwargs.get("colorlog", None))
+        self.nbins = sl.use_reactive(200)
+
+        # flips
+        self.flipx = sl.use_reactive(bool(kwargs.get("flipx", "")))
+        self.flipy = sl.use_reactive(bool(kwargs.get("flipy", "")))
+        self.logx = sl.use_reactive(bool(kwargs.get("logx", "")))
+        self.logy = sl.use_reactive(bool(kwargs.get("logy", "")))
+        init_bintype = "mean" if (plottype == "heatmap") else "count"
+        self.bintype = sl.use_reactive(kwargs.get("bintype", init_bintype))
+        # skyplot settings
+        if plottype == "skyplot":
+            self.geo_coords = sl.use_reactive(kwargs.get(
+                "coords", "celestial"))
+            self.projection = sl.use_reactive(
+                kwargs.get("projection", "hammer"))
 
             # delta view settings
             if "delta" in plottype:
@@ -1047,10 +1041,10 @@ def HeatmapPlot(plotstate):
                 },
             )
 
-        binscale = str(plotstate.binscale.value)
-        if binscale == "log1p":
+        colorlog = str(plotstate.colorlog.value)
+        if colorlog == "log1p":
             y = np.log1p(y)
-        elif binscale == "log10":
+        elif colorlog == "log10":
             y = np.log10(y)
 
         # TODO: clean this code
@@ -1062,7 +1056,7 @@ def HeatmapPlot(plotstate):
 
     def set_colorlabel():
         if plotstate.bintype.value == "count":
-            return f"count ({plotstate.binscale.value})"
+            return f"count ({plotstate.colorlog.value})"
         else:
             return f"{plotstate.color.value} ({plotstate.bintype.value})"
 
@@ -1170,7 +1164,7 @@ def HeatmapPlot(plotstate):
                 plotstate.y.value,
                 plotstate.color.value,
                 plotstate.bintype.value,
-                plotstate.binscale.value,
+                plotstate.colorlog.value,
                 plotstate.nbins.value,
             ],
         )
@@ -1772,10 +1766,10 @@ def DeltaHeatmapPlot(plotstate):
 
         y = q[0] - q[1]  # get differences
 
-        binscale = str(plotstate.binscale.value)
-        if binscale == "log1p":
+        colorlog = str(plotstate.colorlog.value)
+        if colorlog == "log1p":
             y = np.log1p(y)
-        elif binscale == "log10":
+        elif colorlog == "log10":
             y = np.log10(y)
 
         # TODO: clean this code
@@ -1787,7 +1781,7 @@ def DeltaHeatmapPlot(plotstate):
 
     def set_colorlabel():
         if plotstate.bintype.value == "count":
-            return f"Delta count ({plotstate.binscale.value})"
+            return f"Delta count ({plotstate.colorlog.value})"
         else:
             return f"Delta {plotstate.color.value} ({plotstate.bintype.value})"
 
@@ -1890,7 +1884,7 @@ def DeltaHeatmapPlot(plotstate):
                 plotstate.y.value,
                 plotstate.color.value,
                 plotstate.bintype.value,
-                plotstate.binscale.value,
+                plotstate.colorlog.value,
                 plotstate.nbins.value,
             ],
         )
