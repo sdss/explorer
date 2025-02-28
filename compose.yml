@@ -12,6 +12,7 @@ services:
     volumes:
       - "/home/riley/projects/explorer/data/:/root/data"
       - "/home/riley/projects/explorer/scratch/:/root/scratch"
+      - "/home/riley/projects/explorer/logs/:/app/logs"
     env_file:
       - .env
     develop:
@@ -28,6 +29,7 @@ services:
             - .venv/
             - data/
             - scratch/
+            - logs/
 
         # Rebuild the image if dependencies change by checking uv.lock
         - action: rebuild

@@ -51,12 +51,10 @@ def get_kernel_id() -> str:
 
 
 def setup_logging(
-    log_path: str = "./logs/",
-    log_file: str = "app.log",
+    log_path: str = "./",
+    log_file: str = "explorerApp.log",
     console_log_level=logging.DEBUG,
     file_log_level=logging.INFO,
-    max_bytes: int = 5 * 1024 * 1024,
-    backup_count: int = 5,
 ):
     """
     Configures the logging system with a rotating file handler.
@@ -85,26 +83,23 @@ def setup_logging(
                 "class": "logging.StreamHandler",
                 "formatter": "standard",
                 "level": console_log_level,
-                #                "filters": ["kernelid"],
             },
-            "rotating_file": {
-                "class": "logging.handlers.RotatingFileHandler",
+            "file": {
+                "class": "logging.FileHandler",
                 "formatter": "standard",
-                "filename": pathjoin(log_path, log_file),
-                "maxBytes": max_bytes,
-                "backupCount": backup_count,
                 "level": file_log_level,
-                #                "filters": ["kernelid"],
+                "filename": pathjoin(log_path, log_file),
+                "mode": "a",
             },
         },
         "loggers": {
             "dashboard": {
-                "handlers": ["console", "rotating_file"],
+                "handlers": ["console", "file"],
                 "level": file_log_level,
                 "propagate": False,
             },
             "server": {
-                "handlers": ["console", "rotating_file"],
+                "handlers": ["console", "file"],
                 "level": file_log_level,
                 "propagate": False,
             },

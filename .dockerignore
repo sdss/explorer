@@ -2,9 +2,13 @@
 .git
 .github
 
-# DO NOT COPY THE DATA
+# DO NOT COPY THE DATA; my personal dir setup
 data/*
 **/data/**
+scratch/*
+**/scratch/**
+logs/*
+**/logs/**
 
 # Ignore any venvs
 .venv

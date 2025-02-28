@@ -263,5 +263,4 @@ def Layout(children):
 
 # app run on module instance
 if __name__ == "__main__":
-    print(__name__)
     Layout(Page())
