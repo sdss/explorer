@@ -72,6 +72,14 @@ def filter_expression(
         if expr in ["", "&", "(", ")", "|"]:
             continue
 
+        # guardrail ace here -- very important
+        illegals = ["eval", "exec", "import", "__main__"]
+        for illegal in illegals:
+            if illegal in expression:
+                logger.critical(
+                    "this user attempted to use ACE-like expressions!")
+                assert False, "Your session and IP has been logged."
+
         parts = re.split(r"(>=|<=|<|>|==|!=)", expr)
         if len(parts) == 1:
             assert False, f"expression {n} is invalid: no comparator"

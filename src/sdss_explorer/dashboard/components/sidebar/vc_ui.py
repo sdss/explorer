@@ -1,10 +1,13 @@
 """User-facing components for virtual columns"""
 
 import solara as sl
+import logging
 import reacton.ipyvuetify as rv
 
 from ...dataclass import State, Alert, VCData
 from ..dialog import Dialog
+
+logger = logging.getLogger("dashboard")
 
 
 @sl.component()
@@ -52,6 +55,14 @@ def VirtualColumnsPanel():
             assert name != "", "no name given"
             assert name not in df.get_column_names(), "name already exists"
             assert expression != "", "no expression set"
+
+            # anti-ace
+            illegals = ["eval", "exec", "import", "__main__"]
+            for illegal in illegals:
+                if illegal in expression:
+                    logger.critical(
+                        "this user attempted to use ACE-like virtual columns!")
+                    assert False, "Your session and IP has been logged."
 
             df.validate_expression(expression)  # ast validation
             assert df[
