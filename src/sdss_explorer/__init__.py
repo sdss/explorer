@@ -2,4 +2,4 @@
 
 __title__ = "sdss_explorer"
 __description__ = "Multi-dimensional parameter explorer for astronomical data."
-__version__ = "0.0.2"
+__version__ = "0.1.0"
