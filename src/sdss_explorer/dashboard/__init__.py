@@ -38,14 +38,14 @@ DEV = settings.dev or (sl.server.settings.main.mode == "production")
 setup_logging(
     log_path=settings.logpath,
     console_log_level=logging.DEBUG if DEV else logging.ERROR,
-    file_log_level=logging.DEBUG
-    if DEV else logging.INFO,  # TODO: discuss logging setup
+    file_log_level=logging.DEBUG if DEV else logging.INFO,
 )
 
 logger = logging.getLogger("dashboard")
 
 
 def on_start():
+    """Startup function, runs on every kernel instance startup and sets (some) unique sesion parameters."""
     # set session identifiers
     State._uuid.set(sl.get_session_id())
     State._kernel_id.set(sl.get_kernel_id())
@@ -74,9 +74,7 @@ def Page() -> None:
     """
     Main initialize function.
 
-    Returns
-    -------
-    None
+    Returns:
         Implicitly returns entire app as ValueElement.
     """
     df = State.df.value
@@ -86,26 +84,29 @@ def Page() -> None:
     router = sl.use_router()
 
     def initialize():
-        """Reads query params and sets initial dataframe state. Adds subset or plot as requested from query params."""
-        """
-        Expected format is:
-            app properties:
-                - release: data release, set by zora
-                - datatype: star or visit
-            subset properties:
-                - dataset: the dataset to load
-                - expression: an expression, use .and. in place of '&'
-                - mapper: the mappers to init the subset with
-                - carton: the cartons to init the subset with
-                - flags: the flags to init the subset with
-            first plot properties:
-                - plottype: scatter,histogram,heatmap,skyplot,stats
-                - x: main x data, any column in given dataset
-                - y: main y data, any column in given dataset
-                - color: main color data, any column in given dataset
-                - colorscale: colorscale
-                - coords: galactic, celestial; used in skyplot
-                - projection: type of projection for skyplot (i.e. hammer, mollweide, aitoff)
+        """Reads query params and sets initial dataframe state. Adds subset or plot as requested from query params.
+
+        Note:
+            Expected format is:
+                app properties:
+                    - release: data release, set by zora
+                    - datatype: star or visit
+                subset properties:
+                    - dataset: the dataset to load
+                    - expression: an expression, use .and. in place of '&'
+                    - mapper: the mappers to init the subset with
+                    - carton: the cartons to init the subset with
+                    - flags: the flags to init the subset with
+                first plot properties:
+                    - plottype: scatter,histogram,heatmap,skyplot,stats
+                    - x: main x data, any column in given dataset
+                    - y: main y data, any column in given dataset
+                    - color: main color data, any column in given dataset
+                    - colorlog: whether log color, either None (not ''), 'log10', or 'log1p'
+                    - bintype: aggregation type. any of mean, min, max, median.
+                    - colorscale: colorscale, see plotly colormaps for valids
+                    - coords: galactic, celestial; used in skyplot
+                    - projection: type of projection for skyplot (i.e. hammer, mollweide, aitoff)
         """
         # unwrap query_params
         query_params = parse_qs(router.search, keep_blank_values=True)
