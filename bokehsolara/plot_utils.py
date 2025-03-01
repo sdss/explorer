@@ -317,12 +317,16 @@ def add_callbacks(
             from state import df
 
             if plotstate.plottype == "histogram":
-                data = source.data["centers"].slice(min(new),
-                                                    max(new) - min(new))
-                col = plotstate.x.value
-                xmin = np.nanmin(data)
-                xmax = np.nanmax(data)
-                set_filter(df[f"(({col}>={xmin})&({col}<={xmax}))"])
+                if check_categorical(plotstate.x.value):
+                    data = source.data["centers"][new]
+                    dataExpr = dff[plotstate.x.value].map(plotstate.xmapping)
+                    set_filter(dataExpr.isin(data))
+                else:
+                    data = source.data["centers"][new]
+                    col = plotstate.x.value
+                    xmin = np.nanmin(data)
+                    xmax = np.nanmax(data)
+                    set_filter(df[f"(({col}>={xmin})&({col}<={xmax}))"])
 
             elif plotstate.plottype == "heatmap":
                 datax = source.data["x"][new]
@@ -340,12 +344,9 @@ def add_callbacks(
             elif plotstate.plottype == "scatter":
                 datax = source.data["x"].slice(min(new), max(new) - min(new))
                 datay = source.data["y"].slice(min(new), max(new) - min(new))
-                print("slice", datax)
-                print("slice", datay)
                 colx = plotstate.x.value
                 coly = plotstate.y.value
                 newfilter = (df[colx].isin(datax)) & (df[coly].isin(datay))
-                print("newfilter", newfilter)
                 set_filter(newfilter)
         else:
             set_filter(None)

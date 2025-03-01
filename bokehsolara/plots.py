@@ -117,6 +117,26 @@ def HistogramPlot(plotstate: PlotState) -> ValueElement:
 
     p = sl.use_memo(create_figure, dependencies=[])
 
+    # workaround to have the reset ranges be the ranges of dff
+    def add_reset_callback():
+        # WARNING: temp method until Bokeh adds method for remove_on_event
+        def on_reset(attr, old, new):
+            """Range resets"""
+
+            with p.hold(render=True):
+                reset_range(plotstate, p, dff, axis="x")
+                reset_range(plotstate, p, dff, axis="y")
+
+        p.on_change("name", on_reset)
+
+        # dump on regeneration
+        def cleanup():
+            p.remove_on_change("name", on_reset)
+
+        return cleanup
+
+    sl.use_effect(add_reset_callback, dependencies=[dff])
+
     pfig = FigureBokeh(p, dark_theme=DARKTHEME, light_theme=LIGHTTHEME)
     add_histogram_effects(pfig, plotstate, dff, filter)
     add_common_effects(pfig, plotstate, dff, layout)
@@ -196,6 +216,26 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
         return p
 
     p = sl.use_memo(create_figure, dependencies=[])
+
+    # workaround to have the reset ranges be the ranges of dff
+    def add_reset_callback():
+        # WARNING: temp method until Bokeh adds method for remove_on_event
+        def on_reset(attr, old, new):
+            """Range resets"""
+
+            with p.hold(render=True):
+                reset_range(plotstate, p, dff, axis="x")
+                reset_range(plotstate, p, dff, axis="y")
+
+        p.on_change("name", on_reset)
+
+        # dump on regeneration
+        def cleanup():
+            p.remove_on_change("name", on_reset)
+
+        return cleanup
+
+    sl.use_effect(add_reset_callback, dependencies=[dff])
 
     pfig = FigureBokeh(p, dark_theme=DARKTHEME, light_theme=LIGHTTHEME)
     add_heatmap_effects(pfig, plotstate, dff, filter)
@@ -374,6 +414,7 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
 
     dfe = sl.use_memo(_get_dfe, dependencies=[filter])
 
+    # workaround to make reset button aware of dff bounds
     # NOTE:reset callback must be aware of what dfe is and dump as necessary
     def add_reset_callback():
         # WARNING: temp method until Bokeh adds method for remove_on_event
@@ -381,9 +422,9 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
             """Range resets"""
 
             with p.hold(render=True):
-                xstart, xend = reset_range(plotstate, p, dfe, axis="x")
-                ystart, yend = reset_range(plotstate, p, dfe, axis="y")
-                set_ranges([[xstart, xend], [ystart, yend]])
+                reset_range(plotstate, p, dfe, axis="x")
+                reset_range(plotstate, p, dfe, axis="y")
+                set_ranges([[np.nan, np.nan], [np.nan, np.nan]])
 
         p.on_change("name", on_reset)
 
