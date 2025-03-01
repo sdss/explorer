@@ -53,6 +53,8 @@ def add_common_effects(
         layout: grid layout dictionary for the card. used for triggering height effect
     """
 
+    # TODO: add df to certain callbacks
+
     def update_logx():
         """X-axis log scale callback"""
         fig_widget: BokehModel = sl.get_widget(pfig)
@@ -63,7 +65,7 @@ def add_common_effects(
                 fig_model.x_scale = fig_model.extra_x_scales["log"]
             else:
                 fig_model.x_scale = fig_model.extra_x_scales["lin"]
-            change_formatter(plotstate, fig_model, axis="x")
+            change_formatter(plotstate, fig_model, dff, axis="x")
             update_label(plotstate, fig_model, axis="x")
             reset_range(plotstate, fig_model, dff, axis="x")
 
@@ -82,7 +84,7 @@ def add_common_effects(
                 fig_model.y_scale = fig_model.extra_y_scales["log"]
             else:
                 fig_model.y_scale = fig_model.extra_y_scales["lin"]
-            change_formatter(plotstate, fig_model, axis="y")
+            change_formatter(plotstate, fig_model, dff, axis="y")
             update_label(plotstate, fig_model, axis="y")
             reset_range(plotstate, fig_model, dff, axis="y")
 
@@ -139,10 +141,8 @@ def add_common_effects(
 def add_scatter_effects(
     pfig: rv.ValueElement,
     plotstate: PlotState,
-    dff,
+    dff: vx.DataFrame,
     filter,
-    local_filter,
-    debounced_local_filter,
 ) -> None:
     """Scatter-glyph specific effects
 
@@ -152,6 +152,8 @@ def add_scatter_effects(
         dff: filtered dataframe
         filter: filter object, for use in triggering effects
     """
+
+    # TODO: add df to certain callbacks
 
     def update_x():
         fig_widget: BokehModel = sl.get_widget(pfig)
@@ -189,19 +191,18 @@ def add_scatter_effects(
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
-            alls = [filter]
-            if debounced_local_filter.value == local_filter.value:
-                alls.append(debounced_local_filter)
-            filters = [f for f in alls if f is not None]
-            if filters:
-                fig_model.renderers[0].view.filter.booleans = (reduce(
-                    operator.and_, filters[1:],
-                    filters).values.to_numpy().astype("bool"))
-            else:
-                fig_model.renderers[0].view.filter.booleans = None
+            if dff is not None:
+                x = fetch_data(plotstate, dff, axis="x")
+                y = fetch_data(plotstate, dff, axis="y")
+                color = fetch_data(plotstate, dff, axis="color")
+                fig_model.renderers[0].data_source.data = dict(
+                    x=x.values,
+                    y=y.values,
+                    color=color.values,
+                    sdss_id=dff["sdss_id"].values,
+                )
 
-    sl.use_effect(update_filter,
-                  dependencies=[dff, filter, debounced_local_filter.finished])
+    sl.use_effect(update_filter, dependencies=[dff])
     sl.use_effect(update_x, dependencies=[plotstate.x.value])
     sl.use_effect(update_y, dependencies=[plotstate.y.value])
     sl.use_effect(
@@ -222,66 +223,73 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
         filter: filter object, for use in triggering effects
     """
 
+    # TODO: add df to certain callbacks
+
     def update_data():
         """X/Y/Color data column change update"""
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
-            try:
-                assert len(dff) > 0
-                color, x_centers, y_centers, widths = aggregate_data(
-                    plotstate, dff)
-            except Exception as e:
-                logger.debug("0 length, leaving")
-                print("exception on update_data", e)
-                # TODO: Alert.update('Your data is too small to aggregate! Not updating.',color='warning')
-                return
-            with fig_model.hold(render=True):
-                source = fig_model.renderers[0].data_source
-                fill_color = fig_model.renderers[0].glyph.fill_color
-                source.data = {
-                    "x": np.repeat(x_centers, len(y_centers)),
-                    "y": np.tile(y_centers, len(x_centers)),
-                    "color": color.flatten(),
-                }
-                # NOTE: you have to remake the glyph because the height/width prop doesn't update on the render
-                glyph = Rect(
-                    x="x",
-                    y="y",
-                    width=widths[0],
-                    height=widths[1],
-                    dilate=True,
-                    line_color=None,
-                    fill_color=fill_color,
-                )
-                fig_model.add_glyph(source, glyph)
-                fig_model.renderers = fig_model.renderers[1:]
-                for axis in ("x", "y"):
-                    update_label(plotstate, fig_model,
-                                 axis=axis)  # update all labels
-                    reset_range(plotstate, fig_model, dff, axis=axis)
-                update_tooltips(plotstate, fig_model)
+            if dff is not None:
+                try:
+                    assert len(dff) > 0
+                    color, x_centers, y_centers, widths = aggregate_data(
+                        plotstate, dff)
+                except Exception as e:
+                    logger.debug("0 length, leaving")
+                    print("exception on update_data", e)
+                    # TODO: Alert.update('Your data is too small to aggregate! Not updating.',color='warning')
+                    return
+                with fig_model.hold(render=True):
+                    source = fig_model.renderers[0].data_source
+                    fill_color = fig_model.renderers[0].glyph.fill_color
+                    source.data = {
+                        "x": np.repeat(x_centers, len(y_centers)),
+                        "y": np.tile(y_centers, len(x_centers)),
+                        "color": color.flatten(),
+                    }
+                    # NOTE: you have to remake the glyph because the height/width prop doesn't update on the render
+                    glyph = Rect(
+                        x="x",
+                        y="y",
+                        width=widths[0],
+                        height=widths[1],
+                        dilate=True,
+                        line_color=None,
+                        fill_color=fill_color,
+                    )
+                    fig_model.add_glyph(source, glyph)
+                    fig_model.renderers = fig_model.renderers[1:]
+
+                    # update all labels, ranges, etc
+                    for axis in ("x", "y"):
+                        update_label(plotstate, fig_model, axis=axis)
+                        reset_range(plotstate, fig_model, dff, axis=axis)
+                    update_color_mapper(plotstate, fig_model, dff, color)
+                    update_tooltips(plotstate, fig_model)
 
     def update_color():
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
-            try:
-                color = aggregate_data(plotstate, dff)[0]
-            except AssertionError:
-                logger.debug("attempted exit, leaving")
-                # TODO: Alert.update('Your data is too small to aggregate! Not updating.',color='warning')
-                return
-            with fig_model.hold(render=True):
-                fig_model.renderers[0].data_source.data[
-                    "color"] = color.flatten()
-                update_color_mapper(plotstate, fig_model, color)
-                change_formatter(plotstate,
-                                 fig_model,
-                                 axis="color",
-                                 color=color)
-                update_label(plotstate, fig_model, axis="color")
-                update_tooltips(plotstate, fig_model)
+            if dff is not None:
+                try:
+                    color = aggregate_data(plotstate, dff)[0]
+                except AssertionError:
+                    logger.debug("attempted exit, leaving")
+                    # TODO: Alert.update('Your data is too small to aggregate! Not updating.',color='warning')
+                    return
+                with fig_model.hold(render=True):
+                    fig_model.renderers[0].data_source.data[
+                        "color"] = color.flatten()
+                    update_color_mapper(plotstate, fig_model, dff, color)
+                    change_formatter(plotstate,
+                                     fig_model,
+                                     dff,
+                                     axis="color",
+                                     color=color)
+                    update_label(plotstate, fig_model, axis="color")
+                    update_tooltips(plotstate, fig_model)
 
     def update_cmap():
         """Colormap update effect"""
@@ -290,6 +298,8 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
             fig_model: Plot = fig_widget._model
             fig_model.right[
                 0].color_mapper.palette = plotstate.colorscale.value
+            fig_model.renderers[
+                0].glyph.fill_color.transform.palette = plotstate.colorscale.value
 
     sl.use_effect(
         update_data,
@@ -322,20 +332,21 @@ def add_histogram_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
         filter: filter object, for use in triggering effects
     """
 
+    # TODO: add df to certain callbacks
+
     def update_data():
         """X/Y/Color data column change update"""
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
-            if check_categorical(dff[plotstate.x.value]):
-                update_mapping(plotstate, axis="x")
             try:
-                assert len(dff) > 0
+                if check_categorical(dff[plotstate.x.value]):
+                    update_mapping(plotstate, axis="x")
+                assert len(dff) > 0, "zero length dataframe"
                 centers, edges, counts = aggregate_data(plotstate, dff)
             except Exception as e:
-                logger.debug("0 length, leaving")
                 print("exception on update_data", e)
-                # TODO: Alert.update('Your data is too small to aggregate! Not updating.',color='warning')
+                # TODO: Alert.update('Data update failed! {e}',color='warning')
                 return
             with fig_model.hold(render=True):
                 fig_model.renderers[0].data_source.data = {
@@ -348,6 +359,7 @@ def add_histogram_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
                     update_label(plotstate, fig_model,
                                  axis=axis)  # update all labels
                     reset_range(plotstate, fig_model, dff, axis=axis)
+                change_formatter(plotstate, fig_model, dff, axis="x")
                 update_tooltips(plotstate, fig_model)
 
     sl.use_effect(

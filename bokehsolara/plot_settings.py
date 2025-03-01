@@ -61,10 +61,8 @@ def show_settings(type, state):
 
 def debounce(value, sleep: float = 0.1):
     """Generates a debouncer function"""
-    print("generating debouncer")
 
     async def debouncer():
-        print("debouncing")
         await asyncio.sleep(sleep)
         return value
 

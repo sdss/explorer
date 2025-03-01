@@ -6,7 +6,7 @@ df = vx.open(
     "/home/riley/projects/explorer/data/ipl3/explorerAllStar-0.6.0.hdf5"
 )  # vx.example()[:30_000]
 df = df[df["pipeline"] == "best"]
-df = df.copy().extract()
+df = df.copy().extract().materialize()
 # data = np.array(["foo" if i < len(df) // 2 else "bar" for i in range(len(df))])
 # data[:10_000] = "teodddd"
 # data2 = np.array(
@@ -38,7 +38,11 @@ class GridState:
 class PlotState:
     """
     Combination of reactive states which instantiate a specific plot's settings/properties.
-    Initializes based on keyword arguments.
+
+    Initializes based on keyword arguments, which are passed via plot creation methods in the ViewCard/GridLayout.
+
+    Attributes:
+        plottype(str): the plottype; non-reactive and unchanging
     """
 
     def __init__(self, plottype, current_key, **kwargs):
@@ -60,21 +64,17 @@ class PlotState:
         self.colorscale = sl.use_reactive(
             kwargs.get("colorscale", "Inferno256"))
         self.logcolor = sl.use_reactive(kwargs.get("logcolor", False))
-        self.nbins = sl.use_reactive(200)
 
-        # flips
+        # binning props
+        self.nbins = sl.use_reactive(200)
+        init_bintype = "mean" if (plottype == "heatmap") else "count"
+        self.bintype = sl.use_reactive(kwargs.get("bintype", init_bintype))
+
+        # flips and logs
         self.flipx = sl.use_reactive(bool(kwargs.get("flipx", "")))
         self.flipy = sl.use_reactive(bool(kwargs.get("flipy", "")))
         self.logx = sl.use_reactive(bool(kwargs.get("logx", "")))
         self.logy = sl.use_reactive(bool(kwargs.get("logy", "")))
-        init_bintype = "mean" if (plottype == "heatmap") else "count"
-        self.bintype = sl.use_reactive(kwargs.get("bintype", init_bintype))
-        # skyplot settings
-        if plottype == "skyplot":
-            self.geo_coords = sl.use_reactive(kwargs.get(
-                "coords", "celestial"))
-            self.projection = sl.use_reactive(
-                kwargs.get("projection", "hammer"))
 
         # all lookup data for plottypes
         # TODO: move this lookup data elsewhere to reduce the size of the plotstate objects
@@ -90,7 +90,7 @@ class PlotState:
                 "cov",
                 "covar",
             ],
-            colorscales=colormaps,
+            colorscales=[map for map in colormaps if "256" in map],
             projections=[
                 "albers",
                 "aitoff",

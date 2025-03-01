@@ -2,6 +2,7 @@
 
 import asyncio
 from reacton.ipyvuetify import ValueElement
+from functools import reduce
 import operator
 import numpy as np
 import solara as sl
@@ -36,6 +37,7 @@ from plot_effects import (
     add_common_effects,
 )
 from plot_actions import (
+    reset_range,
     aggregate_data,
     fetch_data,
     update_tooltips,
@@ -68,7 +70,13 @@ def HistogramPlot(plotstate: PlotState) -> ValueElement:
         dff = df
 
     def generate_cds():
-        centers, edges, counts = aggregate_data(plotstate, dff)
+        try:
+            centers, edges, counts = aggregate_data(plotstate, dff)
+        except Exception as e:
+            # Alert.update('Failed to initialize! {e}. Using dummy data.')
+            centers = [0, 1, 2]
+            edges = [0, 1, 2, 3]
+            counts = [0, 0, 0]
         return ColumnDataSource(
             data={
                 "centers": centers,
@@ -137,7 +145,12 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
         dff = df
 
     def generate_cds():
-        color, x_centers, y_centers, _ = aggregate_data(plotstate, dff)
+        try:
+            color, x_centers, y_centers, _ = aggregate_data(plotstate, dff)
+        except Exception:
+            x_centers = [0, 1, 2, 3]
+            y_centers = [0, 1, 2, 3]
+            color = np.zeros((4, 4))
         return ColumnDataSource(
             data={
                 "x": np.repeat(x_centers, len(y_centers)),
@@ -159,7 +172,7 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
         p.center[0].grid_line_color = None
         p.center[1].grid_line_color = None
 
-        mapper = generate_color_mapper(plotstate, z=source.data["color"])
+        mapper = generate_color_mapper(plotstate, color=source.data["color"])
         # generate rectangles
         glyph = Rect(
             x="x",
@@ -195,8 +208,7 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
     filter, set_filter = sl.use_cross_filter(id(df), name="scatter")
     i = sl.use_context(index_context)
     layout, set_layout = sl.use_state({"w": 6, "h": 10, "i": i})
-
-    from functools import reduce
+    ranges, set_ranges = sl.use_state([[np.nan, np.nan], [np.nan, np.nan]])
 
     def update_grid():
         # fetch from gridstate
@@ -207,23 +219,107 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
 
     sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
 
+    def update_filter():
+        print("updating local filter")
+        xfilter = None
+        yfilter = None
+
+        try:
+            lims = np.array(ranges[0])
+            assert not np.all(lims == np.nan)
+            xmax = np.nanmax(lims)
+            xmin = np.nanmin(lims)
+            xfilter = df[
+                f"(({plotstate.x.value} > {xmin}) & ({plotstate.x.value} < {xmax}))"]
+        except Exception as e:
+            print("first", e)
+            pass
+        try:
+            lims = np.array(ranges[1])
+            assert not np.all(lims == np.nan)
+            ymax = np.nanmax(lims)
+            ymin = np.nanmin(lims)
+            yfilter = df[
+                f"(({plotstate.y.value} > {ymin}) & ({plotstate.y.value} < {ymax}))"]
+
+        except Exception as e:
+            print("second", e)
+            pass
+        if xfilter is not None and yfilter is not None:
+            filters = [xfilter, yfilter]
+        else:
+            filters = [xfilter if xfilter is not None else yfilter]
+        combined = reduce(operator.and_, filters[1:], filters[0])
+        print("combined", combined)
+        return combined
+
+    # if start changes end changes too (likely)
+    local_filter = sl.use_memo(update_filter,
+                               dependencies=[ranges[0], ranges[1]])
+
+    async def debounced_filter():
+        print("filtering debounce")
+        await asyncio.sleep(0.05)
+        return local_filter
+
+    debounced_local_filter = sl.lab.use_task(debounced_filter,
+                                             dependencies=[local_filter],
+                                             prefer_threaded=False)
+
+    def get_dff():
+        filters = []
+        if debounced_local_filter.finished:
+            if debounced_local_filter.value == local_filter:
+                if debounced_local_filter.value is not None:
+                    filters.append(debounced_local_filter.value)
+                    print("added debounce local")
+        if filter is not None:
+            filters.append(filter)
+            print("added cross")
+        if filters:
+            total_filter = reduce(operator.and_, filters[1:], filters[0])
+            print("returning filtered")
+            dfe = df[total_filter]
+        else:
+            print("returning normal")
+            dfe = df
+        try:
+            if len(dfe) > 10001:  # bugfix
+                print("returing sliced")
+                return dfe[:10_000]
+            else:
+                print("returing as is")
+                return dfe
+        except Exception:
+            return dfe
+
+    dff = sl.use_memo(
+        get_dff, dependencies=[df, filter, debounced_local_filter.finished])
+
     def generate_cds():
-        source = ColumnDataSource(
-            data={
-                "x": fetch_data(plotstate, df, "x").values,
-                "y": fetch_data(plotstate, df, "y").values,
-                "color": fetch_data(plotstate, df, "color").values,
-                "sdss_id": df["sdss_id"].values,  # temp
-            })
+        try:
+            assert len(dff) > 0, "zero data in subset!"
+            x = fetch_data(plotstate, dff, "x").values
+            y = fetch_data(plotstate, dff, "y").values
+            color = fetch_data(plotstate, dff, "color").values
+            sdss_id = dff["sdss_id"].values
+        except Exception as e:
+            print("scatter init", e)
+            # Alert.update('Failed to initialize plot! {e} Using dummy data')
+            x = [1, 2, 3, 4]
+            y = [1, 2, 3, 4]
+            color = [1, 2, 3, 4]
+            sdss_id = [1, 2, 3, 4]
+        source = ColumnDataSource(data={
+            "x": x,
+            "y": y,
+            "color": color,
+            "sdss_id": sdss_id,
+        })
         return source
 
     source = sl.use_memo(
         generate_cds,
-        dependencies=[],
-    )
-    view = sl.use_memo(
-        lambda: CDSView(filter=BooleanFilter(filter.values.to_numpy().astype(
-            "bool") if filter is not None else None)),
         dependencies=[],
     )
 
@@ -234,7 +330,7 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
         add_axes(plotstate, p)
 
         # generate scatter points and colorbar
-        mapper = generate_color_mapper(plotstate)
+        mapper = generate_color_mapper(plotstate, dff=dff)
 
         # add glyph
         glyph = Scatter(x="x",
@@ -244,14 +340,23 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
                             "field": "color",
                             "transform": mapper
                         })
-        gr = p.add_glyph(source, glyph, view=view)
-        # gr.view = view
+        p.add_glyph(source, glyph)
         add_colorbar(plotstate, p, mapper, source.data["color"])
 
         # add all tools; custom hoverinfo
         add_all_tools(p)
         update_tooltips(plotstate, p)
-        add_callbacks(plotstate, df, p, source, set_filter=set_filter)
+        add_callbacks(plotstate, dff, p, source, set_filter=set_filter)
+
+        # add our special range callback for adaptive rerenders
+        def on_range_update(event):
+            print("range update ocurring")
+            print(event)
+            set_ranges([[event.x0, event.x1], [event.y0, event.y1]])
+
+        from bokeh.events import RangesUpdate
+
+        p.on_event(RangesUpdate, on_range_update)
 
         return p
 
@@ -260,54 +365,35 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
         dependencies=[],
     )
 
-    # NOTE: adaptive updates done AFTER definition of p
-    def update_filter():
-        xfilter = None
-        yfilter = None
+    # externally filtered df onlu
+    # NOTE: this is different from dff, which is the fully filtered one
+    def _get_dfe():
+        if filter is not None:
+            return df[filter]
+        return df
 
-        try:
-            lims = np.array([p.x_range.start, p.x_range.end])
-            assert not np.all(lims == np.nan)
-            xmax = np.nanmax(lims)
-            xmin = np.nanmin(lims)
-            if plotstate.logx.value:
-                xmin = 10**xmin
-                xmax = 10**xmax
-            xfilter = df[
-                f"(({plotstate.x.value} > {xmin}) & ({plotstate.x.value} < {xmax}))"]
-        except Exception:
-            pass
-        try:
-            lims = np.array([p.y_range.start, p.y_range.end])
-            assert not np.all(lims == np.nan)
-            ymax = np.nanmax(lims)
-            ymin = np.nanmin(lims)
-            if plotstate.logy.value:
-                ymin = 10**ymin
-                ymax = 10**ymax
-            yfilter = df[
-                f"(({plotstate.y.value} > {ymin}) & ({plotstate.y.value} < {ymax}))"]
+    dfe = sl.use_memo(_get_dfe, dependencies=[filter])
 
-        except Exception:
-            pass
-        if xfilter is not None and yfilter is not None:
-            filters = [xfilter, yfilter]
-        else:
-            filters = [xfilter if xfilter is not None else yfilter]
-        combined = reduce(operator.and_, filters[1:], filters[0])
-        return combined
+    # NOTE:reset callback must be aware of what dfe is and dump as necessary
+    def add_reset_callback():
+        # WARNING: temp method until Bokeh adds method for remove_on_event
+        def on_reset(attr, old, new):
+            """Range resets"""
 
-    # if start changes end changes too (likely)
-    local_filter = sl.use_memo(update_filter,
-                               dependencies=[p.x_range.start, p.y_range.start])
+            with p.hold(render=True):
+                xstart, xend = reset_range(plotstate, p, dfe, axis="x")
+                ystart, yend = reset_range(plotstate, p, dfe, axis="y")
+                set_ranges([[xstart, xend], [ystart, yend]])
 
-    async def debounced_filter():
-        await asyncio.sleep(0.1)
-        return local_filter
+        p.on_change("name", on_reset)
 
-    debounced_local_filter = sl.lab.use_task(debounced_filter,
-                                             dependencies=[local_filter],
-                                             prefer_threaded=False)
+        # dump on regeneration
+        def cleanup():
+            p.remove_on_change("name", on_reset)
+
+        return cleanup
+
+    sl.use_effect(add_reset_callback, dependencies=[dfe])
 
     pfig = FigureBokeh(
         p,
@@ -316,7 +402,6 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
         light_theme=LIGHTTHEME,
     )
 
-    add_scatter_effects(pfig, plotstate, df, filter, local_filter,
-                        debounced_local_filter)
-    add_common_effects(pfig, plotstate, df, layout)
+    add_scatter_effects(pfig, plotstate, dff, filter)
+    add_common_effects(pfig, plotstate, dff, layout)
     return pfig
