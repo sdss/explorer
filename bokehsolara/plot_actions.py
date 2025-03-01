@@ -374,24 +374,27 @@ def aggregate_data(
         edges = [[], []]
         shape = [plotstate.nbins.value, plotstate.nbins.value]
         widths = [1, 1]
+        limits = [None, None]
         for i in range(2):
             col = (plotstate.x.value, plotstate.y.value)[i]
             if check_categorical(dff[col]):
                 edges[i] = expr[i].unique(array_type="numpy")
                 shape[i] = len(edges[i])
+                limits[i] = [0, expr[i].nunique()]
                 widths[i] = 1
             else:
                 try:
-                    limits = expr[i].minmax()
+                    limit = expr[i].minmax()
                 except Exception:  # stride bug catch
-                    limits = [expr[i].min()[()], expr[i].max()[()]]
+                    limit = [expr[i].min()[()], expr[i].max()[()]]
                 edges[i] = dff.bin_centers(
                     expression=expr[i],
-                    limits=limits,
+                    limits=limit,
                     shape=plotstate.nbins.value,
                 )
+                limits[i] = limit
                 shape[i] = plotstate.nbins.value
-                widths[i] = (limits[1] - limits[0]) / shape[i]
+                widths[i] = (limit[1] - limit[0]) / shape[i]
 
         # pull the aggregation function pointer and call it with our kwargs
         if bintype == "median":
@@ -401,7 +404,7 @@ def aggregate_data(
         color = aggFunc(
             expression=expr_c if bintype != "count" else None,
             binby=expr,
-            # limits=limits,
+            limits=limits,
             shape=shape,
             delay=True,
         )
