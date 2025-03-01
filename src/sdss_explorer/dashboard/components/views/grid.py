@@ -207,20 +207,9 @@ def ObjectGrid():
                                     on_click=lambda: add_view("scatter"),
                                 ),
                                 sl.Button(
-                                    label="skyplot",
-                                    on_click=lambda: add_view("skyplot"),
-                                ),
-                                sl.Button(
                                     label="targets",
                                     on_click=lambda: add_view("targets"),
                                 ),
-                                # TODO: fix delta2d
-                                # BUG: delta2d is currently broken in many ways i need to fix
-                                # sl.Button(
-                                #    label="delta2d",
-                                #    on_click=lambda: add_view("delta2d"),
-                                #    disabled=True if n_subsets <= 1 else False,
-                                # ),
                             ]
             rv.Spacer()
 
