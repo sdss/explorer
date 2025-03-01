@@ -125,45 +125,6 @@ def CommonSettings(plotstate: PlotState) -> ValueElement:
 
 
 @sl.component()
-def SkymapMenu(plotstate, columns):
-    """Settings for SkymapPlot"""
-
-    with sl.Column():
-        with Card(margin=0):
-            with sl.Column():
-                sl.ToggleButtonsSingle(value=plotstate.geo_coords,
-                                       values=["celestial", "galactic"])
-                SingleAutocomplete(
-                    label="Projection",
-                    value=plotstate.projection.value,
-                    on_value=plotstate.projection.set,
-                    values=plotstate.Lookup["projections"],
-                )
-        with Card(margin=0):
-            with sl.Column():
-                SingleAutocomplete(
-                    label="Color",
-                    values=columns,
-                    value=plotstate.color.value,
-                    on_value=plotstate.color,
-                )
-            with sl.Row():
-                SingleAutocomplete(
-                    label="Colorscale",
-                    values=list(plotstate.Lookup["colorscales"].keys()),
-                    value=plotstate.colorscale.value,
-                    on_value=plotstate.colorscale.set,
-                )
-                SingleAutocomplete(
-                    label="Color log",
-                    values=plotstate.Lookup["binscales"],
-                    value=plotstate.logcolor.value,
-                    on_value=plotstate.logcolor.set,
-                    # allow_none=True,
-                )
-
-
-@sl.component()
 def ScatterMenu(plotstate, columns):
     """Settings for ScatterPlot"""
     with sl.Column() as main:
@@ -234,12 +195,6 @@ def HistogramMenu(plotstate, columns):
                 step=10,
                 min=10,
                 max=1000,
-            )
-            SingleAutocomplete(
-                label="Bintype",
-                values=plotstate.Lookup["bintypes"],
-                value=plotstate.bintype.value,
-                on_value=plotstate.bintype.set,
             )
 
 
@@ -324,106 +279,3 @@ def StatisticsTableMenu(state):
             multiple=True,
         )
     return
-
-
-@sl.component()
-def DeltaHeatmapMenu(plotstate):
-    """Settings for DeltaHeatmapPlot"""
-    columns = (list(VCData.columns.value.keys()) +
-               SubsetState.subsets.value[plotstate.subset.value].columns)
-    sl.lab.use_task(
-        plotstate.reset_values,
-        dependencies=[
-            len(SubsetState.subsets.value),
-            SubsetState.subsets.value,
-        ],
-    )
-    name_a = SubsetState.subsets.value[plotstate.subset.value].name
-    name_b = SubsetState.subsets.value[plotstate.subset_b.value].name
-    names = SubsetState.subsets.value.keys()
-
-    with Card(margin=0):
-        with sl.Columns([3, 3, 1]):
-            SingleAutocomplete(
-                label="Subset 1",
-                values=[n for n in names if n != name_b],
-                value=name_a,
-                on_value=plotstate.update_subset,
-            )
-            SingleAutocomplete(
-                label="Subset 2",
-                values=[n for n in names if n != name_a],
-                value=name_b,
-                on_value=lambda *args: plotstate.update_subset(*args, b=True),
-            )
-            sl.Button(
-                icon=True,
-                icon_name="mdi-swap-horizontal",
-                on_click=plotstate.swap_subsets,
-            )
-
-    with sl.Columns([1, 1]):
-        with Card(margin=0):
-            with Columns([3, 3, 1], gutters_dense=True):
-                with sl.Column():
-                    SingleAutocomplete(
-                        label="Column x",
-                        values=[
-                            col for col in columns if col != plotstate.y.value
-                        ],
-                        value=plotstate.x.value,
-                        on_value=plotstate.x.set,
-                    )
-                with sl.Column():
-                    SingleAutocomplete(
-                        label="Column y",
-                        values=[
-                            col for col in columns if col != plotstate.x.value
-                        ],
-                        value=plotstate.y.value,
-                        on_value=plotstate.y.set,
-                    )
-                sl.Button(
-                    icon=True,
-                    icon_name="mdi-swap-horizontal",
-                    on_click=plotstate.swap_axes,
-                )
-            SingleAutocomplete(
-                label="Colorscale",
-                values=list(plotstate.Lookup["colorscales"].keys()),
-                value=plotstate.colorscale.value,
-                on_value=plotstate.colorscale.set,
-            )
-            with Columns([1, 1]):
-                with sl.Column():
-                    sl.Switch(label="Flip y", value=plotstate.flipy)
-                with sl.Column():
-                    sl.Switch(label="Flip x", value=plotstate.flipx)
-        with Card(margin=0):
-            sl.SliderInt(
-                label="Number of Bins",
-                value=plotstate.nbins,
-                step=2,
-                min=2,
-                max=500,
-            )
-            SingleAutocomplete(
-                label="Binning type",
-                values=plotstate.Lookup["bintypes"],
-                value=plotstate.bintype.value,
-                on_value=plotstate.bintype.set,
-            )
-            if str(plotstate.bintype.value) != "count":
-                SingleAutocomplete(
-                    label="Column to Bin",
-                    values=columns,
-                    value=plotstate.color.value,
-                    on_value=plotstate.color.set,
-                )
-            SingleAutocomplete(
-                label="Binning scale",
-                values=plotstate.Lookup["binscales"],
-                value=plotstate.binscale.value,
-                on_value=plotstate.binscale.set,
-                # allow_none=True,
-            )
