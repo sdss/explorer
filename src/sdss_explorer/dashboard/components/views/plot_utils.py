@@ -319,68 +319,11 @@ def add_callbacks(
 
     source.selected.on_change("indices", on_select)
 
-    # selection callback to update the filter object
-    def propogate_select_to_filter(attr, old, new):
-        if len(new) > 0:
-            df = State.df.value
-
-            if plotstate.plottype == "histogram":
-                if check_categorical(plotstate.x.value):
-                    data = source.data["centers"][new]
-                    dataExpr = df[plotstate.x.value].map(plotstate.xmapping)
-                    set_filter(dataExpr.isin(data))
-                else:
-                    data = source.data["centers"][new]
-                    col = plotstate.x.value
-                    xmin = np.nanmin(data)
-                    xmax = np.nanmax(data)
-                    set_filter(df[f"(({col}>={xmin})&({col}<={xmax}))"])
-
-            elif plotstate.plottype == "heatmap":
-                datax = source.data["x"][new]
-                datay = source.data["y"][new]
-                if check_categorical(plotstate.x.value):
-                    colx = df[plotstate.x.value].map(plotstate.xmapping)
-                    xfilter = colx.isin(datax)
-                else:
-                    colx = plotstate.x.value
-                    xmin = np.nanmin(datax)
-                    xmax = np.nanmax(datax)
-                    xfilter = (df[colx] >= xmin) & (df[colx] <= xmax)
-                if check_categorical(plotstate.y.value):
-                    coly = df[plotstate.y.value].map(plotstate.ymapping)
-                    yfilter = coly.isin(datay)
-                else:
-                    coly = plotstate.y.value
-                    ymin = np.nanmin(datay)
-                    ymax = np.nanmax(datay)
-                    yfilter = (df[coly] >= ymin) & (df[coly] <= ymax)
-                set_filter(xfilter & yfilter)
-
-            elif plotstate.plottype == "scatter":
-                datax = source.data["x"].slice(min(new), max(new) - min(new))
-                datay = source.data["y"].slice(min(new), max(new) - min(new))
-                colx = plotstate.x.value
-                coly = plotstate.y.value
-                newfilter = (df[colx].isin(datax)) & (df[coly].isin(datay))
-                set_filter(newfilter)
-        else:
-            set_filter(None)
-
-    source.selected.on_change("indices", propogate_select_to_filter)
-
     # add reset range event
     def on_reset(event):
         """Range resets"""
-        from plot_actions import reset_range  # NOTE: this makes non-circular import
-
         name = p.name
         p.update(name=str(int(name) + 1))
-        # calculate
-
-        # with p.hold(render=True):
-        #    reset_range(plotstate, p, dff, axis="x")
-        #    reset_range(plotstate, p, dff, axis="y")
 
     p.on_event("reset", on_reset)
 
@@ -416,7 +359,7 @@ def calculate_range(plotstate, dff, axis: str = "x") -> tuple[float, float]:
     Returns:
         tuple for start/end props of range.
     """
-    df = SubsetState.subsets.value[plotstate.subset].df
+    df = SubsetState.subsets.value[plotstate.subset.value].df
 
     # bug checking
     assert axis in ("x", "y"), f"expected axis x or y but got {axis}"

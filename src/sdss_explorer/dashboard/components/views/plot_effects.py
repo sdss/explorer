@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from bokeh.models.plots import Plot
-from bokeh.models import Rect
+from bokeh.models import ColumnDataSource, Rect
 import numpy as np
 import vaex as vx
 import reacton.ipyvuetify as rv
@@ -22,7 +22,7 @@ from .plot_actions import (
     aggregate_data,
 )
 from .plot_utils import check_categorical
-from ...dataclass import PlotState
+from ...dataclass import PlotState, Alert, SubsetState, State
 
 __all__ = [
     "add_scatter_effects",
@@ -31,13 +31,15 @@ __all__ = [
     "add_histogram_effects",
 ]
 
-logger = logging.getLogger()  # TODO
+logger = logging.getLogger("dashboard")
 
 
 def add_common_effects(
     pfig: rv.ValueElement,
+    source: ColumnDataSource,
     plotstate: PlotState,
     dff: vx.DataFrame,
+    set_filter,
     layout,
 ):
     """Adds common effects across plots.
@@ -47,6 +49,7 @@ def add_common_effects(
     Args:
         pfig: figure element
         plotstate: plot variables
+        source: CDS object, for binding
         dff: filtered dataframe
         layout: grid layout dictionary for the card. used for triggering height effect
     """
@@ -122,6 +125,79 @@ def add_common_effects(
     debounced_height = sl.lab.use_task(debounce_height,
                                        dependencies=[height],
                                        prefer_threaded=False)
+
+    # selection callback to update the filter object
+    df = SubsetState.subsets.value[plotstate.subset.value].df
+
+    def bind_crossmatch():
+
+        def propogate_select_to_filter(attr, old, new):
+            if len(new) > 0:
+                logger.debug("starting filter operation")
+                if plotstate.plottype == "histogram":
+                    if check_categorical(plotstate.x.value):
+                        data = source.data["centers"][new]
+                        dataExpr = df[plotstate.x.value].map(
+                            plotstate.xmapping)
+                        logger.debug(f"hist: {str(dataExpr)}")
+                        set_filter(dataExpr.isin(data))
+                    else:
+                        data = source.data["centers"][new]
+                        col = plotstate.x.value
+                        xmin = np.nanmin(data)
+                        xmax = np.nanmax(data)
+                        logger.debug(
+                            f"hist: (({col}>={xmin})&({col}<={xmax}))")
+                        set_filter(df[f"(({col}>={xmin})&({col}<={xmax}))"])
+
+                elif plotstate.plottype == "heatmap":
+                    datax = source.data["x"][new]
+                    datay = source.data["y"][new]
+                    if check_categorical(plotstate.x.value):
+                        colx = df[plotstate.x.value].map(plotstate.xmapping)
+                        xfilter = colx.isin(datax)
+                    else:
+                        colx = plotstate.x.value
+                        xmin = np.nanmin(datax)
+                        xmax = np.nanmax(datax)
+                        xfilter = (df[colx] >= xmin) & (df[colx] <= xmax)
+                    if check_categorical(plotstate.y.value):
+                        coly = df[plotstate.y.value].map(plotstate.ymapping)
+                        yfilter = coly.isin(datay)
+                    else:
+                        coly = plotstate.y.value
+                        ymin = np.nanmin(datay)
+                        ymax = np.nanmax(datay)
+                        yfilter = (df[coly] >= ymin) & (df[coly] <= ymax)
+                    combined = xfilter & yfilter
+                    logger.debug(f"heatmap: {str(combined)}")
+                    set_filter(combined)
+
+                elif plotstate.plottype == "scatter":
+                    datax = source.data["x"].slice(min(new),
+                                                   max(new) - min(new))
+                    datay = source.data["y"].slice(min(new),
+                                                   max(new) - min(new))
+                    colx = plotstate.x.value
+                    coly = plotstate.y.value
+                    newfilter = (df[colx].isin(datax)) & (df[coly].isin(datay))
+                    logger.debug(f"scatter: {str(newfilter)}")
+                    set_filter(newfilter)
+            else:
+                logger.debug("unsetting filter")
+                set_filter(None)
+
+        source.selected.on_change("indices", propogate_select_to_filter)
+
+        def cleanup():
+            source.selected.remove_on_change("indices",
+                                             propogate_select_to_filter)
+            source.selected.indices = []
+
+        return cleanup
+
+    sl.use_effect(bind_crossmatch, dependencies=[df])
+
     try:
         sl.use_effect(update_height, dependencies=[debounced_height.finished])
         sl.use_effect(update_flipx, dependencies=[plotstate.flipx.value])
@@ -131,7 +207,7 @@ def add_common_effects(
             sl.use_effect(update_logx, dependencies=[plotstate.logx.value])
             sl.use_effect(update_logy, dependencies=[plotstate.logy.value])
     except Exception as e:
-        print("effect bind error", e)
+        logger.error("main effect bind error", e)
 
 
 def add_scatter_effects(
@@ -148,6 +224,7 @@ def add_scatter_effects(
         dff: filtered dataframe
         filter: filter object, for use in triggering effects
     """
+    df = SubsetState.subsets.value[plotstate.subset.value].df
 
     def update_x():
         fig_widget: BokehModel = sl.get_widget(pfig)
@@ -198,7 +275,7 @@ def add_scatter_effects(
                 update_color_mapper(plotstate, fig_model, dff)
                 change_formatter(plotstate, fig_model, dff, axis="color")
 
-    sl.use_effect(update_filter, dependencies=[dff])
+    sl.use_effect(update_filter, dependencies=[df, dff])
     sl.use_effect(update_x, dependencies=[plotstate.x.value])
     sl.use_effect(update_y, dependencies=[plotstate.y.value])
     sl.use_effect(
@@ -218,6 +295,7 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
         dff: filtered dataframe
         filter: filter object, for use in triggering effects
     """
+    df = SubsetState.subsets.value[plotstate.subset.value].df
 
     def update_data():
         """X/Y/Color data column change update"""
@@ -230,7 +308,8 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
                     color, x_centers, y_centers, widths = aggregate_data(
                         plotstate, dff)
                 except Exception as e:
-                    logger.debug("exception on update_data (heatmap):" + str())
+                    logger.debug("exception on update_data (heatmap):" +
+                                 str(e))
                     Alert.update(
                         "Your data is too small to aggregate! Not updating.",
                         color="warning",
@@ -309,6 +388,7 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
     sl.use_effect(
         update_data,
         dependencies=[
+            df,
             plotstate.x.value,
             plotstate.y.value,
             plotstate.nbins.value,
@@ -336,6 +416,7 @@ def add_histogram_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
         dff: filtered dataframe
         filter: filter object, for use in triggering effects
     """
+    df = SubsetState.subsets.value[plotstate.subset.value].df
 
     def update_data():
         """X/Y/Color data column change update"""
@@ -368,6 +449,7 @@ def add_histogram_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
     sl.use_effect(
         update_data,
         dependencies=[
+            df,
             plotstate.x.value,
             plotstate.nbins.value,
             filter,

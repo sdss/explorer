@@ -97,7 +97,7 @@ def show_plot(plottype, del_func, **kwargs):
                     outlined=False,
                     classes=["grey darken-3" if dark else "grey lighten-3"],
                 )
-                with Menu(activator=btn, close_on_content_click=False):
+                with sl.lab.Menu(activator=btn, close_on_content_click=False):
                     with sl.Card(margin=0):
                         show_settings(plottype, plotstate)
                         sl.Button(
@@ -199,7 +199,7 @@ def HistogramPlot(plotstate: PlotState) -> ValueElement:
 
     pfig = FigureBokeh(p, dark_theme=DARKTHEME, light_theme=LIGHTTHEME)
     add_histogram_effects(pfig, plotstate, dff, filter)
-    add_common_effects(pfig, plotstate, dff, layout)
+    add_common_effects(pfig, source, plotstate, dff, set_filter, layout)
     return pfig
 
 
@@ -301,7 +301,7 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
 
     pfig = FigureBokeh(p, dark_theme=DARKTHEME, light_theme=LIGHTTHEME)
     add_heatmap_effects(pfig, plotstate, dff, filter)
-    add_common_effects(pfig, plotstate, dff, layout)
+    add_common_effects(pfig, source, plotstate, dff, set_filter, layout)
     return pfig
 
 
@@ -323,7 +323,7 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
     sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
 
     def update_filter():
-        print("updating local filter")
+        logger.debug("updating local filter")
         xfilter = None
         yfilter = None
 
@@ -335,7 +335,6 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
             xfilter = df[
                 f"(({plotstate.x.value} > {xmin}) & ({plotstate.x.value} < {xmax}))"]
         except Exception as e:
-            print("first", e)
             pass
         try:
             lims = np.array(ranges[1])
@@ -346,22 +345,20 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
                 f"(({plotstate.y.value} > {ymin}) & ({plotstate.y.value} < {ymax}))"]
 
         except Exception as e:
-            print("second", e)
             pass
         if xfilter is not None and yfilter is not None:
             filters = [xfilter, yfilter]
         else:
             filters = [xfilter if xfilter is not None else yfilter]
         combined = reduce(operator.and_, filters[1:], filters[0])
-        print("combined", combined)
+        logger.debug("combined = " + str(combined))
         return combined
 
     # if start changes end changes too (likely)
     local_filter = sl.use_memo(update_filter,
-                               dependencies=[ranges[0], ranges[1]])
+                               dependencies=[df, ranges[0], ranges[1]])
 
     async def debounced_filter():
-        print("filtering debounce")
         await asyncio.sleep(0.05)
         return local_filter
 
@@ -371,29 +368,29 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
 
     def get_dff():
         filters = []
-        if debounced_local_filter.finished:
-            if debounced_local_filter.value == local_filter:
-                if debounced_local_filter.value is not None:
-                    filters.append(debounced_local_filter.value)
-                    print("added debounce local")
-        if filter is not None:
-            filters.append(filter)
-            print("added cross")
-        if filters:
-            total_filter = reduce(operator.and_, filters[1:], filters[0])
-            print("returning filtered")
-            dfe = df[total_filter]
-        else:
-            print("returning normal")
-            dfe = df
         try:
-            if len(dfe) > 10001:  # bugfix
-                print("returing sliced")
-                return dfe[:10_000]
+            if debounced_local_filter.finished:
+                if debounced_local_filter.value == local_filter:
+                    if debounced_local_filter.value is not None:
+                        filters.append(debounced_local_filter.value)
+                        logger.debug("added debounce local")
+            if filter is not None:
+                filters.append(filter)
+                logger.debug("added cross")
+            if filters:
+                total_filter = reduce(operator.and_, filters[1:], filters[0])
+                logger.debug("returning filtered")
+                dfe = df[total_filter]
             else:
-                print("returing as is")
-                return dfe
+                logger.debug("returning normal")
+                dfe = df
         except Exception:
+            dfe = df
+        if len(dfe) > 10001:  # bugfix
+            logger.debug("returing sliced")
+            return dfe[:10_000]
+        else:
+            logger.debug("returing as is")
             return dfe
 
     dff = sl.use_memo(
@@ -453,8 +450,7 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
 
         # add our special range callback for adaptive rerenders
         def on_range_update(event):
-            print("range update ocurring")
-            print(event)
+            logger.debug("range update ocurring")
             set_ranges([[event.x0, event.x1], [event.y0, event.y1]])
 
         from bokeh.events import RangesUpdate
@@ -475,7 +471,7 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
             return df[filter]
         return df
 
-    dfe = sl.use_memo(_get_dfe, dependencies=[filter])
+    dfe = sl.use_memo(_get_dfe, dependencies=[df, filter])
 
     # workaround to make reset button aware of dff bounds
     # NOTE:reset callback must be aware of what dfe is and dump as necessary
@@ -507,7 +503,7 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
     )
 
     add_scatter_effects(pfig, plotstate, dff, filter)
-    add_common_effects(pfig, plotstate, dff, layout)
+    add_common_effects(pfig, source, plotstate, dff, set_filter, layout)
     return pfig
 
 

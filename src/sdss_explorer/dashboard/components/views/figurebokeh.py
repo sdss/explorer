@@ -1,9 +1,8 @@
 from typing import Callable
 
 import solara as sl
-import time as t
 from bokeh.io import curdoc, output_notebook
-from bokeh.models import Plot, Model
+from bokeh.models import Plot
 from bokeh.themes import Theme
 from jupyter_bokeh import BokehModel
 
@@ -22,6 +21,7 @@ def FigureBokeh(
 ):
     loaded = sl.use_reactive(False)
     dark = sl.lab.use_dark_effective()
+    output_notebook()
     BokehLoaded(loaded=loaded.value, on_loaded=loaded.set)
     fig_element = BokehModel.element(model=fig)
 

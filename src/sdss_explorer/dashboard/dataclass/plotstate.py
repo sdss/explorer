@@ -4,9 +4,8 @@ import solara as sl
 from bokeh.palettes import __palettes__ as colormaps
 import colorcet as cc
 
-from .subsets import SubsetState, VCData
+from .subsets import SubsetState
 from .alert import Alert
-from .subsets import SubsetState,
 from .vcdata import VCData
 
 palettes = {k.replace("256", "").lower(): k for k in colormaps if "256" in k}
