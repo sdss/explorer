@@ -21,18 +21,18 @@ RUN apt-get update && \
         # these are for h5py in sdss_explorer
         curl libhdf5-dev pkg-config \
         # these are for vaex
-        libpcre3 libpcre3-dev gcc g++ libboost-all-dev \
-        libffi-dev python3-dev libxml2-dev libxslt-dev \
-        libpq-dev zlib1g-dev \
+        #libpcre3 libpcre3-dev gcc g++ libboost-all-dev \
+        #libffi-dev python3-dev libxml2-dev libxslt-dev \
+        #libpq-dev zlib1g-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Rust for sdss_explorer
-RUN curl https://sh.rustup.rs -sSf | sh -s -- -y && . /root/.cargo/env
-ENV PATH="/root/.cargo/bin:$PATH"
-
-# Add a command to check if cargo is available
-RUN cargo --version
+#RUN curl https://sh.rustup.rs -sSf | sh -s -- -y && . /root/.cargo/env
+#ENV PATH="/root/.cargo/bin:$PATH"
+#
+## Add a command to check if cargo is available
+#RUN cargo --version
 
 # setup correct wheels for vaex
 # normal build hangs/fails like https://github.com/vaexio/vaex/issues/2382

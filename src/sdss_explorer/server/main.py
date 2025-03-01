@@ -28,12 +28,9 @@ logger = logging.getLogger("server")
 # solara server setup(?)
 try:
     os.environ["SOLARA_APP"] = "sdss_explorer.dashboard"
-    os.environ["SOLARA_APP"] = "sdss_explorer.dashboard"
     assert settings.solara  # check if we want to mount the server or not
     # this solara import needs to come after the os environ setup
     import solara.server.fastapi as solara_server
-except ImportError:  # if no solara, don't run either
-    solara_server = None
 except AssertionError:
     solara_server = None
 
