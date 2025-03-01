@@ -167,7 +167,9 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
     def generate_cds():
         try:
             color, x_centers, y_centers, _ = aggregate_data(plotstate, dff)
-        except Exception:
+        except Exception as e:
+            print("failed", e)
+            # Alert.update('Failed to initialize heatmap' + str(e))
             x_centers = [0, 1, 2, 3]
             y_centers = [0, 1, 2, 3]
             color = np.zeros((4, 4))

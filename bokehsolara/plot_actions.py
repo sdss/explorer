@@ -312,6 +312,9 @@ def aggregate_data(
         y_edges: 1D array of x-axis coordinates
         limits: splatted list of x and y axis limits
 
+    Raises:
+        ValueError: if no bintype (somehow)
+        RuntimeError: if binning is too small (stride bug)
 
     """
     # check validity; O(1) because set
@@ -398,7 +401,7 @@ def aggregate_data(
 
         # pull the aggregation function pointer and call it with our kwargs
         if bintype == "median":
-            aggFunc = getattr(dff, "median_approx")
+            aggFunc = getattr(dff, "median_approx")  # median under diff name
         else:
             aggFunc = getattr(dff, bintype)
         color = aggFunc(

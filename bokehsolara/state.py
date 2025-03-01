@@ -90,9 +90,6 @@ class PlotState:
                 "sum",
                 "min",
                 "max",
-                "mode",
-                "cov",
-                "covar",
             ],
             colorscales=palettes,
             projections=[
