@@ -331,15 +331,23 @@ def add_callbacks(
             elif plotstate.plottype == "heatmap":
                 datax = source.data["x"][new]
                 datay = source.data["y"][new]
-                colx = plotstate.x.value
-                coly = plotstate.y.value
-                xmin = np.nanmin(datax)
-                xmax = np.nanmax(datax)
-                ymin = np.nanmin(datay)
-                ymax = np.nanmax(datay)
-                set_filter(df[
-                    f"(({colx}>={xmin})&({coly}<={xmax})&({coly}>={ymin})&({coly}<={ymax}))"]
-                           )
+                if check_categorical(plotstate.x.value):
+                    colx = dff[plotstate.x.value].map(plotstate.xmapping)
+                    xfilter = colx.isin(datax)
+                else:
+                    colx = plotstate.x.value
+                    xmin = np.nanmin(datax)
+                    xmax = np.nanmax(datax)
+                    xfilter = (df[colx] >= xmin) & (df[colx] <= xmax)
+                if check_categorical(plotstate.y.value):
+                    coly = dff[plotstate.y.value].map(plotstate.ymapping)
+                    yfilter = coly.isin(datay)
+                else:
+                    coly = plotstate.y.value
+                    ymin = np.nanmin(datay)
+                    ymax = np.nanmax(datay)
+                    yfilter = (df[coly] >= ymin) & (df[coly] <= ymax)
+                set_filter(xfilter & yfilter)
 
             elif plotstate.plottype == "scatter":
                 datax = source.data["x"].slice(min(new), max(new) - min(new))
