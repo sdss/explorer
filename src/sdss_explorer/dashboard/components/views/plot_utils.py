@@ -1,6 +1,7 @@
 """Utility functions for generating plot objects and calculations"""
 
 import json
+import logging
 from typing import Optional, Callable
 
 import numpy as np
@@ -33,10 +34,18 @@ from bokeh.models.ui import ActionItem, Menu as BokehMenu
 from bokeh.models.axes import LinearAxis
 from bokeh.model import Model
 
-from util import check_categorical
-from state import PlotState
+from ...dataclass import PlotState, State, SubsetState, Alert
+from ....util.config import settings
 
-DEV = True  # TODO: switch to read envvar
+DEV = settings.dev
+
+logger = logging.getLogger("dashboard")
+
+
+def check_categorical(expression: str | vx.Expression) -> bool:
+    if isinstance(expression, str):
+        expression: vx.Expression = State.df.value[expression]
+    return (expression.dtype == "string") | (expression.dtype == "bool")
 
 
 def add_all_tools(p: Plot, tooltips: Optional[str] = None) -> list[Model]:
@@ -311,15 +320,14 @@ def add_callbacks(
     source.selected.on_change("indices", on_select)
 
     # selection callback to update the filter object
-    # TODO: this needs to take subset df, not dff
     def propogate_select_to_filter(attr, old, new):
         if len(new) > 0:
-            from state import df
+            df = State.df.value
 
             if plotstate.plottype == "histogram":
                 if check_categorical(plotstate.x.value):
                     data = source.data["centers"][new]
-                    dataExpr = dff[plotstate.x.value].map(plotstate.xmapping)
+                    dataExpr = df[plotstate.x.value].map(plotstate.xmapping)
                     set_filter(dataExpr.isin(data))
                 else:
                     data = source.data["centers"][new]
@@ -332,7 +340,7 @@ def add_callbacks(
                 datax = source.data["x"][new]
                 datay = source.data["y"][new]
                 if check_categorical(plotstate.x.value):
-                    colx = dff[plotstate.x.value].map(plotstate.xmapping)
+                    colx = df[plotstate.x.value].map(plotstate.xmapping)
                     xfilter = colx.isin(datax)
                 else:
                     colx = plotstate.x.value
@@ -340,7 +348,7 @@ def add_callbacks(
                     xmax = np.nanmax(datax)
                     xfilter = (df[colx] >= xmin) & (df[colx] <= xmax)
                 if check_categorical(plotstate.y.value):
-                    coly = dff[plotstate.y.value].map(plotstate.ymapping)
+                    coly = df[plotstate.y.value].map(plotstate.ymapping)
                     yfilter = coly.isin(datay)
                 else:
                     coly = plotstate.y.value
@@ -408,7 +416,7 @@ def calculate_range(plotstate, dff, axis: str = "x") -> tuple[float, float]:
     Returns:
         tuple for start/end props of range.
     """
-    from state import df  # TODO: change to subset
+    df = SubsetState.subsets.value[plotstate.subset].df
 
     # bug checking
     assert axis in ("x", "y"), f"expected axis x or y but got {axis}"
@@ -431,7 +439,7 @@ def calculate_range(plotstate, dff, axis: str = "x") -> tuple[float, float]:
         try:
             limits = expr.minmax()
         except RuntimeError:
-            # TODO: logger.debug("dodging stride bug")
+            logger.debug("dodging stride bug")
             limits = (expr.min()[()], expr.max()[()])
 
     datarange = abs(limits[1] - limits[0])
@@ -601,5 +609,5 @@ def calculate_colorbar_ticks(low, high) -> list[float]:
         return np.arange(round(low / interval) * interval, high,
                          interval).tolist()
     except Exception as e:
+        Alert.update("Failed to construct colorbar! " + str(e), color="error")
         return np.arange(0, 3 + 0.5, 0.5)  # dummy data on crash
-        # Alert.update('Failed to construct colorbar! {e}', color='error')

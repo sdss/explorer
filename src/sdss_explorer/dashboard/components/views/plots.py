@@ -1,242 +1,64 @@
-"""All interactive plot elements, complete with widget effects and action callback threads. Also contains plot settings PlotState class."""
+"""Individual plot components"""
 
-import logging
+import asyncio
 import operator
-import webbrowser as wb
+import logging
 from functools import reduce
-from typing import cast, Optional
 
 import numpy as np
-import pandas as pd
-import reacton.ipyvuetify as rv
 import solara as sl
 import vaex as vx
-import xarray
-from solara.lab import Menu, use_dark_effective, use_task
+import reacton.ipyvuetify as rv
+from reacton.ipyvuetify import ValueElement
+from bokeh.models import (
+    HoverTool,
+    Quad,
+    Rect,
+    Scatter,
+)
+from bokeh.plotting import ColumnDataSource
 
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.graph_objs._figurewidget import FigureWidget
-
-from ...dataclass import Alert, SubsetState, use_subset, GridState, VCData
-from ....util import check_categorical
 from .dataframe import ModdedDataTable, TargetsDataTable
 from .plot_settings import show_settings
+from .plot_utils import (
+    add_all_tools,
+    add_callbacks,
+    calculate_range,
+    generate_color_mapper,
+    generate_tooltips,
+    add_axes,
+    add_colorbar,
+    generate_plot,
+)
+from .figurebokeh import FigureBokeh
+from .plot_themes import LIGHTTHEME, DARKTHEME
+from .plot_effects import (
+    add_histogram_effects,
+    add_scatter_effects,
+    add_heatmap_effects,
+    add_common_effects,
+)
+from .plot_actions import (
+    reset_range,
+    aggregate_data,
+    fetch_data,
+    update_tooltips,
+)
+
+from ...dataclass import PlotState, SubsetState, GridState, use_subset, Alert
 
 logger = logging.getLogger("dashboard")
 
 # index context for grid
 # NOTE: must be initialized here to avoid circular imports
 index_context = sl.create_context(0)
-
-# TEMPLATES AND STATE
-# NOTE: all use standard vuetify grey colors
-DARK_TEMPLATE = go.layout.Template(
-    dict(layout=go.Layout(
-        font=dict(color="white", size=16),
-        showlegend=False,
-        paper_bgcolor="#424242",  # darken-3
-        autosize=True,
-        plot_bgcolor="#212121",  # darken-4
-        xaxis_gridcolor="#616161",  # darken-2
-        yaxis_gridcolor="#616161",  # darken-2
-        margin={
-            "t": 30,
-            "b": 80,
-            "l": 80,
-            "r": 80
-        },
-    )))
-LIGHT_TEMPLATE = go.layout.Template(
-    dict(layout=go.Layout(
-        font=dict(color="black", size=16),
-        showlegend=False,
-        paper_bgcolor="#EEEEEE",  # lighten-3
-        autosize=True,
-        plot_bgcolor="#FAFAFA",  # lighten-5
-        xaxis_gridcolor="#BDBDBD",  # lighten-1
-        yaxis_gridcolor="#BDBDBD",  # lighten-1
-        margin={
-            "t": 30,
-            "b": 80,
-            "l": 80,
-            "r": 80
-        },
-    )))
+"""context: used for tracing parent card in the grid for height resizing"""
 
 
-class PlotState:
-    """
-    Combination of reactive states which instantiate a specific plot's settings/properties.
-    Initializes based on keyword arguments.
-    """
-
-    def __init__(self, plottype, current_key, **kwargs):
-        # subset and type states
-        self.plottype = str(plottype)
-        # NOTE: this prevents a reactive update to override the initialization prop
-        self.subset = sl.use_reactive(current_key)
-
-        # subset and type states
-        self.plottype = str(plottype)
-        self.subset = sl.use_reactive(current_key)
-
-        # main settings
-        init_columns = (["g_mag", "bp_mag"] if plottype == "stats" else
-                        ["sdss_id", "gaia_dr3_source_id", "g_mag"])
-        self.columns = sl.use_reactive(kwargs.get("columns", init_columns))
-        self.x = sl.use_reactive(kwargs.get("x", "snr"))
-        self.y = sl.use_reactive(kwargs.get("y", "g_mag"))
-        self.color = sl.use_reactive(kwargs.get("color", "g_mag"))
-
-        # categorical data mappings
-        self.xmapping = dict()  # non-reactive
-        self.ymapping = dict()  # non-reactive
-
-        # color props
-        self.colormapping = dict()  # non-reactive
-        self.colorscale = sl.use_reactive(kwargs.get("colorscale", "inferno"))
-        self.colorlog = sl.use_reactive(kwargs.get("colorlog", None))
-        self.nbins = sl.use_reactive(200)
-
-        # flips
-        self.flipx = sl.use_reactive(bool(kwargs.get("flipx", "")))
-        self.flipy = sl.use_reactive(bool(kwargs.get("flipy", "")))
-        self.logx = sl.use_reactive(bool(kwargs.get("logx", "")))
-        self.logy = sl.use_reactive(bool(kwargs.get("logy", "")))
-        init_bintype = "mean" if (plottype == "heatmap") else "count"
-        self.bintype = sl.use_reactive(kwargs.get("bintype", init_bintype))
-        # skyplot settings
-        if plottype == "skyplot":
-            self.geo_coords = sl.use_reactive(kwargs.get(
-                "coords", "celestial"))
-            self.projection = sl.use_reactive(
-                kwargs.get("projection", "hammer"))
-
-            # delta view settings
-            if "delta" in plottype:
-                # NOTE: view can only be created when there are 2 subsets
-                self.subset_b = sl.use_reactive(current_key)
-            # all lookup data for plottypes
-            # TODO: move this lookup data elsewhere to reduce the size of the plotstate objects
-        self.Lookup = dict(
-            norms=[
-                None, "percent", "probability", "density",
-                "probability density"
-            ],
-            bintypes=["count", "mean", "median", "sum", "min", "max", "mode"],
-            colorscales=px.colors.named_colorscales(),
-            binscales=[None, "log1p", "log10"],
-            projections=[
-                "albers",
-                "aitoff",
-                "azimuthal equal area",
-                "equal earth",
-                "hammer",
-                "mollweide",
-                "mt flat polar quartic",
-            ],
-        )
-
-    def swap_axes(self):
-        # saves current to p and q
-        p = self.x.value
-        q = self.y.value
-        self.x.value = q
-        self.y.value = p
-
-    def swap_subsets(self):
-        # saves current to p and q
-        p = self.subset.value
-        q = self.subset_b.value
-        self.subset.value = q
-        self.subset_b.value = p
-
-    def reset_values(self):
-        """Conditional reset based on if given column/subset is still in list"""
-        # subset resets
-        if self.subset.value not in SubsetState.subsets.value.keys():
-            new_subset_key = list(SubsetState.subsets.value.keys())[-1]
-            Alert.update(
-                f"Subset in view was removed, reset to {SubsetState.subsets.value[new_subset_key].name}",
-                color="info",
-            )
-            self.subset.value = new_subset_key
-        try:
-            if self.subset_b.value not in SubsetState.subsets.value.keys():
-                new_subset_key = list(SubsetState.subsets.value.keys())[-2]
-                self.subset_b.value = new_subset_key
-        except:
-            pass
-
-        valid_columns = SubsetState.subsets.value.get(
-            self.subset.value).columns + list(VCData.columns.value.keys())
-
-        # columnar resets for table
-        if (self.plottype == "stats") or (self.plottype == "targets"):
-            for col in self.columns.value:
-                removed_cols = set()
-                if col not in valid_columns:
-                    removed_cols.add(col)
-                # NOTE: i choose to remove quietly on stats table -- its very obvious when it disappears
-                # NOTE: you have to do it at the end, because a task can only send 1 state update for rerenders
-                self.columns.set(
-                    [q for q in self.columns.value if q not in removed_cols])
-                return
-
-        # columnar resets for plots
-        else:
-            if self.x.value not in valid_columns:
-                Alert.update(
-                    "Columns of subset changed! Column reset to 'g_mag'",
-                    color="info")
-                self.x.value = "g_mag"
-            if self.plottype != "histogram":
-                if self.y.value not in valid_columns:
-                    Alert.update(
-                        "Columns of subset changed! Column reset to 'snr'",
-                        color="info")
-                    self.y.value = "snr"
-                if self.color.value not in valid_columns:
-                    Alert.update(
-                        "Columns of subset changed! Column reset to 'g_mag'",
-                        color="info",
-                    )
-                    self.color.value = "g_mag"
-
-    def update_subset(self, name: str, b: bool = False):
-        """Callback to update subset by name."""
-        if not b:
-            subset = self.subset
-        else:
-            subset = self.subset_b
-        for k, ss in SubsetState.subsets.value.items():
-            if ss.name == name:
-                subset.set(k)
-                break
-        return
-
-
-def range_loop(start, offset):
-    return (start + (offset % 360) + 360) % 360
-
-
-def check_cat_color(color: vx.Expression) -> bool:
-    """Helper function to check color expression with catagorical error check."""
-    try:
-        assert not check_categorical(color)
-    except AssertionError:
-        Alert.update(
-            "Discrete/catagorical color not supported. Please revert.",
-            color="warning")
-        return False
-    return True
-
-
-# SHOW PLOT
+@sl.component
 def show_plot(plottype, del_func, **kwargs):
     # NOTE: force set to grey darken-3 colour for visibility of card against grey darken-4 background
-    dark = use_dark_effective()
+    dark = sl.lab.use_dark_effective()
     with rv.Card(
             class_="grey darken-3" if dark else "grey lighten-3",
             style_="width: 100%; height: 100%",
@@ -263,8 +85,6 @@ def show_plot(plottype, del_func, **kwargs):
                     HeatmapPlot(plotstate)
                 elif plottype == "scatter":
                     ScatterPlot(plotstate)
-                elif plottype == "skyplot":
-                    SkymapPlot(plotstate)
                 elif plottype == "delta2d":
                     pass
                     # DeltaHeatmapPlot(plotstate)
@@ -289,13 +109,10 @@ def show_plot(plottype, del_func, **kwargs):
 
 
 @sl.component()
-def ScatterPlot(plotstate):
-    """Scattergl rendered scatter plot for single subset"""
+def HistogramPlot(plotstate: PlotState) -> ValueElement:
+    """Histogram plot"""
     df: vx.DataFrame = SubsetState.subsets.value[plotstate.subset.value].df
-    dark = use_dark_effective()
-    filter, set_filter = use_subset(id(df), plotstate.subset, "scatter")
-    relayout, set_relayout = sl.use_state({})
-    local_filter, set_local_filter = sl.use_state(None)
+    filter, set_filter = use_subset(id(df), plotstate.subset, name="histogram")
     i = sl.use_context(index_context)
     layout, set_layout = sl.use_state({"w": 6, "h": 10, "i": i})
 
@@ -306,1197 +123,392 @@ def ScatterPlot(plotstate):
                 set_layout(spec)
                 break
 
-    use_task(update_grid, dependencies=[GridState.grid_layout.value])
+    sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
+    if filter is not None:
+        dff = df[filter]
+    else:
+        dff = df
+
+    def generate_cds():
+        try:
+            centers, edges, counts = aggregate_data(plotstate, dff)
+        except Exception as e:
+            Alert.update("Failed to initialize! {e}. Using dummy data.")
+            centers = [0, 1, 2]
+            edges = [0, 1, 2, 3]
+            counts = [0, 0, 0]
+        return ColumnDataSource(
+            data={
+                "centers": centers,
+                "left": edges[:-1],
+                "right": edges[1:],
+                "y": counts,
+            })
+
+    source = sl.use_memo(generate_cds, dependencies=[])
+
+    def create_figure():
+        """Creates figure with relevant objects"""
+        # obtain data
+        p, menu = generate_plot()
+        add_axes(plotstate, p)
+
+        # generate rectangles
+        glyph = Quad(
+            top="y",
+            bottom=0,
+            left="left",
+            right="right",
+            fill_color="skyblue",
+        )
+        gr = p.add_glyph(source, glyph)
+        # p.y_range.bounds = [0, None] NOTE: tried this but it makes it janky to zoom
+
+        p.y_range.start = 0  # force set 0 at start
+
+        # create hovertool, bound to figure object
+        add_all_tools(p, generate_tooltips(plotstate))
+        for tool in p.toolbar.tools:
+            if isinstance(tool, HoverTool):
+                tool.point_policy = "follow_mouse"
+        update_tooltips(plotstate, p)
+        add_callbacks(plotstate, dff, p, source, set_filter=set_filter)
+        return p
+
+    p = sl.use_memo(create_figure, dependencies=[])
+
+    # workaround to have the reset ranges be the ranges of dff
+    def add_reset_callback():
+        # WARNING: temp method until Bokeh adds method for remove_on_event
+        def on_reset(attr, old, new):
+            """Range resets"""
+
+            with p.hold(render=True):
+                reset_range(plotstate, p, dff, axis="x")
+                reset_range(plotstate, p, dff, axis="y")
+
+        p.on_change("name", on_reset)
+
+        # dump on regeneration
+        def cleanup():
+            p.remove_on_change("name", on_reset)
+
+        return cleanup
+
+    sl.use_effect(add_reset_callback, dependencies=[dff])
+
+    pfig = FigureBokeh(p, dark_theme=DARKTHEME, light_theme=LIGHTTHEME)
+    add_histogram_effects(pfig, plotstate, dff, filter)
+    add_common_effects(pfig, plotstate, dff, layout)
+    return pfig
+
+
+@sl.component()
+def HeatmapPlot(plotstate: PlotState) -> ValueElement:
+    """2D Histogram (heatmap) plot"""
+    df: vx.DataFrame = SubsetState.subsets.value[plotstate.subset.value].df
+    filter, set_filter = use_subset(id(df), plotstate.subset, name="heatmap")
+    i = sl.use_context(index_context)
+    layout, set_layout = sl.use_state({"w": 6, "h": 10, "i": i})
+
+    def update_grid():
+        # fetch from gridstate
+        for spec in GridState.grid_layout.value:
+            if spec["i"] == i:
+                set_layout(spec)
+                break
+
+    sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
+    if filter is not None:
+        dff = df[filter]
+    else:
+        dff = df
+
+    def generate_cds():
+        try:
+            color, x_centers, y_centers, _ = aggregate_data(plotstate, dff)
+        except Exception as e:
+            logger.debug("failed plot init" + str(e))
+            Alert.update("Failed to initialize heatmap" + str(e))
+            x_centers = [0, 1, 2, 3]
+            y_centers = [0, 1, 2, 3]
+            color = np.zeros((4, 4))
+        return ColumnDataSource(
+            data={
+                "x": np.repeat(x_centers, len(y_centers)),
+                "y": np.tile(y_centers, len(x_centers)),
+                "color": color.flatten(),
+            })
+
+    source = sl.use_memo(generate_cds, [])
+
+    def create_figure():
+        """Creates figure with relevant objects"""
+        # obtain data
+        p, menu = generate_plot(range_padding=0.0)
+        xlimits = calculate_range(plotstate, dff, axis="x")
+        ylimits = calculate_range(plotstate, dff, axis="y")
+
+        # add grid, but disable its lines
+        add_axes(plotstate, p)
+        p.center[0].grid_line_color = None
+        p.center[1].grid_line_color = None
+
+        mapper = generate_color_mapper(plotstate, color=source.data["color"])
+        # generate rectangles
+        glyph = Rect(
+            x="x",
+            y="y",
+            width=(xlimits[1] - xlimits[0]) / plotstate.nbins.value,
+            height=(ylimits[1] - ylimits[0]) / plotstate.nbins.value,
+            dilate=True,
+            line_color=None,
+            fill_color={
+                "field": "color",
+                "transform": mapper
+            },
+        )
+        add_colorbar(plotstate, p, mapper, source.data["color"])
+        gr = p.add_glyph(source, glyph)
+
+        # create hovertool, bound to figure object
+        add_all_tools(p, generate_tooltips(plotstate))
+        update_tooltips(plotstate, p)
+        add_callbacks(plotstate, dff, p, source, set_filter=set_filter)
+        return p
+
+    p = sl.use_memo(create_figure, dependencies=[])
+
+    # workaround to have the reset ranges be the ranges of dff
+    def add_reset_callback():
+        # WARNING: temp method until Bokeh adds method for remove_on_event
+        def on_reset(attr, old, new):
+            """Range resets"""
+
+            with p.hold(render=True):
+                reset_range(plotstate, p, dff, axis="x")
+                reset_range(plotstate, p, dff, axis="y")
+
+        p.on_change("name", on_reset)
+
+        # dump on regeneration
+        def cleanup():
+            p.remove_on_change("name", on_reset)
+
+        return cleanup
+
+    sl.use_effect(add_reset_callback, dependencies=[dff])
+
+    pfig = FigureBokeh(p, dark_theme=DARKTHEME, light_theme=LIGHTTHEME)
+    add_heatmap_effects(pfig, plotstate, dff, filter)
+    add_common_effects(pfig, plotstate, dff, layout)
+    return pfig
+
+
+@sl.component
+def ScatterPlot(plotstate: PlotState) -> ValueElement:
+    df: vx.DataFrame = SubsetState.subsets.value[plotstate.subset.value].df
+    filter, set_filter = use_subset(id(df), plotstate.subset, name="scatter")
+    i = sl.use_context(index_context)
+    layout, set_layout = sl.use_state({"w": 6, "h": 10, "i": i})
+    ranges, set_ranges = sl.use_state([[np.nan, np.nan], [np.nan, np.nan]])
+
+    def update_grid():
+        # fetch from gridstate
+        for spec in GridState.grid_layout.value:
+            if spec["i"] == i:
+                set_layout(spec)
+                break
+
+    sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
 
     def update_filter():
+        print("updating local filter")
         xfilter = None
         yfilter = None
 
         try:
-            min = relayout["xaxis.range[0]"]
-            max = relayout["xaxis.range[1]"]
-            if plotstate.logx.value:
-                min = 10**min
-                max = 10**max
+            lims = np.array(ranges[0])
+            assert not np.all(lims == np.nan)
+            xmax = np.nanmax(lims)
+            xmin = np.nanmin(lims)
             xfilter = df[
-                f"(({plotstate.x.value} > {np.min((min, max))}) & ({plotstate.x.value} < {np.max((min, max))}))"]
-        except KeyError:
+                f"(({plotstate.x.value} > {xmin}) & ({plotstate.x.value} < {xmax}))"]
+        except Exception as e:
+            print("first", e)
             pass
         try:
-            min = relayout["yaxis.range[0]"]
-            max = relayout["yaxis.range[1]"]
-            if plotstate.logy.value:
-                min = 10**min
-                max = 10**max
+            lims = np.array(ranges[1])
+            assert not np.all(lims == np.nan)
+            ymax = np.nanmax(lims)
+            ymin = np.nanmin(lims)
             yfilter = df[
-                f"(({plotstate.y.value} > {np.min((min, max))}) & ({plotstate.y.value} < {np.max((min, max))}))"]
+                f"(({plotstate.y.value} > {ymin}) & ({plotstate.y.value} < {ymax}))"]
 
-        except KeyError:
+        except Exception as e:
+            print("second", e)
             pass
         if xfilter is not None and yfilter is not None:
             filters = [xfilter, yfilter]
         else:
             filters = [xfilter if xfilter is not None else yfilter]
-        filter = reduce(operator.and_, filters[1:], filters[0])
-        set_local_filter(filter)
+        combined = reduce(operator.and_, filters[1:], filters[0])
+        print("combined", combined)
+        return combined
 
-    use_task(update_filter, dependencies=[relayout])
+    # if start changes end changes too (likely)
+    local_filter = sl.use_memo(update_filter,
+                               dependencies=[ranges[0], ranges[1]])
 
-    # Apply global and local filters
-    if filter is not None:
-        dff = df[filter]
-    else:
-        dff = df
+    async def debounced_filter():
+        print("filtering debounce")
+        await asyncio.sleep(0.05)
+        return local_filter
 
-    if local_filter is not None:
-        dff = dff[local_filter]
-    else:
-        dff = dff
+    debounced_local_filter = sl.lab.use_task(debounced_filter,
+                                             dependencies=[local_filter],
+                                             prefer_threaded=False)
 
-    if len(dff) > 20000:
-        dff = dff[:20_000]
-
-    def create_fig():
-        x = dff[plotstate.x.value].values
-        y = dff[plotstate.y.value].values
-        c = dff[plotstate.color.value].values
-
-        # BUG: this fixes a bug where vaex Asserts a chunk error
-        try:
-            ids = dff["sdss_id"].values
-        except AssertionError:
-            ids = dff.extract()["sdss_id"].values
-        figure = go.Figure(
-            data=go.Scattergl(
-                x=x,
-                y=y,
-                mode="markers",
-                customdata=ids,
-                hovertemplate=f"<b>{plotstate.x.value}</b>:" +
-                " %{x:.6f}<br>" + f"<b>{plotstate.y.value}</b>:" +
-                " %{y:.6f}<br>" + f"<b>{plotstate.color.value}</b>:" +
-                " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
-                " %{customdata:.d}",
-                name="",
-                marker=dict(
-                    color=c,
-                    colorbar=dict(title=plotstate.color.value),
-                    colorscale=plotstate.colorscale.value,
-                ),
-            ),
-            layout=go.Layout(
-                xaxis_title=plotstate.x.value,
-                yaxis_title=plotstate.y.value,
-                template=DARK_TEMPLATE if dark else LIGHT_TEMPLATE,
-                coloraxis=dict(
-                    cmin=dff.min(plotstate.color.value)[()],
-                    cmax=dff.max(plotstate.color.value)[()],
-                ),
-            ),
-        )
-        return figure
-
-    # only instantiate the figure once
-    figure = sl.use_memo(create_fig, dependencies=[])
-
-    # Effect based callbacks (flip, log, & data array updates)
-    def add_effects(fig_element: sl.Element):
-
-        def add_context_menu():
-            # TODO: except contextmenu in DOM somehow so i can open my own vue menu
-
-            def on_click(trace, points, selector):
-                # right click
-                if selector.button == 2:
-                    pass
-                    # print(trace.customdata[points.point_inds[0]])
-                elif selector.button == 0 and selector.shift:
-                    # NOTE: binding is <Shift+LMB>
-                    zora_url = (
-                        "http://data.sdss5.org/zora"  # TODO: get zora url from ENVVAR
-                    )
-                    wb.open(
-                        f"{zora_url}/target/{trace.customdata[points.point_inds[0]]}"
-                    )
-
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            points = fig_widget.data[0]
-            points.on_click(on_click)
-
-        def set_xflip():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            if fig_widget.layout.xaxis.range is not None:
-                if plotstate.flipx.value:
-                    fig_widget.update_xaxes(autorange="reversed")
-                else:
-                    fig_widget.update_xaxes(
-                        range=fig_widget.layout.xaxis.range[::-1])
-
-        def set_yflip():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            if fig_widget.layout.yaxis.range is not None:
-                if plotstate.flipy.value:
-                    fig_widget.update_yaxes(autorange="reversed")
-                else:
-                    fig_widget.update_yaxes(
-                        range=fig_widget.layout.yaxis.range[::-1])
-
-        def set_log():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            if plotstate.logx.value:
-                fig_widget.update_xaxes(type="log")
-            else:
-                fig_widget.update_xaxes(type="linear")
-            if plotstate.logy.value:
-                fig_widget.update_yaxes(type="log")
-            else:
-                fig_widget.update_yaxes(type="linear")
-
-        def update_data():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            x = dff[plotstate.x.value].values
-            y = dff[plotstate.y.value].values
-            if len(dff) > 0:
-                # BUG: this fixes a bug where vaex Asserts a chunk error
-                try:
-                    ids = dff["sdss_id"].values
-                except AssertionError:
-                    ids = dff.extract()["sdss_id"].values
-            else:
-                x = []
-                y = []
-                ids = []
-            fig_widget.update_traces(
-                x=x,
-                y=y,
-                customdata=ids,
-                hovertemplate=(f"<b>{plotstate.x.value}</b>:" +
-                               " %{x:.6f}<br>" +
-                               f"<b>{plotstate.y.value}</b>:" +
-                               " %{y:.6f}<br>" +
-                               f"<b>{plotstate.color.value}</b>:" +
-                               " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
-                               " %{customdata:.d}"),
-            )
-            fig_widget.update_layout(
-                xaxis_title=plotstate.x.value,
-                yaxis_title=plotstate.y.value,
-            )
-
-        def update_xy():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            fig_widget.update_traces(
-                x=dff[plotstate.x.value].values,
-                y=dff[plotstate.y.value].values,
-                hovertemplate=(f"<b>{plotstate.x.value}</b>:" +
-                               " %{x:.6f}<br>" +
-                               f"<b>{plotstate.y.value}</b>:" +
-                               " %{y:.6f}<br>" +
-                               f"<b>{plotstate.color.value}</b>:" +
-                               " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
-                               " %{customdata:.d}"),
-            )
-            fig_widget.update_layout(
-                xaxis_title=plotstate.x.value,
-                yaxis_title=plotstate.y.value,
-            )
-            # check for axes flip and set accordingly to auto or reversed
-            if fig_widget.layout.xaxis.range is not None:
-                if plotstate.flipx.value:
-                    fig_widget.update_xaxes(autorange="reversed")
-                else:
-                    fig_widget.update_xaxes(autorange=True)
-
-            if fig_widget.layout.yaxis.range is not None:
-                if plotstate.flipy.value:
-                    fig_widget.update_yaxes(autorange="reversed")
-                else:
-                    fig_widget.update_yaxes(autorange=True)
-
-        def update_color():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-
-            # error checker for color update
-            if not check_cat_color(dff[plotstate.color.value]):
-                return
-
-            # scale by log if wanted
-            if len(dff) > 0:
-                c = dff[plotstate.color.value].values
-                if plotstate.colorlog.value == "log1p":
-                    c = np.log1p(c)
-                elif plotstate.colorlog.value == "log10":
-                    c = np.log10(c)
-            else:
-                c = []
-
-            fig_widget.update_traces(
-                marker=dict(
-                    color=c,
-                    colorbar=dict(title=plotstate.color.value),
-                    colorscale=plotstate.colorscale.value,
-                ),
-                hovertemplate=(f"<b>{plotstate.x.value}</b>:" +
-                               " %{x:.6f}<br>" +
-                               f"<b>{plotstate.y.value}</b>:" +
-                               " %{y:.6f}<br>" +
-                               f"<b>{plotstate.color.value}</b>:" +
-                               " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
-                               " %{customdata:.d}"),
-            )
-
-        def update_layout():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            fig_widget.update_layout(height=layout["h"] * 45 - 90)
-            fig_widget.update_layout(width=layout["w"] * 120)
-
-        sl.use_effect(update_layout, dependencies=[layout])
-
-        def update_theme():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            fig_widget.update_layout(
-                template=DARK_TEMPLATE if dark else LIGHT_TEMPLATE, )
-
-        sl.use_effect(
-            update_data,
-            dependencies=[
-                filter,
-                local_filter,
-            ],
-        )
-        sl.use_effect(
-            update_color,
-            dependencies=[
-                filter,
-                local_filter,
-                plotstate.color.value,
-                plotstate.colorscale.value,
-                plotstate.colorlog.value,
-            ],
-        )
-
-        sl.use_effect(add_context_menu, dependencies=[relayout])
-        sl.use_effect(update_xy,
-                      dependencies=[plotstate.x.value, plotstate.y.value])
-        sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
-        sl.use_effect(set_yflip, dependencies=[plotstate.flipy.value])
-        sl.use_effect(update_theme, dependencies=[dark])
-        sl.use_effect(
-            set_log, dependencies=[plotstate.logx.value, plotstate.logy.value])
-        return
-
-    # Plotly-side callbacks (relayout, select, and deselect)
-    def on_relayout(data):
-        if data is not None:
-            # full limit reset, resetting relayout data + local filter
-            if "xaxis.autorange" in data["relayout_data"].keys():
-                set_relayout({})
-                set_local_filter(None)
-            # if change tool, skip update
-            elif "dragmode" in data["relayout_data"].keys():
-                return
-            # Update the current dictionary
-            else:
-                set_relayout(dict(relayout, **data["relayout_data"]))
-
-    def on_select(data):
-        if len(data["points"]["xs"]) > 0:
-            xs = data["points"]["xs"]
-            ys = data["points"]["ys"]
-            set_filter((df[plotstate.x.value].isin(xs) &
-                        (df[plotstate.y.value].isin(ys))))
-
-    def on_deselect(_data):
-        set_filter(None)
-
-    fig_el = sl.FigurePlotly(
-        figure,
-        on_selection=on_select,
-        on_deselect=on_deselect,
-        on_relayout=on_relayout,
-        dependencies=[],
-    )
-
-    add_effects(fig_el)
-
-    return fig_el
-
-
-@sl.component()
-def HistogramPlot(plotstate):
-    """Histogram plot for single subset"""
-    df: vx.DataFrame = SubsetState.subsets.value[plotstate.subset.value].df
-    xcol = plotstate.x.value
-    nbins = plotstate.nbins.value
-    filter, set_filter = use_subset(id(df), plotstate.subset, "histogram")
-    i = sl.use_context(index_context)
-    layout, set_layout = sl.use_state({"w": 6, "h": 10, "i": i})
-    dark = use_dark_effective()
-
-    def update_grid():
-        # fetch from gridstate
-        for spec in GridState.grid_layout.value:
-            if spec["i"] == i:
-                set_layout(spec)
-                break
-
-    sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
-
-    dff = df
-    if filter:
-        dff = df[filter]
-    expr: vx.Expression = dff[xcol]
-
-    def perform_binning():
-        if check_categorical(expr):
-            # NOTE: under the hood, vaex uses pandas for this
-            series = expr.value_counts()  # value_counts as in Pandas
-            x = series.index.values
-            y = series.values
-            return x, y
+    def get_dff():
+        filters = []
+        if debounced_local_filter.finished:
+            if debounced_local_filter.value == local_filter:
+                if debounced_local_filter.value is not None:
+                    filters.append(debounced_local_filter.value)
+                    print("added debounce local")
+        if filter is not None:
+            filters.append(filter)
+            print("added cross")
+        if filters:
+            total_filter = reduce(operator.and_, filters[1:], filters[0])
+            print("returning filtered")
+            dfe = df[total_filter]
         else:
-            # check for length < 0
-            try:
-                assert len(dff) > 0
-            except AssertionError:
-                Alert.update("Applied filters reduced length to zero!",
-                             color="warning")
-                return None, None
-
-            # get limits
-            # INFO: can't be asynchronous; result is required
-            try:
-                limits = dff.minmax(xcol)
-            except:
-                # dodge stride bug
-                limits = [
-                    # NOTE: empty tuple acts as index for the 0th of 0D array
-                    dff.min(xcol)[()],
-                    dff.max(xcol)[()],
-                ]
-
-            # make x (bin centers)
-            # NOTE: no delay on this because it sucks
-            x = dff.bin_centers(
-                expression=expr,
-                limits=limits,
-                shape=nbins,
-            )
-            # create y (data) based on setting
-            bintype = str(plotstate.bintype.value)
-            if bintype == "count":
-                y = dff.count(
-                    binby=xcol,
-                    limits=limits,
-                    shape=nbins,
-                    delay=True,
-                )
-            elif bintype == "sum":
-                y = dff.sum(
-                    expr,
-                    binby=xcol,
-                    limits=limits,
-                    shape=nbins,
-                    delay=True,
-                )
-            elif bintype == "mean":
-                y = dff.mean(
-                    expr,
-                    binby=expr,
-                    limits=limits,
-                    shape=nbins,
-                    delay=True,
-                )
-            elif bintype == "median":
-                y = dff.median_approx(
-                    expr,
-                    binby=expr,
-                    limits=limits,
-                    shape=nbins,
-                    delay=True,
-                )
-
-            elif bintype == "mode":
-                y = dff.mode(
-                    expression=expr,
-                    binby=expr,
-                    limits=limits,
-                    shape=nbins,
-                    delay=True,
-                )
-            elif bintype == "min":
-                y = dff.min(
-                    expression=expr,
-                    binby=expr,
-                    limits=limits,
-                    shape=nbins,
-                    array_type="xarray",
-                    delay=True,
-                )
-            elif bintype == "max":
-                y = dff.max(
-                    expression=expr,
-                    binby=expr,
-                    limits=limits,
-                    shape=nbins,
-                    array_type="xarray",
-                    delay=True,
-                )
-            else:
-                raise ValueError("no assigned bintype for histogram.")
-            df.execute()
-            return x, y.get()
-
-    if check_categorical(expr):
-        logx = False
-    else:
-        logx = plotstate.logx.value
-
-    def create_fig():
-        x, y = perform_binning()
-        fig = px.histogram(
-            x=x,
-            y=y,
-            nbins=nbins,
-            log_x=logx,
-            log_y=plotstate.logy.value,
-            labels={
-                "x": xcol,
-                "y": f"{plotstate.bintype.value}({xcol})",
-            },
-            template=DARK_TEMPLATE if dark else LIGHT_TEMPLATE,
-        )
-        fig.update_yaxes(title="Frequency")
-        fig.update_layout(margin_r=10)
-
-        return fig
-
-    # only instantiate the figure widget once.
-    figure = sl.use_memo(create_fig, dependencies=[])
-
-    # Effect based callbacks (flip, log, & data array updates)
-    def add_effects(fig_element: sl.Element):
-
-        def set_xflip():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            if fig_widget.layout.xaxis.range is not None:
-                if plotstate.flipx.value:
-                    fig_widget.update_xaxes(autorange="reversed")
-                else:
-                    fig_widget.update_xaxes(
-                        range=fig_widget.layout.xaxis.range[::-1])
-
-        def set_yflip():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            if fig_widget.layout.yaxis.range is not None:
-                if plotstate.flipy.value:
-                    fig_widget.update_yaxes(autorange="reversed")
-                else:
-                    fig_widget.update_yaxes(
-                        range=fig_widget.layout.yaxis.range[::-1])
-
-        def set_log():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            if plotstate.logx.value:
-                fig_widget.update_xaxes(type="log")
-            else:
-                fig_widget.update_xaxes(type="linear")
-            if plotstate.logy.value:
-                fig_widget.update_yaxes(type="log")
-            else:
-                fig_widget.update_yaxes(type="linear")
-
-        def update_data():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            x, y = perform_binning()
-
-            fig_widget.update_traces(
-                x=x,
-                y=y,
-                nbinsx=plotstate.nbins.value,
-                hovertemplate=f"<b>{xcol}</b>:" + " %{x}<br>" +
-                f"<b>{plotstate.bintype.value}({xcol})</b>:" + " %{y}<br>",
-            )
-            fig_widget.update_layout(
-                xaxis_title=xcol,
-                yaxis_title=f"{plotstate.bintype.value}({xcol})",
-            )
-
-        def update_layout():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            fig_widget.update_layout(height=layout["h"] * 45 - 90)
-            fig_widget.update_layout(width=layout["w"] * 120)
-
-        sl.use_effect(update_layout, dependencies=[layout])
-
-        def update_theme():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            fig_widget.update_layout(
-                template=DARK_TEMPLATE if dark else LIGHT_TEMPLATE, )
-
-        sl.use_effect(
-            update_data,
-            dependencies=[
-                filter,
-                xcol,
-                plotstate.nbins.value,
-                plotstate.bintype.value,
-            ],
-        )
-        sl.use_effect(update_theme, dependencies=[dark])
-        sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
-        sl.use_effect(set_yflip, dependencies=[plotstate.flipy.value])
-        sl.use_effect(
-            set_log, dependencies=[plotstate.logx.value, plotstate.logy.value])
-
-    def on_select(data):
-        if len(data["points"]["xs"]) > 0:
-            filters = list()
-            uniques = np.unique(data["points"]["xs"])
-            binsize = uniques[1] - uniques[0]
-            for cent in uniques:
-                filters.append(df[f"({xcol} <= {cent + binsize})"]
-                               & df[f"({xcol} >= {cent - binsize})"])
-            filters = reduce(operator.or_, filters[1:], filters[0])
-            set_filter(filters)
-
-    def on_deselect(_data):
-        set_filter(None)
-
-    fig_el = sl.FigurePlotly(
-        figure,
-        on_selection=on_select,
-        on_deselect=on_deselect,
-        dependencies=[],
-    )
-    add_effects(fig_el)
-    return fig_el
-
-
-@sl.component()
-def HeatmapPlot(plotstate):
-    """2D Histogram plot (Heatmap) for single subset"""
-    df: vx.DataFrame = SubsetState.subsets.value[plotstate.subset.value].df
-    filter, set_filter = use_subset(id(df), plotstate.subset,
-                                    "filter-aggregated")
-    dark = use_dark_effective()
-    i = sl.use_context(index_context)
-    layout, set_layout = sl.use_state({"w": 6, "h": 10, "i": i})
-
-    def update_grid():
-        # fetch from gridstate
-        for spec in GridState.grid_layout.value:
-            if spec["i"] == i:
-                set_layout(spec)
-                break
-
-    sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
-
-    dff = df
-    if filter:
-        dff = df[filter]
-
-    def perform_binning():
-        expr = (dff[plotstate.x.value], dff[plotstate.y.value])
-        expr_c = dff[plotstate.color.value]
-        bintype = str(plotstate.bintype.value)
-
-        # error checking
+            print("returning normal")
+            dfe = df
         try:
-            assert len(dff) > 40, (
-                "0")  # NOTE: trial and error found this value. arbitrary
-            assert plotstate.x.value != plotstate.y.value, "1"
-
-            assert not check_categorical(dff[plotstate.x.value]), "2"
-            assert not check_categorical(dff[plotstate.y.value]), "2"
-        except AssertionError as e:
-            msg = str(e)
-
-            # length checks
-            if msg == "0":
-                Alert.update(
-                    "Dataset too small to bin via aggregated. Use scatter view!",
-                    color="warning",
-                )
-                # generate a flat xarray
-                y = xarray.DataArray(
-                    [[0, 0], [0, 0]],
-                    coords={
-                        plotstate.x.value: [0, 1],
-                        plotstate.y.value: [0, 1],
-                    },
-                )
-                return (y, 0, 1)
-            elif msg == "1":
-                # NOTE: for autoswap
-                pass
-            elif msg == "2":
-                Alert.update(
-                    "Catagorical data column set for aggregated -- not yet implemented! Not updating.",
-                    color="error",
-                )
-
-            return (None, None, None)
-
-        # get limits, will never fail.
-        try:
-            limits = [
-                dff.minmax(plotstate.x.value),
-                dff.minmax(plotstate.y.value),
-            ]
+            if len(dfe) > 10001:  # bugfix
+                print("returing sliced")
+                return dfe[:10_000]
+            else:
+                print("returing as is")
+                return dfe
         except Exception:
-            # NOTE: empty tuple acts as index for the 0th of 0D array
-            limits = [
-                [
-                    dff.min(plotstate.x.value)[()],
-                    dff.max(plotstate.x.value)[()],
-                ],
-                [
-                    dff.min(plotstate.y.value)[()],
-                    dff.max(plotstate.y.value)[()],
-                ],
-            ]
+            return dfe
 
-        if bintype == "count":
-            y = dff.count(
-                binby=expr,
-                limits=limits,
-                shape=plotstate.nbins.value,
-                array_type="xarray",
-                delay=True,
-            )
-        elif bintype == "sum":
-            y = dff.sum(
-                expr_c,
-                binby=expr,
-                limits=limits,
-                shape=plotstate.nbins.value,
-                array_type="xarray",
-                delay=True,
-            )
-        elif bintype == "mean":
-            y = dff.mean(
-                expr_c,
-                binby=expr,
-                limits=limits,
-                shape=plotstate.nbins.value,
-                array_type="xarray",
-                delay=True,
-            )
-        elif bintype == "median":
-            y = dff.median_approx(
-                expr_c,
-                binby=expr,
-                limits=limits,
-                shape=plotstate.nbins.value,
-                delay=True,
-            )
+    dff = sl.use_memo(
+        get_dff, dependencies=[df, filter, debounced_local_filter.finished])
 
-        elif bintype == "mode":
-            y = dff.mode(
-                expression=expr_c,
-                binby=expr,
-                limits=limits,
-                shape=plotstate.nbins.value,
-                delay=True,
-            )
-        elif bintype == "min":
-            y = dff.min(
-                expression=expr_c,
-                binby=expr,
-                limits=limits,
-                shape=plotstate.nbins.value,
-                array_type="xarray",
-                delay=True,
-            )
-        elif bintype == "max":
-            y = dff.max(
-                expression=expr_c,
-                binby=expr,
-                limits=limits,
-                shape=plotstate.nbins.value,
-                array_type="xarray",
-                delay=True,
-            )
-        else:
-            raise ValueError("no assigned bintype for aggregated")
+    def generate_cds():
         try:
-            df.execute()
-            y = y.get()
-        except RuntimeError:
-            Alert.update(
-                "Failed to bin! Is your data too small for the aggregation?",
-                color="warning",
-            )
-            return (None, None, None)
-        if bintype == "median":
-            # convert to xarray
-            y = xarray.DataArray(
-                y,
-                coords={
-                    plotstate.x.value:
-                    dff.bin_centers(
-                        expression=expr[0],
-                        limits=limits[0],
-                        shape=plotstate.nbins.value,
-                    ),
-                    plotstate.y.value:
-                    dff.bin_centers(
-                        expression=expr[1],
-                        limits=limits[1],
-                        shape=plotstate.nbins.value,
-                    ),
-                },
-            )
+            assert len(dff) > 0, "zero data in subset!"
+            x = fetch_data(plotstate, dff, "x").values
+            y = fetch_data(plotstate, dff, "y").values
+            color = fetch_data(plotstate, dff, "color").values
+            sdss_id = dff["sdss_id"].values
+        except Exception as e:
+            logger.debug("failed scatter init" + str(e))
+            Alert.update("Failed to initialize plot! {e} Using dummy data")
+            x = [1, 2, 3, 4]
+            y = [1, 2, 3, 4]
+            color = [1, 2, 3, 4]
+            sdss_id = [1, 2, 3, 4]
+        source = ColumnDataSource(data={
+            "x": x,
+            "y": y,
+            "color": color,
+            "sdss_id": sdss_id,
+        })
+        return source
 
-        colorlog = str(plotstate.colorlog.value)
-        if colorlog == "log1p":
-            y = np.log1p(y)
-        elif colorlog == "log10":
-            y = np.log10(y)
-
-        # TODO: clean this code
-        y = y.where(np.abs(y) != np.inf, np.nan)
-        cmin = float(np.min(y).values)
-        cmax = float(np.max(y).values)
-        y = y.fillna(-999)
-        return y, cmin, cmax
-
-    def set_colorlabel():
-        if plotstate.bintype.value == "count":
-            return f"count ({plotstate.colorlog.value})"
-        else:
-            return f"{plotstate.color.value} ({plotstate.bintype.value})"
-
-    def create_fig():
-        # TODO: a minmax check
-        z, cmin, cmax = perform_binning()
-        colorlabel = set_colorlabel()
-        fig = px.imshow(
-            z.T,
-            zmin=cmin,
-            zmax=cmax,
-            origin="lower",
-            color_continuous_scale=plotstate.colorscale.value,
-            labels={
-                "x": plotstate.x.value,
-                "y": plotstate.y.value,
-                "color": colorlabel,
-            },
-            template=DARK_TEMPLATE if dark else LIGHT_TEMPLATE,
-        )
-        return fig
-
-    # only instantiate the figure once
-    figure = sl.use_memo(create_fig, dependencies=[])
-
-    def add_effects(fig_element: sl.Element):
-
-        def set_xflip():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            if plotstate.flipx.value:
-                fig_widget.update_xaxes(autorange="reversed")
-            else:
-                fig_widget.update_xaxes(autorange=True)
-
-        def set_yflip():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            if plotstate.flipy.value:
-                fig_widget.update_yaxes(autorange="reversed")
-            else:
-                fig_widget.update_yaxes(autorange=False)
-                fig_widget.update_yaxes(autorange=True)
-
-        def update_data():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-
-            # error checker for color update
-            if not check_cat_color(dff[plotstate.color.value]):
-                return
-
-            # update data information
-            z, cmin, cmax = perform_binning()
-            if z is None:
-                # TODO: in binning func return snackbar error based on check failure
-                return
-
-            colorlabel = set_colorlabel()
-
-            # update data
-            fig_widget.update_traces(
-                z=z.T.data,
-                x=z.coords[plotstate.x.value],
-                y=z.coords[plotstate.y.value],
-                hovertemplate=(f"{plotstate.x.value}" + ": %{x}<br>" +
-                               f"{plotstate.y.value}:" + " %{y}<br>" +
-                               f"{colorlabel}: " + "%{z}<extra></extra>"),
-            )
-            # update coloraxis & label information
-            fig_widget.update_coloraxes(
-                cmax=cmax,
-                cmin=cmin,
-                colorbar=dict(title=colorlabel),
-                colorscale=plotstate.colorscale.value,
-            )
-            fig_widget.update_layout(
-                xaxis_title=plotstate.x.value,
-                yaxis_title=plotstate.y.value,
-            )
-
-        def update_color():
-            # NOTE: only for updating colorscale, since any other change
-            # requires an entire plot change
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-
-            # update coloraxis information
-            fig_widget.update_coloraxes(
-                colorscale=plotstate.colorscale.value, )
-
-        def update_layout():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            fig_widget.update_layout(height=layout["h"] * 45 - 90)
-            fig_widget.update_layout(width=layout["w"] * 120)
-
-        sl.use_effect(update_layout, dependencies=[layout])
-
-        def update_theme():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            fig_widget.update_layout(
-                template=DARK_TEMPLATE if dark else LIGHT_TEMPLATE)
-
-        sl.use_effect(
-            update_data,
-            dependencies=[
-                filter,
-                plotstate.x.value,
-                plotstate.y.value,
-                plotstate.color.value,
-                plotstate.bintype.value,
-                plotstate.colorlog.value,
-                plotstate.nbins.value,
-            ],
-        )
-        sl.use_effect(
-            update_color,
-            dependencies=[
-                plotstate.colorscale.value,
-            ],
-        )
-        sl.use_effect(update_theme, dependencies=[dark])
-        sl.use_effect(set_xflip, dependencies=[plotstate.flipx.value])
-        sl.use_effect(set_yflip, dependencies=[plotstate.flipy.value])
-
-    fig_el = sl.FigurePlotly(figure)
-    add_effects(fig_el)
-
-    return
-
-
-@sl.component()
-def SkymapPlot(plotstate):
-    """Sky projection plot of stars for a single subset."""
-    df: vx.DataFrame = SubsetState.subsets.value[plotstate.subset.value].df
-    filter, set_filter = use_subset(id(df), plotstate.subset, "filter-skyplot")
-    dark = use_dark_effective()
-    relayout, set_relayout = sl.use_state({})
-    local_filter, set_local_filter = sl.use_state(None)
-    i = sl.use_context(index_context)
-    layout, set_layout = sl.use_state({"w": 6, "h": 10, "i": i})
-
-    def update_grid():
-        # fetch from gridstate
-        for spec in GridState.grid_layout.value:
-            if spec["i"] == i:
-                set_layout(spec)
-                break
-
-    sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
-
-    def update_filter():
-        if plotstate.geo_coords.value == "celestial":
-            lon, lat = ("ra", "dec")
-        else:
-            lon, lat = ("l", "b")
-        try:
-            scale = relayout["geo.projection.scale"]
-            if scale < 1.0:
-                return
-        except KeyError:
-            scale = 1.0
-        try:
-            lon_center = relayout["geo.center.lon"]
-        except KeyError:
-            lon_center = 0
-        try:
-            lat_center = relayout["geo.center.lat"]
-        except KeyError:
-            lat_center = 0
-
-        lonlow, lonhigh = (
-            range_loop(0, -180 / scale + lon_center),
-            range_loop(0, 180 / scale + lon_center),
-        )
-        latlow, lathigh = (
-            np.max((lat_center - (90 / scale), -90)),
-            np.min((lat_center + (90 / scale), 90)),
-        )
-
-        lonfilter = None
-        if scale > 1:
-            if lonhigh < lonlow:
-                lonfilter = df[f"({lon} > {lonlow})"] | df[
-                    f"({lon} < {lonhigh})"]
-            else:
-                lonfilter = df[f"({lon} > {lonlow})"] & df[
-                    f"({lon} < {lonhigh})"]
-        if lonfilter is not None:
-            set_local_filter((df[f"({lat} > {latlow})"]
-                              & df[f"({lat}< {lathigh})"]) & lonfilter)
-        else:
-            set_local_filter(df[f"({lat} > {latlow})"]
-                             & df[f"({lat}< {lathigh})"])
-
-    sl.lab.use_task(update_filter,
-                    dependencies=[plotstate.geo_coords.value, relayout])
-
-    # Apply global and local filters
-    if filter is not None:
-        dff = df[filter]
-    else:
-        dff = df
-
-    if local_filter is not None:
-        dff = dff[local_filter]
-    else:
-        dff = dff
-
-    # cut dff to renderable length
-    if len(dff) > 3000:
-        dff = dff[:3_000]
-
-    def create_fig():
-        dtick = 30  # for tickers
-
-        # always initialized as RA/DEC
-        lon = dff["ra"].values
-        lat = dff["dec"].values
-        c = dff[plotstate.color.value].values
-        # BUG: this fixes a bug where vaex Asserts a chunk error
-        try:
-            ids = dff["sdss_id"].values
-        except AssertionError:
-            ids = dff.extract()["sdss_id"].values
-
-        figure = go.Figure(
-            data=go.Scattergeo(
-                lat=lat,
-                lon=lon,
-                mode="markers",
-                customdata=ids,
-                hovertemplate="<b>RA</b>:" + " %{lon:.6f}<br>" +
-                "<b>DEC</b>:" + " %{lat:.6f}<br>" +
-                f"<b>{plotstate.color.value}</b>:" +
-                " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
-                " %{customdata:.d}",
-                name="",
-                marker=dict(
-                    color=c,
-                    colorbar=dict(title=plotstate.color.value),
-                    colorscale=plotstate.colorscale.value,
-                ),
-            ),
-            layout=go.Layout(
-                xaxis_title=plotstate.x.value,
-                yaxis_title=plotstate.y.value,
-                template=DARK_TEMPLATE if dark else LIGHT_TEMPLATE,
-                coloraxis=dict(
-                    cmin=dff.min(plotstate.color.value)[()],
-                    cmax=dff.max(plotstate.color.value)[()],
-                ),
-                geo=dict(
-                    bgcolor="#212121",
-                    projection_type=plotstate.projection.value,
-                    visible=False,
-                    lonaxis_showgrid=True,
-                    lonaxis_gridcolor="#616161",
-                    lonaxis_tick0=0,
-                    lataxis_showgrid=True,
-                    lataxis_gridcolor="#616161",
-                    lataxis_tick0=0,
-                ),
-            ),
-        )
-        # axes markers
-        dtick = 30
-        x = list(range(0, 360, dtick))
-        y = list(range(-90, 90 + dtick, dtick))
-        xpos = 0
-        ypos = 0
-        figure.add_trace(
-            go.Scattergeo({
-                "lon": x + [xpos] * (len(y)),
-                "lat": [ypos] * (len(x)) + y,
-                "showlegend": False,
-                "text": x + y,
-                "mode": "text",
-                "hoverinfo": "skip",
-                "name": "text",
-            }))
-        figure.update_layout(margin={"t": 30, "b": 10, "l": 0, "r": 0})
-        return figure
-
-    # only instantiate the figure once
-    figure = sl.use_memo(create_fig, dependencies=[])
-
-    # Effect based callbacks (flip, log, & data array updates)
-    def add_effects(fig_element: sl.Element):
-
-        def set_flip():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            if plotstate.flipx.value:
-                fig_widget.update_xaxes(autorange="reversed")
-            else:
-                fig_widget.update_xaxes(autorange=True)
-            if plotstate.flipy.value:
-                fig_widget.update_yaxes(autorange="reversed")
-            else:
-                fig_widget.update_yaxes(autorange=True)
-
-        def set_log():
-            # log is meaningless on the projected skyplots
-            pass
-
-        def update_projection():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            fig_widget.update_geos(projection_type=plotstate.projection.value)
-
-        def update_data():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-
-            # update main trace
-            if plotstate.geo_coords.value == "celestial":
-                loncol = "ra"
-                latcol = "dec"
-            else:
-                loncol = "l"
-                latcol = "b"
-
-            lon = dff[loncol].values
-            lat = dff[latcol].values
-            # BUG: this fixes a bug where vaex Asserts a chunk error
-            try:
-                ids = dff["sdss_id"].values
-            except AssertionError:
-                ids = dff.extract()["sdss_id"].values
-
-            fig_widget.update_traces(
-                lon=lon,
-                lat=lat,
-                customdata=ids,
-                selector=dict(type="scattergeo", name=""),
-            )
-
-        def update_color():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-
-            # error checker for color update
-            if not check_cat_color(dff[plotstate.color.value]):
-                return
-
-            # scale by log if wanted
-            c = dff[plotstate.color.value].values
-            if plotstate.colorlog.value == "log1p":
-                c = np.log1p(c)
-            elif plotstate.colorlog.value == "log10":
-                c = np.log10(c)
-
-            # update main trace
-            fig_widget.update_traces(
-                marker=dict(
-                    color=c,
-                    colorbar=dict(title=plotstate.color.value),
-                    colorscale=plotstate.colorscale.value,
-                ),
-                hovertemplate=
-                (f"<b>{'RA' if plotstate.geo_coords.value == 'celestial' else 'l'}</b>:"
-                 + " %{lon:.6f}<br>" +
-                 f"<b>{'DEC' if plotstate.geo_coords.value == 'celestial' else 'b'}</b>:"
-                 + " %{lat:.6f}<br>" + f"<b>{plotstate.color.value}</b>:" +
-                 " %{marker.color:.6f}<br>" + "<b>ID</b>:" +
-                 " %{customdata:.d}"),
-                selector=dict(type="scattergeo", name=""),
-            )
-
-        def update_layout():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            fig_widget.update_layout(height=layout["h"] * 45 - 90)
-            fig_widget.update_layout(width=layout["w"] * 120)
-
-        sl.use_effect(update_layout, dependencies=[layout])
-
-        def update_theme():
-            fig_widget: FigureWidget = sl.get_widget(fig_element)
-            fig_widget.update_layout(
-                template=DARK_TEMPLATE if dark else LIGHT_TEMPLATE)
-            fig_widget.update_geos(
-                bgcolor="#212121" if dark else "#FAFAFA",
-                lonaxis_gridcolor="#616161" if dark else "#BDBDBD",
-                lataxis_gridcolor="#616161" if dark else "#BDBDBD",
-            )
-
-        sl.use_effect(
-            update_data,
-            dependencies=[filter, local_filter, plotstate.geo_coords.value])
-        sl.use_effect(update_projection,
-                      dependencies=[plotstate.projection.value])
-        sl.use_effect(
-            update_color,
-            dependencies=[
-                filter,
-                local_filter,
-                plotstate.color.value,
-                plotstate.colorscale.value,
-                plotstate.colorlog.value,
-            ],
-        )
-        sl.use_effect(
-            set_flip,
-            dependencies=[plotstate.flipx.value, plotstate.flipy.value])
-        sl.use_effect(update_theme, dependencies=[dark])
-
-    # Plotly-side callbacks (relayout, select, deselect)
-    def on_relayout(data):
-        if data is not None:
-            # full limit reset, resetting relayout data + local filter
-            if "geo.fitbounds" in data["relayout_data"].keys():
-                set_relayout({})
-                set_local_filter(None)
-            # if change tool, skip update
-            elif "dragmode" in data["relayout_data"].keys():
-                pass
-            # Update the current dictionary
-            else:
-                set_relayout(dict(relayout, **data["relayout_data"]))
-
-    def on_select(data):
-        if len(data["points"]["xs"]) > 0:
-            bool_arr = np.array(data["points"]["trace_indexes"]) == 0
-            logger.info(np.array(data["points"]["point_indexes"])[bool_arr])
-
-            # set_filter(df[df == dff[data["points"]["point_indexes"]]])
-
-    def on_deselect(_data):
-        set_filter(None)
-
-    fig_el = sl.FigurePlotly(
-        figure,
-        # on_selection=on_select,
-        # on_deselect=on_deselect,
-        on_relayout=on_relayout,
+    source = sl.use_memo(
+        generate_cds,
         dependencies=[],
     )
-    add_effects(fig_el)
-    return fig_el
+
+    def create_figure():
+        """Creates figure with relevant objects"""
+        p, menu = generate_plot()
+        # generate and add axes
+        add_axes(plotstate, p)
+
+        # generate scatter points and colorbar
+        mapper = generate_color_mapper(plotstate, dff=dff)
+
+        # add glyph
+        glyph = Scatter(x="x",
+                        y="y",
+                        size=8,
+                        fill_color={
+                            "field": "color",
+                            "transform": mapper
+                        })
+        p.add_glyph(source, glyph)
+        add_colorbar(plotstate, p, mapper, source.data["color"])
+
+        # add all tools; custom hoverinfo
+        add_all_tools(p)
+        update_tooltips(plotstate, p)
+        add_callbacks(plotstate, dff, p, source, set_filter=set_filter)
+
+        # add our special range callback for adaptive rerenders
+        def on_range_update(event):
+            print("range update ocurring")
+            print(event)
+            set_ranges([[event.x0, event.x1], [event.y0, event.y1]])
+
+        from bokeh.events import RangesUpdate
+
+        p.on_event(RangesUpdate, on_range_update)
+
+        return p
+
+    p = sl.use_memo(
+        create_figure,
+        dependencies=[],
+    )
+
+    # externally filtered df onlu
+    # NOTE: this is different from dff, which is the fully filtered one
+    def _get_dfe():
+        if filter is not None:
+            return df[filter]
+        return df
+
+    dfe = sl.use_memo(_get_dfe, dependencies=[filter])
+
+    # workaround to make reset button aware of dff bounds
+    # NOTE:reset callback must be aware of what dfe is and dump as necessary
+    def add_reset_callback():
+        # WARNING: temp method until Bokeh adds method for remove_on_event
+        def on_reset(attr, old, new):
+            """Range resets"""
+
+            with p.hold(render=True):
+                reset_range(plotstate, p, dfe, axis="x")
+                reset_range(plotstate, p, dfe, axis="y")
+                set_ranges([[np.nan, np.nan], [np.nan, np.nan]])
+
+        p.on_change("name", on_reset)
+
+        # dump on regeneration
+        def cleanup():
+            p.remove_on_change("name", on_reset)
+
+        return cleanup
+
+    sl.use_effect(add_reset_callback, dependencies=[dfe])
+
+    pfig = FigureBokeh(
+        p,
+        dependencies=[],
+        dark_theme=DARKTHEME,
+        light_theme=LIGHTTHEME,
+    )
+
+    add_scatter_effects(pfig, plotstate, dff, filter)
+    add_common_effects(pfig, plotstate, dff, layout)
+    return pfig
 
 
 @sl.component()

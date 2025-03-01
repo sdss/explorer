@@ -1,18 +1,16 @@
 """Main functions for plot effects"""
 
 import asyncio
-import operator
-from functools import reduce
 import logging
 from bokeh.models.plots import Plot
-from bokeh.models import BooleanFilter, Rect
+from bokeh.models import Rect
 import numpy as np
 import vaex as vx
 import reacton.ipyvuetify as rv
 import solara as sl
 from jupyter_bokeh import BokehModel
 
-from plot_actions import (
+from .plot_actions import (
     update_color_mapper,
     update_mapping,
     update_tooltips,
@@ -23,8 +21,8 @@ from plot_actions import (
     update_axis,
     aggregate_data,
 )
-from state import PlotState
-from util import check_categorical
+from .plot_utils import check_categorical
+from ...dataclass import PlotState
 
 __all__ = [
     "add_scatter_effects",
@@ -52,8 +50,6 @@ def add_common_effects(
         dff: filtered dataframe
         layout: grid layout dictionary for the card. used for triggering height effect
     """
-
-    # TODO: add df to certain callbacks
 
     def update_logx():
         """X-axis log scale callback"""
@@ -153,8 +149,6 @@ def add_scatter_effects(
         filter: filter object, for use in triggering effects
     """
 
-    # TODO: add df to certain callbacks
-
     def update_x():
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
@@ -225,8 +219,6 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
         filter: filter object, for use in triggering effects
     """
 
-    # TODO: add df to certain callbacks
-
     def update_data():
         """X/Y/Color data column change update"""
         fig_widget: BokehModel = sl.get_widget(pfig)
@@ -238,9 +230,11 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
                     color, x_centers, y_centers, widths = aggregate_data(
                         plotstate, dff)
                 except Exception as e:
-                    logger.debug("0 length, leaving")
-                    print("exception on update_data", e)
-                    # TODO: Alert.update('Your data is too small to aggregate! Not updating.',color='warning')
+                    logger.debug("exception on update_data (heatmap):" + str())
+                    Alert.update(
+                        "Your data is too small to aggregate! Not updating.",
+                        color="warning",
+                    )
                     return
                 with fig_model.hold(render=True):
                     source = fig_model.renderers[0].data_source
@@ -283,9 +277,12 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
             if dff is not None:
                 try:
                     color = aggregate_data(plotstate, dff)[0]
-                except AssertionError:
-                    logger.debug("attempted exit, leaving")
-                    # TODO: Alert.update('Your data is too small to aggregate! Not updating.',color='warning')
+                except AssertionError as e:
+                    logger.debug("color update failed (heatmap)" + str(e))
+                    Alert.update(
+                        "Your data is too small to aggregate! Not updating.",
+                        color="warning",
+                    )
                     return
                 with fig_model.hold(render=True):
                     fig_model.renderers[0].data_source.data[
@@ -340,8 +337,6 @@ def add_histogram_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
         filter: filter object, for use in triggering effects
     """
 
-    # TODO: add df to certain callbacks
-
     def update_data():
         """X/Y/Color data column change update"""
         fig_widget: BokehModel = sl.get_widget(pfig)
@@ -353,8 +348,8 @@ def add_histogram_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
                 assert len(dff) > 0, "zero length dataframe"
                 centers, edges, counts = aggregate_data(plotstate, dff)
             except Exception as e:
-                print("exception on update_data", e)
-                # TODO: Alert.update('Data update failed! {e}',color='warning')
+                logger.debug("exception on update_data (hist):" + str(e))
+                Alert.update("Data update failed! {e}", color="warning")
                 return
             with fig_model.hold(render=True):
                 fig_model.renderers[0].data_source.data = {

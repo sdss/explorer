@@ -1,7 +1,8 @@
 """Plot specific actions that are used in effects"""
 
+import logging
 from bokeh.models.tools import HoverTool
-from typing import Optional, Any
+from typing import Optional
 import numpy as np
 import vaex as vx
 from numpy import ndarray
@@ -11,9 +12,9 @@ from bokeh.models.formatters import (
     BasicTickFormatter,
 )
 
-from util import check_categorical
-from state import PlotState
-from plot_utils import (
+from ...dataclass import PlotState, State, Alert
+from .plot_utils import (
+    check_categorical,
     _calculate_color_range,
     calculate_colorbar_ticks,
     calculate_range,
@@ -23,6 +24,8 @@ from plot_utils import (
     generate_categorical_hover_formatter,
     generate_tooltips,
 )
+
+logger = logging.getLogger("dashboard")
 
 
 def update_tooltips(plotstate: PlotState, fig_model: Plot) -> None:
@@ -79,8 +82,8 @@ def update_axis(
             update_mapping(plotstate, axis=axis)
         colData = fetch_data(plotstate, dff, axis=axis)
     except Exception as e:
-        print("fetch update", e)
-        # TODO: Alert.update(f"Color update failed! {e}",color='warning')
+        logger.debug("fetch update" + str(e))
+        Alert.update(f"Color update failed! {e}", color="warning")
         return
     with fig_model.hold(render=True):
         fig_model.renderers[0].data_source.data[
@@ -315,15 +318,14 @@ def aggregate_data(
     Raises:
         ValueError: if no bintype (somehow)
         RuntimeError: if binning is too small (stride bug)
+        AssertionError: if data is invalid (all nan, etc)
 
     """
-    # check validity; O(1) because set
+    # check validity
     if plotstate.bintype.value not in plotstate.Lookup["bintypes"]:
         raise ValueError(
             "no assigned bintype for aggregation. bug somewhere in settings.")
 
-    # TODO: histogram logic
-    # TODO: categorical for hist
     if plotstate.plottype == "histogram":
         if check_categorical(dff[plotstate.x.value]):
             update_mapping(plotstate, axis="x")
@@ -331,9 +333,11 @@ def aggregate_data(
         else:
             nbins = plotstate.nbins.value
         expr = fetch_data(plotstate, dff, axis="x")
+
+        # get bin center and edges; center mainly for us
         if check_categorical(dff[plotstate.x.value]):
             centers = expr.unique(array_type="numpy")
-            edges = np.arange(0, expr.nunique() + 1, 1) - 0.5
+            edges = np.arange(0, expr.nunique() + 1, 1) - 0.5  # offset
         else:
             try:
                 limits = expr.minmax()
@@ -341,6 +345,8 @@ def aggregate_data(
                 limits = [expr.min()[()], expr.max()[()]]
             edges = dff.bin_edges(expr, limits=limits, shape=nbins)
             centers = dff.bin_centers(expr, limits=limits, shape=nbins)
+
+        # get counts
         if check_categorical(dff[plotstate.x.value]):
             series = expr.value_counts()  # value_counts as in Pandas
             counts = series.values
@@ -364,8 +370,6 @@ def aggregate_data(
             "cannot perform aggregations on categorical data")
 
         expr = (
-            # dff[plotstate.x.value],
-            # dff[plotstate.y.value],
             fetch_data(plotstate, dff, axis="x"),
             fetch_data(plotstate, dff, axis="y"),
         )
