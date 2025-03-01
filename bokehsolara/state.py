@@ -1,6 +1,10 @@
 import solara as sl
 import vaex as vx
 from bokeh.palettes import __palettes__ as colormaps
+import colorcet as cc
+
+palettes = {k: k for k in colormaps if "256" in k}
+palettes.update(cc.palette_n.copy())
 
 df = vx.open(
     "/home/riley/projects/explorer/data/ipl3/explorerAllStar-0.6.0.hdf5"
@@ -90,7 +94,7 @@ class PlotState:
                 "cov",
                 "covar",
             ],
-            colorscales=[map for map in colormaps if "256" in map],
+            colorscales=palettes,
             projections=[
                 "albers",
                 "aitoff",

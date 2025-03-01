@@ -150,7 +150,7 @@ def SkymapMenu(plotstate, columns):
             with sl.Row():
                 SingleAutocomplete(
                     label="Colorscale",
-                    values=plotstate.Lookup["colorscales"],
+                    values=list(plotstate.Lookup["colorscales"].keys()),
                     value=plotstate.colorscale.value,
                     on_value=plotstate.colorscale.set,
                 )
@@ -201,7 +201,7 @@ def ScatterMenu(plotstate, columns):
                 with sl.Row(gap="2px"):
                     SingleAutocomplete(
                         label="Colorscale",
-                        values=plotstate.Lookup["colorscales"],
+                        values=list(plotstate.Lookup["colorscales"].keys()),
                         value=plotstate.colorscale.value,
                         on_value=plotstate.colorscale.set,
                     )
@@ -303,7 +303,8 @@ def HeatmapMenu(plotstate, columns):
                     with sl.Column():
                         SingleAutocomplete(
                             label="Colorscale",
-                            values=plotstate.Lookup["colorscales"],
+                            values=list(
+                                plotstate.Lookup["colorscales"].keys()),
                             value=plotstate.colorscale.value,
                             on_value=plotstate.colorscale.set,
                         )
@@ -389,7 +390,7 @@ def DeltaHeatmapMenu(plotstate):
                 )
             SingleAutocomplete(
                 label="Colorscale",
-                values=plotstate.Lookup["colorscales"],
+                values=list(plotstate.Lookup["colorscales"].keys()),
                 value=plotstate.colorscale.value,
                 on_value=plotstate.colorscale.set,
             )

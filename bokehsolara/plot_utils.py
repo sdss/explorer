@@ -426,21 +426,24 @@ def calculate_range(plotstate, dff, axis: str = "x") -> tuple[float, float]:
             # TODO: logger.debug("dodging stride bug")
             limits = (expr.min()[()], expr.max()[()])
 
-    # bokeh uses 10% of range as padding by default
     datarange = abs(limits[1] - limits[0])
-    pad = datarange / 20
+
+    # padding logic
+    if (plotstate.plottype == "histogram") and check_categorical(col):
+        pad = 1.2
+    elif plotstate.plottype == "heatmap":
+        if check_categorical(dff[col]):
+            pad = 0.5
+        else:
+            pad = 0
+    else:
+        # bokeh uses 10% of range as padding by default
+        pad = datarange / 20
+
     start = limits[0]
     end = limits[1]
-    if plotstate.plottype == "heatmap":
-        if check_categorical(dff[col]):
-            start = start - 0.5
-            end = end + 0.5
-        else:
-            start = start
-            end = end
-    else:
-        start = start - pad
-        end = end + pad
+    start = start - pad
+    end = end + pad
     if log:
         start = 10**start
         end = 10**end

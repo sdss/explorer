@@ -179,12 +179,12 @@ def add_scatter_effects(
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
-
             with fig_model.hold(render=True):
-                fig_model.right[
-                    0].color_mapper.palette = plotstate.colorscale.value
-                fig_model.renderers[0].glyph.fill_color[
-                    "transform"].palette = plotstate.colorscale.value
+                newmap = plotstate.Lookup["colorscales"][
+                    plotstate.colorscale.value]
+                fig_model.right[0].color_mapper.palette = newmap
+                fig_model.renderers[
+                    0].glyph.fill_color.transform.palette = newmap
 
     def update_filter():
         """Complete filter update"""
@@ -201,6 +201,8 @@ def add_scatter_effects(
                     color=color.values,
                     sdss_id=dff["sdss_id"].values,
                 )
+                update_color_mapper(plotstate, fig_model, dff)
+                change_formatter(plotstate, fig_model, dff, axis="color")
 
     sl.use_effect(update_filter, dependencies=[dff])
     sl.use_effect(update_x, dependencies=[plotstate.x.value])
@@ -264,8 +266,14 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
                     # update all labels, ranges, etc
                     for axis in ("x", "y"):
                         update_label(plotstate, fig_model, axis=axis)
+                        change_formatter(plotstate, fig_model, dff, axis=axis)
                         reset_range(plotstate, fig_model, dff, axis=axis)
                     update_color_mapper(plotstate, fig_model, dff, color)
+                    change_formatter(plotstate,
+                                     fig_model,
+                                     dff,
+                                     axis="color",
+                                     color=color)
                     update_tooltips(plotstate, fig_model)
 
     def update_color():
@@ -296,10 +304,10 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
         fig_widget: BokehModel = sl.get_widget(pfig)
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
-            fig_model.right[
-                0].color_mapper.palette = plotstate.colorscale.value
-            fig_model.renderers[
-                0].glyph.fill_color.transform.palette = plotstate.colorscale.value
+            newmap = plotstate.Lookup["colorscales"][
+                plotstate.colorscale.value]
+            fig_model.right[0].color_mapper.palette = newmap
+            fig_model.renderers[0].glyph.fill_color.transform.palette = newmap
 
     sl.use_effect(
         update_data,
