@@ -51,10 +51,21 @@ class PlotState:
         self.plottype = str(plottype)
         self.subset = sl.use_reactive(current_key)
 
-        self.columns = sl.use_reactive(["g_mag", "bp_mag"])
-        self.x = sl.use_reactive(kwargs.get("x", "teff"))
-        self.y = sl.use_reactive(kwargs.get("y", "logg"))
-        self.color = sl.use_reactive(kwargs.get("color", "fe_h"))
+        # want target data or stats?
+        init_cols = (["sdss_id", "gaia_dr3_source_id"] if
+                     (plottype == "targets") else ["g_mag", "snr"])
+        self.columns = sl.use_reactive(init_cols)
+
+        # setup init columns, also used for resets;
+        # these are STABLE columns, so they should have minimal invalids
+        valid_columns = SubsetState.subsets.value[current_key].columns
+        initx = "teff" if "teff" in valid_columns else "ra"
+        inity = "logg" if "logg" in valid_columns else "dec"
+        initc = "fe_h" if "fe_h" in valid_columns else "plx"
+
+        self.x = sl.use_reactive(kwargs.get("x", initx))
+        self.y = sl.use_reactive(kwargs.get("y", inity))
+        self.color = sl.use_reactive(kwargs.get("color", initc))
 
         # categorical data mappings
         self.xmapping = dict()  # non-reactive
@@ -62,14 +73,13 @@ class PlotState:
 
         # color props
         self.colormapping = dict()  # non-reactive
-        self.colorscale = sl.use_reactive(
-            kwargs.get("colorscale", "Inferno256"))
+        self.colorscale = sl.use_reactive(kwargs.get("colorscale", "inferno"))
         self.logcolor = sl.use_reactive(kwargs.get("logcolor", False))
 
         # binning props
-        self.nbins = sl.use_reactive(200)
-        init_bintype = "mean" if (plottype == "heatmap") else "count"
-        self.bintype = sl.use_reactive(kwargs.get("bintype", init_bintype))
+        init_nbins = 100 if (plottype == "heatmap") else 20
+        self.nbins = sl.use_reactive(kwargs.get("nbins", init_nbins))
+        self.bintype = sl.use_reactive(kwargs.get("bintype", "mean"))
 
         # flips and logs
         self.flipx = sl.use_reactive(bool(kwargs.get("flipx", "")))
@@ -134,22 +144,21 @@ class PlotState:
         # columnar resets for plots
         else:
             if self.x.value not in valid_columns:
-                Alert.update(
-                    "Columns of subset changed! Column reset to 'g_mag'",
-                    color="info")
-                self.x.value = "g_mag"
+                Alert.update("Columns of subset changed! Column reset to 'ra'",
+                             color="info")
+                self.x.value = "dec"
             if self.plottype != "histogram":
                 if self.y.value not in valid_columns:
                     Alert.update(
-                        "Columns of subset changed! Column reset to 'snr'",
+                        "Columns of subset changed! Column reset to 'dec'",
                         color="info")
-                    self.y.value = "snr"
+                    self.y.value = "dec"
                 if self.color.value not in valid_columns:
                     Alert.update(
-                        "Columns of subset changed! Column reset to 'g_mag'",
+                        "Columns of subset changed! Column reset to 'ra'",
                         color="info",
                     )
-                    self.color.value = "g_mag"
+                    self.color.value = "ra"
 
     def update_subset(self, name: str, b: bool = False):
         """Callback to update subset by name."""

@@ -12,7 +12,7 @@ from bokeh.models.formatters import (
     BasicTickFormatter,
 )
 
-from ...dataclass import PlotState, State, Alert
+from ...dataclass import PlotState, Alert, SubsetState
 from .plot_utils import (
     check_categorical,
     _calculate_color_range,
@@ -173,7 +173,9 @@ def update_mapping(plotstate: PlotState, axis: str = "x") -> None:
         axis: axis to perform update on. any of 'x', 'y', or 'color'
 
     """
-    from state import df  # WARNING: this df must be from SubsetState.subsets later
+    df = SubsetState.subsets.value[
+        plotstate.subset.
+        value].df  # WARNING: this df must be from SubsetState.subsets later
 
     assert axis in ("x", "y", "color"), f"expected axis x or y but got {axis}"
     col = getattr(plotstate, axis).value  # column name
@@ -286,6 +288,7 @@ def fetch_data(plotstate: PlotState,
     else:
         if (axis == "color") and plotstate.logcolor.value:
             colData = np.log10(dff[col])
+            # check if the update will make all nan, and set accordingly
             try:
                 test = colData.values
                 test[np.abs(test) == np.inf] = np.nan
@@ -339,10 +342,10 @@ def aggregate_data(
             centers = expr.unique(array_type="numpy")
             edges = np.arange(0, expr.nunique() + 1, 1) - 0.5  # offset
         else:
-            try:
-                limits = expr.minmax()
-            except Exception:  # stride bug catch
-                limits = [expr.min()[()], expr.max()[()]]
+            # try:
+            limits = expr.minmax()
+            # except Exception:  # stride bug catch
+            #    limits = [expr.min()[()], expr.max()[()]]
             edges = dff.bin_edges(expr, limits=limits, shape=nbins)
             centers = dff.bin_centers(expr, limits=limits, shape=nbins)
 
@@ -390,10 +393,10 @@ def aggregate_data(
                 limits[i] = [0, expr[i].nunique()]
                 widths[i] = 1
             else:
-                try:
-                    limit = expr[i].minmax()
-                except Exception:  # stride bug catch
-                    limit = [expr[i].min()[()], expr[i].max()[()]]
+                # try:
+                limit = expr[i].minmax()
+                # except Exception:  # stride bug catch
+                #    limit = [expr[i].min()[()], expr[i].max()[()]]
                 edges[i] = dff.bin_centers(
                     expression=expr[i],
                     limits=limit,
@@ -408,6 +411,7 @@ def aggregate_data(
             aggFunc = getattr(dff, "median_approx")  # median under diff name
         else:
             aggFunc = getattr(dff, bintype)
+        # try:
         color = aggFunc(
             expression=expr_c if bintype != "count" else None,
             binby=expr,
@@ -415,6 +419,8 @@ def aggregate_data(
             shape=shape,
             delay=True,
         )
+        # except Exception:
+        # in the event this stride bugs, you can bypass it with
 
         # execute!
         dff.execute()

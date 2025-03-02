@@ -260,8 +260,8 @@ def DownloadMenu(key: str) -> ValueElement:
             )
             if resp.status_code == 202:
                 # ready! push update to call query loop task
-                logger.debug(
-                    f"Successfully called for download for {subset.name}")
+                logger.debug("Successfully called for download for" +
+                             subset.name)
                 Alert.update("Creating file for download! Please wait.")
                 set_response(json.loads(resp.text))
         # on timeout raise, inform user

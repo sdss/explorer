@@ -16,7 +16,7 @@ class Subset:
     name: str = "A"
     expression: str = ""
     df: vx.DataFrame = State.df.value
-    dataset: str = "best" if State.datatype == "star" else "apogeenet"
+    dataset: str = dataclasses.field(default_factory=State.get_default_dataset)
     flags: list[str] = dataclasses.field(
         default_factory=lambda: ["purely non-flagged"])
     mapper: list[str] = dataclasses.field(default_factory=list)

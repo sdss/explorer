@@ -199,9 +199,9 @@ def HistogramMenu(plotstate: PlotState, columns):
             sl.SliderInt(
                 label="Number of Bins",
                 value=nbins,
-                step=10,
+                step=5,
                 min=10,
-                max=1000,
+                max=200,
             )
 
 
@@ -257,7 +257,7 @@ def HeatmapMenu(plotstate: PlotState, columns):
                     value=nbins,
                     step=2,
                     min=2,
-                    max=250,
+                    max=240,
                 )
                 with Columns([1, 1]):
                     with sl.Column():

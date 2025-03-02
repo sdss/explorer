@@ -72,7 +72,8 @@ def ExprEditor(key: str, invert) -> ValueElement:
             return False
 
     result: sl.Result[bool] = sl.lab.use_task(
-        update_expr, dependencies=[expression, subset.dataset, invert.value])
+        update_expr,
+        dependencies=[df, expression, subset.dataset, invert.value])
     if result.finished:
         if result.value:
             errorFound = False

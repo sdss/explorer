@@ -31,7 +31,7 @@
 </template>
 <script>
 export default {
-  data() {
+ data() {
     return {
       value: "",
       model: "",
@@ -39,6 +39,10 @@ export default {
       error: false,
       hovered: false, // hover state
     }
+  },
+  created() {
+    // copy the value to model when component is created; for query param init
+    this.model = this.value;
   },
   methods: {
       onEnter(event) {

@@ -122,7 +122,6 @@ def SubsetCard(key: str) -> ValueElement:
     filtered = filtered_length < length
     denom = max(length, 1)
     progress = filtered_length / denom * 100
-    logger.debug(open)
 
     with rv.ExpansionPanel(v_model=open, on_v_model=set_open) as main:
         with rv.ExpansionPanelHeader():

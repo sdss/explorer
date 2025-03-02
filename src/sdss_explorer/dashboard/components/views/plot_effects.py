@@ -135,6 +135,7 @@ def add_common_effects(
             if len(new) > 0:
                 logger.debug("starting filter operation")
                 if plotstate.plottype == "histogram":
+                    # NOTE: numpy arrays
                     if check_categorical(plotstate.x.value):
                         data = source.data["centers"][new]
                         dataExpr = df[plotstate.x.value].map(
@@ -151,6 +152,7 @@ def add_common_effects(
                         set_filter(df[f"(({col}>={xmin})&({col}<={xmax}))"])
 
                 elif plotstate.plottype == "heatmap":
+                    # NOTE: numpy arrays
                     datax = source.data["x"][new]
                     datay = source.data["y"][new]
                     if check_categorical(plotstate.x.value):
@@ -174,10 +176,9 @@ def add_common_effects(
                     set_filter(combined)
 
                 elif plotstate.plottype == "scatter":
-                    datax = source.data["x"].slice(min(new),
-                                                   max(new) - min(new))
-                    datay = source.data["y"].slice(min(new),
-                                                   max(new) - min(new))
+                    # NOTE: pyarrow ChunkedArrays
+                    datax = source.data["x"].take(new)
+                    datay = source.data["y"].take(new)
                     colx = plotstate.x.value
                     coly = plotstate.y.value
                     newfilter = (df[colx].isin(datax)) & (df[coly].isin(datay))
@@ -311,7 +312,7 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
                     logger.debug("exception on update_data (heatmap):" +
                                  str(e))
                     Alert.update(
-                        "Your data is too small to aggregate! Not updating.",
+                        "Your data is too small to aggregate! Not updating heatmap.",
                         color="warning",
                     )
                     return
@@ -359,7 +360,7 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
                 except AssertionError as e:
                     logger.debug("color update failed (heatmap)" + str(e))
                     Alert.update(
-                        "Your data is too small to aggregate! Not updating.",
+                        "Your data is too small to aggregate! Not updating heatmap.",
                         color="warning",
                     )
                     return
@@ -389,6 +390,7 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
         update_data,
         dependencies=[
             df,
+            dff,
             plotstate.x.value,
             plotstate.y.value,
             plotstate.nbins.value,
@@ -421,6 +423,7 @@ def add_histogram_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
     def update_data():
         """X/Y/Color data column change update"""
         fig_widget: BokehModel = sl.get_widget(pfig)
+
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
             try:
@@ -430,7 +433,8 @@ def add_histogram_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
                 centers, edges, counts = aggregate_data(plotstate, dff)
             except Exception as e:
                 logger.debug("exception on update_data (hist):" + str(e))
-                Alert.update("Data update failed! {e}", color="warning")
+                Alert.update(f"Data update failed on histogram! {e}",
+                             color="warning")
                 return
             with fig_model.hold(render=True):
                 fig_model.renderers[0].data_source.data = {
@@ -450,6 +454,7 @@ def add_histogram_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
         update_data,
         dependencies=[
             df,
+            dff,
             plotstate.x.value,
             plotstate.nbins.value,
             filter,

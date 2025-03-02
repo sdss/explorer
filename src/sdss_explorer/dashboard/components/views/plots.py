@@ -7,6 +7,7 @@ from functools import reduce
 
 import numpy as np
 import solara as sl
+import pandas as pd
 import vaex as vx
 import reacton.ipyvuetify as rv
 from reacton.ipyvuetify import ValueElement
@@ -133,7 +134,7 @@ def HistogramPlot(plotstate: PlotState) -> ValueElement:
         try:
             centers, edges, counts = aggregate_data(plotstate, dff)
         except Exception as e:
-            Alert.update("Failed to initialize! {e}. Using dummy data.")
+            Alert.update(f"Failed to initialize! {e}. Using dummy data.")
             centers = [0, 1, 2]
             edges = [0, 1, 2, 3]
             counts = [0, 0, 0]
@@ -354,7 +355,7 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
         logger.debug("combined = " + str(combined))
         return combined
 
-    # if start changes end changes too (likely)
+    # update on dataset (df) change, or range update
     local_filter = sl.use_memo(update_filter,
                                dependencies=[df, ranges[0], ranges[1]])
 
@@ -362,13 +363,17 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
         await asyncio.sleep(0.05)
         return local_filter
 
+    # debounced output
     debounced_local_filter = sl.lab.use_task(debounced_filter,
                                              dependencies=[local_filter],
                                              prefer_threaded=False)
 
     def get_dff():
+        """This filters down the dataset to what is necessary."""
         filters = []
+        logger.debug("type = " + str(type(df)))
         try:
+            logger.debug("starting dff gen")
             if debounced_local_filter.finished:
                 if debounced_local_filter.value == local_filter:
                     if debounced_local_filter.value is not None:
@@ -386,17 +391,19 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
                 dfe = df
         except Exception:
             dfe = df
-        if len(dfe) > 10001:  # bugfix
-            logger.debug("returing sliced")
-            return dfe[:10_000]
-        else:
-            logger.debug("returing as is")
-            return dfe
+        if dfe is not None:
+            if len(dfe) > 10001:  # bugfix
+                logger.debug("returing sliced")
+                return dfe[:10_000]
+        logger.debug("returing as is")
+        return dfe
 
     dff = sl.use_memo(
         get_dff, dependencies=[df, filter, debounced_local_filter.finished])
 
     def generate_cds():
+        """Generate initial CDS object. Runs once"""
+        logger.debug("generating cds")
         try:
             assert len(dff) > 0, "zero data in subset!"
             x = fetch_data(plotstate, dff, "x").values
@@ -405,7 +412,7 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
             sdss_id = dff["sdss_id"].values
         except Exception as e:
             logger.debug("failed scatter init" + str(e))
-            Alert.update("Failed to initialize plot! {e} Using dummy data")
+            Alert.update(f"Failed to initialize plot! {e} Using dummy data")
             x = [1, 2, 3, 4]
             y = [1, 2, 3, 4]
             color = [1, 2, 3, 4]
@@ -416,6 +423,7 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
             "color": color,
             "sdss_id": sdss_id,
         })
+        logger.debug("cds = " + str(source.data))
         return source
 
     source = sl.use_memo(
@@ -473,7 +481,7 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
 
     dfe = sl.use_memo(_get_dfe, dependencies=[df, filter])
 
-    # workaround to make reset button aware of dff bounds
+    # workaround to make reset button aware of dff bounds are given the filtering
     # NOTE:reset callback must be aware of what dfe is and dump as necessary
     def add_reset_callback():
         # WARNING: temp method until Bokeh adds method for remove_on_event
@@ -535,9 +543,9 @@ def StatisticsTable(state):
             dfd = pd.DataFrame({"error": ["no"], "encountered": ["data"]})
         return dfd
 
-    result = use_task(generate_describe,
-                      dependencies=[filter, columns,
-                                    len(columns)])
+    result = sl.lab.use_task(generate_describe,
+                             dependencies=[filter, columns,
+                                           len(columns)])
 
     def remove_column(name):
         """Removes column from column list"""
@@ -588,7 +596,7 @@ def TargetsTable(plotstate):
                 set_layout(spec)
                 break
 
-    use_task(update_grid, dependencies=[GridState.grid_layout.value])
+    sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
 
     if filter:
         dff = df[filter]
@@ -596,7 +604,10 @@ def TargetsTable(plotstate):
         dff = df
     if len(dff) < 10:
         new_layout = layout.copy()
-        new_layout["h"] = len(dff)
+        h = max(4, len(dff))
+        new_layout["minH"] = h
+        new_layout["maxH"] = h
+        new_layout["h"] = h
         set_layout(new_layout)
 
     dff = dff[plotstate.columns.value]

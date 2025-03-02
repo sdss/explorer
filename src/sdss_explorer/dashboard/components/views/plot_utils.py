@@ -61,13 +61,14 @@ def add_all_tools(p: Plot, tooltips: Optional[str] = None) -> list[Model]:
     boxzoom = BoxZoomTool()
     wz = WheelZoomTool()
     box_select = BoxSelectTool()
-    lasoo = LassoSelectTool()
+    lasoo = LassoSelectTool(continuous=False)  # only evaluate on LMB.up
     reset = ResetTool()
     save = SaveTool()
     tools = [pan, boxzoom, box_select, lasoo, hover, wz, save, reset]
 
     if DEV:
-        tools.append(ExamineTool())  # debugging tool
+        tools.append(
+            ExamineTool())  # debugging tool to inspect JS props directly
     p.add_tools(*tools)
     p.toolbar.active_scroll = wz  # sets scroll wheelzoom
     p.toolbar.autohide = True  # hide when not hovered
@@ -238,7 +239,7 @@ def generate_color_mapper(
     low, high = _calculate_color_range(plotstate, dff=dff, color=color)
 
     return LinearColorMapper(
-        palette=plotstate.colorscale.value,
+        palette=plotstate.Lookup["colorscales"][plotstate.colorscale.value],
         low=low,
         high=high,
     )
@@ -548,6 +549,7 @@ def calculate_colorbar_ticks(low, high) -> list[float]:
         return clamp(interval, 0, float("inf"))
 
     try:
+        assert low != high
         interval = get_interval(low, high, 6)
         return np.arange(round(low / interval) * interval, high,
                          interval).tolist()

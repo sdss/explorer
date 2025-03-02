@@ -156,6 +156,11 @@ class StateData:
         """Current datatype of app (star or visit)"""
         return str(self._datatype.value)
 
+    def get_default_dataset(self):
+        """Method version to get the default dataset of app (star or visit). Used for defaulting the Subset dataclass"""
+        datatype = self._datatype.value
+        return "best" if datatype == "star" else "thepayne"
+
     @property
     def uuid(self):
         """User ID; Solara Session ID"""

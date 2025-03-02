@@ -80,7 +80,6 @@ def add_view(plottype, layout: Optional[dict] = None, **kwargs):
             prev = {"x": 0, "y": -12, "h": 12, "w": 12, "moved": False}
         else:
             prev = GridState.grid_layout.value[-1]
-        # TODO: better height logic
         maxH = 40
         minH = 7
         if plottype == "stats":

@@ -4,6 +4,7 @@ import logging
 from urllib.parse import parse_qs
 from os import getenv
 
+from bokeh.io import output_notebook
 import solara as sl
 import numpy as np
 import vaex as vx
@@ -79,6 +80,9 @@ def Page() -> None:
     """
     df = State.df.value
 
+    output_notebook(
+        hide_banner=True)  # required so plots can exist; loads BokehJS
+
     # check query params
     # NOTE: query params are not avaliable on kernel load, so it must be an effect.
     router = sl.use_router()
@@ -111,6 +115,7 @@ def Page() -> None:
         # unwrap query_params
         query_params = parse_qs(router.search, keep_blank_values=True)
         query_params = {k: v[0] for k, v in query_params.items()}
+        logger.debug(query_params)
 
         ## DATAFRAME SETUP
         # setup dataframe (non-optional step)
@@ -189,9 +194,10 @@ def Page() -> None:
 
                     expr = subset_data.get("expression")
                     if expr:
-                        expr = expr.replace(".and.",
-                                            " & ").replace(".or.", " | ")
+                        expr = (expr.replace(".and.", " & ").replace(
+                            ".or.", " | ").replace(".eq.", "=="))
                         State.df.value.validate_expression(expr)
+                        subset_data["expression"] = expr
                 except Exception as e:
                     logger.debug(f"Failed query params on subset parsing: {e}")
 
