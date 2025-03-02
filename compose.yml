@@ -14,7 +14,7 @@ services:
       - "/home/riley/projects/explorer/scratch/:/root/scratch"
       - "/home/riley/projects/explorer/logs/:/app/logs"
     env_file:
-      - .env
+      - env
     develop:
       # Create a `watch` configuration to update the appl
       # https://docs.docker.com/compose/file-watch/#compose-watch-versus-bind-mounts
@@ -28,6 +28,7 @@ services:
           ignore:
             - .venv/
             - data/
+            - venv/
             - scratch/
             - logs/
 

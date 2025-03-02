@@ -11,19 +11,33 @@ from .state import State
 # frozen means it yells at us if we do assignment instead of replace
 @dataclasses.dataclass(frozen=True)
 class Subset:
-    """Subset dataclass."""
+    """Subset dataclass.
+
+    Attributes:
+        name: subset name
+        expresssion: custom filter expression
+        dataset: specific dataset
+        flags: toggled quick flags list
+        carton: selected targeting cartons
+        mapper: selected mapper programs
+        crossmatch: multi-line string of crossmatch identifiers
+        cmtype: type of crossmatch
+        df: vaex dataframe, corresponds to dataset
+        columns: specific columns, used internally to guardrail users and reset valid columns
+
+    """
 
     name: str = "A"
     expression: str = ""
-    df: vx.DataFrame = State.df.value
-    dataset: str = "best" if State.datatype == "star" else "apogeenet"
+    dataset: str = dataclasses.field(default_factory=State.get_default_dataset)
     flags: list[str] = dataclasses.field(
         default_factory=lambda: ["purely non-flagged"])
-    mapper: list[str] = dataclasses.field(default_factory=list)
     carton: list[str] = dataclasses.field(default_factory=list)
-    columns: list[str] = dataclasses.field(default_factory=list)
+    mapper: list[str] = dataclasses.field(default_factory=list)
     crossmatch: str = ""
     cmtype: str = "gaia_dr3"
+    df: vx.DataFrame = State.df.value
+    columns: list[str] = dataclasses.field(default_factory=list)
 
     def __repr__(self) -> str:
         return "\n".join(
@@ -39,14 +53,28 @@ class Subset:
 
 
 class SubsetData:
-    """User-facing subset reactive class, with functions for add/remove/etc."""
+    """User-facing subset reactive class, with functions for add/remove/etc.
+
+    Attributes:
+        index (solara.Reactive[int]): index, used to ensure unique keys
+        subsets (solara.Reactive[dict[str,Subset]]): dictionary of keys to subsets
+
+    """
 
     def __init__(self):
         self.index = sl.reactive(1)
         self.subsets = sl.reactive({"s0": Subset()})
 
     def add_subset(self, name: str, **kwargs) -> bool:
-        """Adds subset and subsetcard, generating new unique key for subset. Boolean return for success."""
+        """Adds subset and subsetcard, generating new unique key for subset.
+
+        Args:
+            key: subset key
+            kwargs (kwargs): keyword arguments to instantiate `Subset` with
+
+        Returns:
+            bool: `True` if successful, `False` if not.
+        """
         for subset in self.subsets.value.values():
             if name == subset.name:
                 Alert.update("Subset with name already exists!", color="error")
@@ -68,7 +96,15 @@ class SubsetData:
             return True
 
     def update_subset(self, key: str, **kwargs) -> bool:
-        """Updates subset of key with specified kwargs"""
+        """Updates subset of key with specified kwargs
+
+        Args:
+            key: subset key
+            kwargs (kwargs): keyword arguments to update with
+
+        Returns:
+            bool: `True` if successful, `False` if not.
+        """
         if key not in self.subsets.value.keys():
             Alert.update(
                 f"BUG: subset update failed! Key {key} not in hashmap.",
@@ -82,7 +118,15 @@ class SubsetData:
         return True
 
     def rename_subset(self, key: str, newname: str) -> bool:
-        """Rename subset method, with specific logic"""
+        """Renames a subset.
+
+        Args:
+            key: subset key
+            newname: new name for subset
+
+        Returns:
+            bool: `True` if successful, `False` if not.
+        """
         if key not in self.subsets.value.keys():
             Alert.update("BUG: subset clone failed! Key not in hashmap.",
                          color="error")
@@ -100,7 +144,14 @@ class SubsetData:
             return self.update_subset(key, name=newname)
 
     def clone_subset(self, key: str) -> bool:
-        """Clones a subset"""
+        """Clones a subset.
+
+        Args:
+            key: subset key
+
+        Returns:
+            bool: `True` if successful, `False` if not.
+        """
         if key not in self.subsets.value.keys():
             Alert.update("BUG: subset clone failed! Key not in hashmap.",
                          color="error")
@@ -121,7 +172,8 @@ class SubsetData:
         """
         Removes a subset from the Subset master list.
 
-        :key: string key of subset
+        Args:
+            key: subset key
         """
         # dict comprehension for reconstruction
         self.subsets.value = dict(**{
@@ -131,3 +183,4 @@ class SubsetData:
 
 
 SubsetState = SubsetData()
+"""Specific SubsetData instance used for app."""

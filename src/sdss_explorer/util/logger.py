@@ -53,18 +53,17 @@ def get_kernel_id() -> str:
 def setup_logging(
     log_path: str = "./",
     log_file: str = "explorerApp.log",
-    console_log_level=logging.DEBUG,
-    file_log_level=logging.INFO,
+    console_log_level: str = "DEBUG",
+    file_log_level: str = "INFO",
 ):
     """
     Configures the logging system with a rotating file handler.
 
     Args:
-        log_file (str): Path to the log file.
-        log_level (int): Logging level (e.g., logging.DEBUG, logging.INFO).
-        max_bytes (int): Maximum size of a log file before rotation.
-        backup_count (int): Number of backup files to keep.
-        kernel_id (str): Kernel identifier to use for logging
+        log_path: log path
+        log_file: log filename
+        console_log_level: log level for console as full uppercase string
+        file_log_level: log level for file as full uppercase string
     """
     logging_config = {
         "version": 1,

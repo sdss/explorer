@@ -1,6 +1,15 @@
 A high-speed, performant data exploration webapp for astronomy, built for SDSS-V.
 
+![[main app]](assets/main.png)
+
 ## Highlights
+
+* _Blazing fast cross-filtering, powered by `vaex`._
+* _Dynamic, interactive plotting, powered by `Bokeh`._
+* _Modular support for various data releases_
+* _Download custom summary outputs direct from the app_
+* _Share your dashboard layout with others via simple JSON_
+* _Modular support for various data releases_
 
 ## About
 

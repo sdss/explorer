@@ -9,6 +9,12 @@ from solara.hooks.misc import use_force_update
 
 
 class SubsetStore:
+    """Subset cross-filtering backend. Adapted from the one used in solara.
+
+    Attributes:
+        listeners: listeners which would like to be notified on changes of any filter
+        filters: specific filter objects. always vaex expressions in our case.
+    """
 
     def __init__(self) -> None:
         self.listeners: Dict[Any, List[Callable]] = {}
@@ -86,6 +92,6 @@ class SubsetStore:
 
     def __repr__(self) -> str:
         return str({
-            'listeners': self.listeners,
-            'filters': SubsetStore.map_expressions(self.filters),
+            "listeners": self.listeners,
+            "filters": SubsetStore.map_expressions(self.filters),
         })

@@ -31,7 +31,12 @@ logger = logging.getLogger("dashboard")
 
 @sl.component()
 def ExprEditor(key: str, invert) -> ValueElement:
-    """Expression editor."""
+    """Expression editor.
+
+    Args:
+        key: subset key
+        invert (solara.Reactive[bool]): whether to invert or not
+    """
     # state for expreditor
     subset = SubsetState.subsets.value[key]
     df = subset.df
@@ -72,7 +77,8 @@ def ExprEditor(key: str, invert) -> ValueElement:
             return False
 
     result: sl.Result[bool] = sl.lab.use_task(
-        update_expr, dependencies=[expression, subset.dataset, invert.value])
+        update_expr,
+        dependencies=[df, expression, subset.dataset, invert.value])
     if result.finished:
         if result.value:
             errorFound = False
@@ -111,7 +117,17 @@ def ExprEditor(key: str, invert) -> ValueElement:
 
 @sl.component()
 def DatasetSelect(key: str, dataset, set_dataset) -> ValueElement:
-    """Select box for pipeline, also sets columns on dataset change."""
+    """Select box for pipeline, also sets columns on dataset change.
+
+    Note:
+        this component contains subfunctions. See source code.
+
+    Args:
+        key: subset key
+        dataset (str): dataset value
+        set_dataset (Callable[[str],None]): dataset setter function
+
+    """
     subset = SubsetState.subsets.value[key]
     df = State.df.value
 
@@ -159,7 +175,16 @@ def DatasetSelect(key: str, dataset, set_dataset) -> ValueElement:
 
 @sl.component()
 def FlagSelect(key: str, invert) -> ValueElement:
-    """Select box with callback for filters."""
+    """Select box with callback for filters.
+
+    Note:
+        this component contains subfunctions. See source code.
+
+    Args:
+        key: subset key
+        invert (solara.Reactive[bool]): whether to invert the filter
+
+    """
     subset = SubsetState.subsets.value[key]
     df = subset.df
     _, set_flagfilter = use_subset(id(df), key, "flags", write_only=True)
@@ -196,7 +221,16 @@ def FlagSelect(key: str, invert) -> ValueElement:
 
 @sl.component()
 def TargetingFiltersPanel(key: str, invert) -> ValueElement:
-    """Holds expansion panels for complex filtering"""
+    """Holds expansion panels for complex filtering
+
+    Note:
+        this component contains subfunctions. See source code.
+
+    Args:
+        key: subset key
+        invert (solara.Reactive[bool]): whether to invert the filter
+
+    """
     mapping = State.mapping.value
     subset = SubsetState.subsets.value[key]
     df = subset.df
@@ -284,6 +318,8 @@ def TargetingFiltersPanel(key: str, invert) -> ValueElement:
 
 @sl.component()
 def CrossmatchPanel(key: str) -> ValueElement:
+    """Crossmatch panel"""
+
     subset = SubsetState.subsets.value[key]
     df = subset.df
     crossmatch, set_crossmatch = (

@@ -12,13 +12,16 @@ dependencies = [
     "vaex-core >=4.17.0",
     "vaex-hdf5",
     "diskcache>=5.6.3",
-    "numpy>=1.26.4,<2.0.0",
+    "numpy==1.26.4",
     # dependency force because its being annoying
     "xarray",
     "dotenv",
     "gunicorn==20.1.0",
     "fastapi",
     "pydantic-settings>=2.8.0",
+    "bokeh>=3.6.3",
+    "jupyter-bokeh>=4.0.5",
+    "colorcet>=3.1.0",
 ]
 requires-python = ">=3.10,<3.11"
 readme = "README.md"
@@ -37,6 +40,7 @@ docs = [
     'mkdocs-literate-nav',
     'mkdocs-section-index',
     'griffe-pydantic',
+    "pymdown-extensions>=10.14.3",
 ]
 
 [build-system]

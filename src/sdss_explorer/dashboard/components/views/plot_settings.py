@@ -2,18 +2,27 @@
 
 import asyncio
 import logging
+from typing import Any
+
 import solara as sl
+from reacton.ipyvuetify import ValueElement
 from solara.components.card import Card
 from solara.components.columns import Columns
 
-from ...dataclass import SubsetState, Subset, VCData
+from ...dataclass import SubsetState, Subset, VCData, PlotState
 from ..sidebar.autocomplete import SingleAutocomplete, AutocompleteSelect
 
 logger = logging.getLogger("dashboard")
 
 
-def show_settings(type, plotstate):
-    """Wrapper to case switch logic for menus"""
+def show_settings(type: str, plotstate: PlotState):
+    """Wrapper to case switch logic for menus
+
+    Args:
+        type: plottype, any of `'histogram','scatter','heatmap'`
+        plotstate: plot variables
+
+    """
     subset = SubsetState.subsets.value.get(plotstate.subset.value,
                                            Subset(name="temp"))
     columns = list(VCData.columns.value.keys()) + subset.columns
@@ -50,18 +59,16 @@ def show_settings(type, plotstate):
                     HistogramMenu(plotstate, columns)
                 elif type == "heatmap":
                     HeatmapMenu(plotstate, columns)
-                elif type == "skyplot":
-                    SkymapMenu(plotstate, columns)
                 CommonSettings(plotstate)
-        # NOTE: no settings for targets view except subset
     return
 
 
-def debounce(value, sleep: float = 0.1):
+def debounce(value: Any, sleep: float = 0.1):
     """Generates a debouncer function
 
-    Note:
-        All tasks using this framework are non-threaded until https://github.com/widgetti/solara/issues/1011 is fixed
+    Args:
+        value: value to debounce
+        sleep: time for debounce in seconds. defaults to 0.1s.
     """
 
     async def debouncer():
@@ -72,16 +79,21 @@ def debounce(value, sleep: float = 0.1):
 
 
 @sl.component
-def CommonSettings(plotstate):
-    """Common plot settings, with debouncers"""
+def CommonSettings(plotstate: PlotState) -> ValueElement:
+    """Common plot settings, with debouncers.
+
+    Args:
+        plotstate: plot variables
+    """
     plottype = plotstate.plottype
     logx = sl.use_reactive(getattr(plotstate, "logx").value)
     logy = sl.use_reactive(getattr(plotstate, "logy").value)
     flipx = sl.use_reactive(getattr(plotstate, "flipx").value)
     flipy = sl.use_reactive(getattr(plotstate, "flipy").value)
-    colorlog = sl.use_reactive(getattr(plotstate, "colorlog").value)
+    logcolor = sl.use_reactive(getattr(plotstate, "logcolor").value)
 
     # debouncing values
+    # BUG: non-threaded until https://github.com/widgetti/solara/issues/1011 is fixed
     db_logx = sl.lab.use_task(debounce(logx.value),
                               dependencies=[logx.value],
                               prefer_threaded=False)
@@ -102,6 +114,12 @@ def CommonSettings(plotstate):
                                prefer_threaded=False)
     if db_flipy.value == flipy.value:
         plotstate.flipy.set(db_flipy.value)
+    logcolor = sl.use_reactive(getattr(plotstate, "logcolor").value)
+    db_logcolor = sl.lab.use_task(debounce(logcolor.value),
+                                  dependencies=[logcolor.value],
+                                  prefer_threaded=False)
+    if db_logcolor.value == logcolor.value:
+        plotstate.logcolor.set(db_logcolor.value)
 
     with sl.Card(margin=0) as main:
         with Columns([1, 1]):
@@ -114,51 +132,19 @@ def CommonSettings(plotstate):
                     sl.Switch(label="Log y", value=logy)
                 if plottype != "histogram":
                     sl.Switch(label="Flip y", value=flipy)
+        if plottype != "histogram":
+            sl.Switch(label="Color logscale", value=logcolor)
     return main
 
 
 @sl.component()
-def SkymapMenu(plotstate, columns):
-    """Settings for SkymapPlot"""
+def ScatterMenu(plotstate: PlotState, columns):
+    """Settings for ScatterPlot
 
-    with sl.Column():
-        with Card(margin=0):
-            with sl.Column():
-                sl.ToggleButtonsSingle(value=plotstate.geo_coords,
-                                       values=["celestial", "galactic"])
-                SingleAutocomplete(
-                    label="Projection",
-                    value=plotstate.projection.value,
-                    on_value=plotstate.projection.set,
-                    values=plotstate.Lookup["projections"],
-                )
-        with Card(margin=0):
-            with sl.Column():
-                SingleAutocomplete(
-                    label="Color",
-                    values=columns,
-                    value=plotstate.color.value,
-                    on_value=plotstate.color,
-                )
-                with sl.Row():
-                    SingleAutocomplete(
-                        label="Colorscale",
-                        values=plotstate.Lookup["colorscales"],
-                        value=plotstate.colorscale.value,
-                        on_value=plotstate.colorscale.set,
-                    )
-                    SingleAutocomplete(
-                        label="Logscale color",
-                        values=plotstate.Lookup["binscales"],
-                        value=plotstate.colorlog.value,
-                        on_value=plotstate.colorlog.set,
-                        allow_none=True,
-                    )
-
-
-@sl.component()
-def ScatterMenu(plotstate, columns):
-    """Settings for ScatterPlot"""
+    Args:
+        plotstate: plot variables
+        columns (list[str]): list of valid columns
+    """
     with sl.Column() as main:
         with Card(margin=0):
             with Columns([8, 8, 2], gutters_dense=True):
@@ -194,23 +180,21 @@ def ScatterMenu(plotstate, columns):
                 with sl.Row(gap="2px"):
                     SingleAutocomplete(
                         label="Colorscale",
-                        values=plotstate.Lookup["colorscales"],
+                        values=list(plotstate.Lookup["colorscales"].keys()),
                         value=plotstate.colorscale.value,
                         on_value=plotstate.colorscale.set,
-                    )
-                    SingleAutocomplete(
-                        label="Logscale color",
-                        values=plotstate.Lookup["binscales"],
-                        value=plotstate.colorlog.value,
-                        on_value=plotstate.colorlog.set,
-                        allow_none=True,
                     )
     return main
 
 
 @sl.component()
-def HistogramMenu(plotstate, columns):
-    """Settings for HistogramPlot"""
+def HistogramMenu(plotstate: PlotState, columns):
+    """Settings for HistogramPlot
+
+    Args:
+        plotstate: plot variables
+        columns (list[str]): list of valid columns
+    """
     nbins = sl.use_reactive(getattr(plotstate, "nbins").value)
     db_nbins = sl.lab.use_task(debounce(nbins.value, 0.05),
                                dependencies=[nbins.value],
@@ -231,21 +215,20 @@ def HistogramMenu(plotstate, columns):
             sl.SliderInt(
                 label="Number of Bins",
                 value=nbins,
-                step=10,
+                step=5,
                 min=10,
-                max=1000,
-            )
-            SingleAutocomplete(
-                label="Bintype",
-                values=plotstate.Lookup["bintypes"],
-                value=plotstate.bintype.value,
-                on_value=plotstate.bintype.set,
+                max=200,
             )
 
 
 @sl.component()
-def HeatmapMenu(plotstate, columns):
-    """Settings for HeatmapPlot"""
+def HeatmapMenu(plotstate: PlotState, columns):
+    """Settings for HeatmapPlot
+
+    Args:
+        plotstate: plot variables
+        columns (list[str]): list of valid columns
+    """
     nbins = sl.use_reactive(getattr(plotstate, "nbins").value)
     db_nbins = sl.lab.use_task(debounce(nbins.value, 0.05),
                                dependencies=[nbins.value],
@@ -290,34 +273,35 @@ def HeatmapMenu(plotstate, columns):
                     value=nbins,
                     step=2,
                     min=2,
-                    max=250,
-                )
-                SingleAutocomplete(
-                    label="Binning type",
-                    values=plotstate.Lookup["bintypes"],
-                    value=plotstate.bintype.value,
-                    on_value=plotstate.bintype.set,
+                    max=240,
                 )
                 with Columns([1, 1]):
-                    SingleAutocomplete(
-                        label="Colorscale",
-                        values=plotstate.Lookup["colorscales"],
-                        value=plotstate.colorscale.value,
-                        on_value=plotstate.colorscale.set,
-                    )
-                    SingleAutocomplete(
-                        label="Binning scale",
-                        values=plotstate.Lookup["binscales"],
-                        value=plotstate.colorlog.value,
-                        on_value=plotstate.colorlog.set,
-                        allow_none=True,
-                    )
+                    with sl.Column():
+                        SingleAutocomplete(
+                            label="Binning type",
+                            values=plotstate.Lookup["bintypes"],
+                            value=plotstate.bintype.value,
+                            on_value=plotstate.bintype.set,
+                        )
+                    with sl.Column():
+                        SingleAutocomplete(
+                            label="Colorscale",
+                            values=list(
+                                plotstate.Lookup["colorscales"].keys()),
+                            value=plotstate.colorscale.value,
+                            on_value=plotstate.colorscale.set,
+                        )
     return main
 
 
 @sl.component()
-def TableMenu(state):
-    """Settings menu for Statistics Table view."""
+def TableMenu(state: PlotState):
+    """Settings menu for Statistics Table view.
+
+    Args:
+        state: plot variables
+
+    """
     with sl.Column():
         AutocompleteSelect(
             label="Column",

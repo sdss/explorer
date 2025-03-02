@@ -1,6 +1,7 @@
-"""Subset cards and SubsetState class"""
+"""Subset options menu component, contains everything under the subset header."""
 
 from typing import Callable
+from urllib.parse import urljoin
 import json
 import logging
 import requests
@@ -32,9 +33,9 @@ def SubsetOptions(key: str, deleter: Callable):
 
     Grouped to single namespace to add clone functionality.
 
-    Inputs:
-        :key: key for subset
-        :deleter: deletion functions
+    Args:
+        key: key for subset
+        deleter: deletion functions
     """
     # filter settings/subfilters
     subset = SubsetState.subsets.value[key]
@@ -49,30 +50,37 @@ def SubsetOptions(key: str, deleter: Callable):
 
     # User facing
     with sl.Column() as main:
-        ExprEditor(key, invert)
-        DatasetSelect(key, dataset, set_dataset)
-        # complex option panels
-        with rv.ExpansionPanels(flat=True,
-                                multiple=True,
-                                v_model=open,
-                                on_v_model=set_open):
-            TargetingFiltersPanel(key, invert)
-            CrossmatchPanel(key)
+        if subset.df is not None:
+            ExprEditor(key, invert)
+            DatasetSelect(key, dataset, set_dataset)
+            # complex option panels
+            with rv.ExpansionPanels(flat=True,
+                                    multiple=True,
+                                    v_model=open,
+                                    on_v_model=set_open):
+                TargetingFiltersPanel(key, invert)
+                CrossmatchPanel(key)
 
-        # bottom card actions
-        with rv.Row(style_="width: 100%; height: 100%"):
-            DownloadMenu(key)  # download button
-            InvertButton(invert)  # invert button
-            rv.Spacer()  # spacer
-            RenameSubsetButton(key)  # rename button
-            CloneSubsetButton(key)  # clone button
-            DeleteSubsetDialog(deleter)  # delete button
+            # bottom card actions
+            with rv.Row(style_="width: 100%; height: 100%"):
+                DownloadMenu(key)  # download button
+                InvertButton(invert)  # invert button
+                rv.Spacer()  # spacer
+                RenameSubsetButton(key)  # rename button
+                CloneSubsetButton(key)  # clone button
+                DeleteSubsetDialog(deleter)  # delete button
 
     return main
 
 
 @sl.component()
 def InvertButton(invert) -> ValueElement:
+    """Invert subset button
+
+    Args:
+        invert (solara.Reactive[bool]): invert setting
+
+    """
     with sl.Tooltip("Invert the filters of this subset") as main:
         sl.Button(
             label="",
@@ -88,6 +96,15 @@ def InvertButton(invert) -> ValueElement:
 
 @sl.component()
 def RenameSubsetButton(key: str) -> ValueElement:
+    """Rename subset button
+
+    Note:
+        Calls `SubsetState.rename_subset`
+
+    Args:
+        key: subset key
+
+    """
     newname, set_newname = sl.use_state("")  # rename dialog state
     rename = sl.use_reactive(False)
 
@@ -120,6 +137,15 @@ def RenameSubsetButton(key: str) -> ValueElement:
 
 @sl.component()
 def CloneSubsetButton(key: str) -> ValueElement:
+    """Clone subset button
+
+    Note:
+        Calls `SubsetState.clone_subset`
+
+    Args:
+        key: subset key
+
+    """
     with sl.Tooltip("Clone this subset") as main:
         sl.Button(
             label="",
@@ -133,6 +159,12 @@ def CloneSubsetButton(key: str) -> ValueElement:
 
 @sl.component()
 def DeleteSubsetDialog(deleter: Callable) -> ValueElement:
+    """Delete subset dialog
+
+    Args:
+        deleter: deletion function to remove from SubsetState
+
+    """
     # confirmation dialog for deletion
     delete = sl.use_reactive(False)
     with sl.Tooltip("Delete this subset") as main:
@@ -157,6 +189,15 @@ def DeleteSubsetDialog(deleter: Callable) -> ValueElement:
 
 @sl.component()
 def DownloadMenu(key: str) -> ValueElement:
+    """Download menu and button
+
+    Note:
+        **THIS CONTAINS ALL FUNCTIONALITY FOR QUERYING `sdss_explorer.server`**
+
+    Args:
+        key: subset key
+    """
+
     router = sl.use_router()
     subset = SubsetState.subsets.value[key]
     response, set_response = sl.use_state({"status": "not_run"})
@@ -253,6 +294,7 @@ def DownloadMenu(key: str) -> ValueElement:
         jsonData = json.dumps(data)
         logger.debug("requesting" + str(jsonData))
         try:
+            # TODO: no idea how requests works
             resp = requests.post(
                 f"{settings.api_url}/filter_subset/ipl3/{State.datatype}/{dataset}",
                 params=data,
@@ -260,8 +302,8 @@ def DownloadMenu(key: str) -> ValueElement:
             )
             if resp.status_code == 202:
                 # ready! push update to call query loop task
-                logger.debug(
-                    f"Successfully called for download for {subset.name}")
+                logger.debug("Successfully called for download for" +
+                             subset.name)
                 Alert.update("Creating file for download! Please wait.")
                 set_response(json.loads(resp.text))
         # on timeout raise, inform user
@@ -294,7 +336,8 @@ def DownloadMenu(key: str) -> ValueElement:
         disabled=True if response["status"] == "in_progress" else False,
         icon=True,
         text=True,
-        href=f"{settings.download_url}{response.get('filepath', 'foobar')}"
+        href=
+        f"{urljoin(settings.download_url, response.get('filepath', 'foobar'))}"
         if response["status"] == "complete" else None,
         target="_blank",
         on_click=click_handler,

@@ -27,6 +27,9 @@ markdown_extensions:
       baselevel: 2
   - attr_list
   - md_in_html
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
   - pymdownx.blocks.caption
   - pymdownx.arithmatex:
       generic: true
@@ -36,21 +39,22 @@ extra_javascript:
 nav:
   - Introduction: index.md
   - User Guide:
-    - Plotting: user/plotting.md
-    - Multiple subsets: user/subsets.md
-    - Virtual columns: user/vc.md
-    - Selecting targeting cartons: user/cartons.md
-    - Crossmatch: user/crossmatch.md
-    - Downloading data: user/download.md
+    - Plotting: guide/plotting.md
+    - Subsets: guide/subsets.md
+    - Virtual columns: guide/vc.md
+    - Selecting targeting cartons: guide/cartons.md
+    - Crossmatching: guide/crossmatch.md
+    - Downloading data: guide/download.md
   - Examples:
-    - Creating a HR Diagram: examples/hr.md
-    - Selecting sources from Gaia: examples/crossmatch.md
-    - Selecting a carton: examples/yso.md
-    - Comparing flags and datasets: examples/flags.md
-    - Getting your data out: examples/flags.md
+    - Creating a HR Diagram with calculations: examples/hr.md
+    - Crossmatching and inspecting spectra: examples/crossmatch.md
+    - Selecting targeting cartons : examples/yso.md
+    - Comparing and contrasting datasets: examples/flags.md
   - Developer Guide:
-    - Index: developer/index.md
-    - Layout: developer/codebase.md
+    - App state: developer/state.md
+    - Plots: developer/plots.md
+    - Configuration and environment variables: developer/config.md
+    - Codebase layout: developer/codebase.md
     - Data files: developer/datafiles.md
     - Guardrailing: developer/guardrailing.md
   - Reference: reference/

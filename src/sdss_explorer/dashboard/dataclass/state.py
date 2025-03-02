@@ -26,7 +26,13 @@ if DATAPATH is None:
 
 
 def load_column_json(release: str, datatype: str) -> dict | None:
-    """Load the pre-compiled column JSON for a given dataset."""
+    """Load the pre-compiled column JSON for a given dataset.
+
+    Args:
+        release: data release directory to for
+        datatype: specific datatype of file to load. (`'star', 'visit'`)
+
+    """
     # get dataset name
     datapath = settings.datapath
 
@@ -47,7 +53,12 @@ def load_column_json(release: str, datatype: str) -> dict | None:
 
 
 def open_file(filename):
-    """Vaex open wrapper for datafiles to ensure authorization/file finding."""
+    """Vaex open wrapper for datafiles to ensure authorization/file finding.
+
+    Args:
+        filename (str): filename to open
+
+    """
     # get dataset name
     datapath = settings.datapath
 
@@ -96,7 +107,18 @@ def load_datamodel() -> pd.DataFrame | None:
 
 
 class StateData:
-    """Holds app-wide state variables"""
+    """Holds app-wide state variables
+
+    Attributes:
+        mapping (solara.Reactive[vx.DataFrame]): bitmappings dataframe, used for targeting filters.
+        datamodel (solara.Reactive[pd.DataFrame]): column glossary dataframe
+
+        df (solara.Reactive[vx.DataFrame]): loaded dataframe file, defaults to nothing but app will instantiate with one loaded.
+        columns (solara.Reactive[dict[str,list[str]]]): column lookup, used for guardrailing.
+
+        release (str): release type
+        datatype (str): datatype of file
+    """
 
     def __init__(self):
         # globally shared, read only files
@@ -147,22 +169,27 @@ class StateData:
         return True
 
     @property
-    def release(self):
+    def release(self) -> str:
         """Current release of app (dr19, etc)"""
         return str(self._release.value)
 
     @property
-    def datatype(self):
+    def datatype(self) -> str:
         """Current datatype of app (star or visit)"""
         return str(self._datatype.value)
 
+    def get_default_dataset(self) -> str:
+        """Method version to get the default dataset of app (star or visit). Used for defaulting the Subset dataclass"""
+        datatype = self._datatype.value
+        return "best" if datatype == "star" else "thepayne"
+
     @property
-    def uuid(self):
+    def uuid(self) -> str:
         """User ID; Solara Session ID"""
         return str(self._uuid.value)
 
     @property
-    def kernel_id(self):
+    def kernel_id(self) -> str:
         """Virtual kernel ID"""
         return str(self._kernel_id.value)
 
@@ -185,3 +212,4 @@ class StateData:
 
 
 State = StateData()
+"""Specific StateData instance used for app"""

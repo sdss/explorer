@@ -17,9 +17,9 @@ The codebase folders are organized as follows:
       ├── dashboard # the dashboard
       │  ├── components # all visual components
       │  │  ├── sidebar # all components that live in the sidebar
-      │  │  └── views # plot views
+      │  │  └── views # plot views and grid
       │  └── dataclass # dataclass objects and namespaces
       ├── server # custom summary file backend server
       ├── util # utility functions, common across all apps
-      └── vue # some misc vue
+      └── vue # some misc vue.js sources
 ```

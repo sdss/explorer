@@ -17,4 +17,4 @@ We can enter this as a new column by clicking on the _Virtual Calculations_ menu
 
     4.44 + 4*log10(teff/5770) + 0.4*(5*log10(plx*1e-3) + 0.25 + g_mag)
 
-where $\log g_{\odot} = 4.44$ and $M_{bol,\odot} = 4.75}$ and $T_{\rm eff} = 5770$.
+where $\log g_{\odot} = 4.44$ and $M_{bol,\odot} = 4.75$ and $T_{\rm eff} = 5770$.

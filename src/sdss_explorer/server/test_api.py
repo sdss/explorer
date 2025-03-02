@@ -1,3 +1,5 @@
+"""Miscellaneous test functions. Not implemented fully yet."""
+
 from multiprocessing import Process
 from time import perf_counter
 import time

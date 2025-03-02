@@ -16,6 +16,12 @@ def ExpressionField(
     messages: list[str] = [],
     error: bool = False,
 ):
+    """Expression editor component
+
+    Note:
+        this is a vue component. look at the relevant vue file.
+
+    """
     pass
 
 

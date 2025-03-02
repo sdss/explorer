@@ -6,9 +6,10 @@ FROM python:3.10-slim as dep-stage
 ENV UV_COMPILE_BYTECODE=1 
 ENV UV_LINK_MODE=copy 
 ENV UV_PYTHON_DOWNLOADS=0 
+ENV VIRTUAL_ENV=/app/venv
 
 # setrup app dir
-WORKDIR /tmp
+WORKDIR /app
 
 # project files 
 COPY ./pyproject.toml ./uv.lock ./
@@ -45,6 +46,7 @@ RUN apt-get update && \
 
 # Installing uv and then project dependencies
 RUN pip install uv
+RUN uv venv /app/venv # make venv
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
@@ -65,15 +67,15 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 FROM dev-stage as build-stage
 
 # place executables in the environment at the front of the path
-ENV PATH="/app/.venv/bin:$PATH"
+ENV PATH="/app/venv/bin:$PATH"
 
 # Create dir for socket and logs
 # NOTE: i stole this from valis Dockerfile, don't know if necessary
-RUN mkdir -p /tmp/webapp
+RUN mkdir -p /app/webapp
 
 # module setup
 # this is overriden by wsgi cfg
-ENV EXPLORER_SOCKET_DIR='/tmp/webapp' 
+ENV EXPLORER_SOCKET_DIR='/app/webapp' 
 ENV SOLARA_CHECK_HOOKS="off"
 ENV EXPLORER_NPROCESSES=4
 ENV EXPLORER_NWORKERS=1

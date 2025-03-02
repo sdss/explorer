@@ -21,21 +21,22 @@ RUN apt-get update && \
         # these are for h5py in sdss_explorer
         curl libhdf5-dev pkg-config \
         # these are for vaex
-        libpcre3 libpcre3-dev gcc g++ libboost-all-dev \
-        libffi-dev python3-dev libxml2-dev libxslt-dev \
-        libpq-dev zlib1g-dev \
+        #libpcre3 libpcre3-dev gcc g++ libboost-all-dev \
+        #libffi-dev python3-dev libxml2-dev libxslt-dev \
+        #libpq-dev zlib1g-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Rust for sdss_explorer
-RUN curl https://sh.rustup.rs -sSf | sh -s -- -y && . /root/.cargo/env
-ENV PATH="/root/.cargo/bin:$PATH"
-
-# Add a command to check if cargo is available
-RUN cargo --version
+#RUN curl https://sh.rustup.rs -sSf | sh -s -- -y && . /root/.cargo/env
+#ENV PATH="/root/.cargo/bin:$PATH"
+#
+## Add a command to check if cargo is available
+#RUN cargo --version
 
 # Installing uv and then project dependencies
 RUN pip install uv
+RUN uv venv /app/venv # make venv
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
@@ -58,7 +59,7 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 # module setup
 # this is overriden by wsgi cfg
-ENV EXPLORER_SOCKET_DIR='/tmp/webapp' 
+ENV EXPLORER_SOCKET_DIR='/app/webapp' 
 ENV SOLARA_CHECK_HOOKS="off"
 ENV EXPLORER_NPROCESSES=4
 ENV EXPLORER_NWORKERS=1

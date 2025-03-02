@@ -4,6 +4,7 @@ import logging
 from urllib.parse import parse_qs
 from os import getenv
 
+from bokeh.io import output_notebook
 import solara as sl
 import numpy as np
 import vaex as vx
@@ -33,12 +34,12 @@ from .components.views import ObjectGrid, add_view  # noqa: E402
 from .components.views.dataframe import NoDF  # noqa: E402
 
 # logging setup
-DEV = settings.dev or (sl.server.settings.main.mode == "production")
+PROD = sl.server.settings.main.mode != "production"
 
 setup_logging(
     log_path=settings.logpath,
-    console_log_level=logging.DEBUG if DEV else logging.ERROR,
-    file_log_level=logging.DEBUG if DEV else logging.INFO,
+    console_log_level=settings.loglevel,
+    file_log_level="INFO" if PROD else "DEBUG",
 )
 
 logger = logging.getLogger("dashboard")
@@ -79,6 +80,9 @@ def Page() -> None:
     """
     df = State.df.value
 
+    output_notebook(
+        hide_banner=True)  # required so plots can exist; loads BokehJS
+
     # check query params
     # NOTE: query params are not avaliable on kernel load, so it must be an effect.
     router = sl.use_router()
@@ -111,6 +115,7 @@ def Page() -> None:
         # unwrap query_params
         query_params = parse_qs(router.search, keep_blank_values=True)
         query_params = {k: v[0] for k, v in query_params.items()}
+        logger.debug(query_params)
 
         ## DATAFRAME SETUP
         # setup dataframe (non-optional step)
@@ -156,7 +161,8 @@ def Page() -> None:
             subset_keys = ["dataset", "expression"]
             list_subset_keys = ["mapper", "carton", "flags"]
             subset_data = {
-                k: v.split(",") if k in list_subset_keys else v
+                k: v.split(",") if
+                ((k in list_subset_keys) & (len(v) > 0)) else v
                 for k, v in query_params.items()
                 if k in subset_keys + list_subset_keys
             }
@@ -189,9 +195,10 @@ def Page() -> None:
 
                     expr = subset_data.get("expression")
                     if expr:
-                        expr = expr.replace(".and.",
-                                            " & ").replace(".or.", " | ")
+                        expr = (expr.replace(".and.", " & ").replace(
+                            ".or.", " | ").replace(".eq.", "=="))
                         State.df.value.validate_expression(expr)
+                        subset_data["expression"] = expr
                 except Exception as e:
                     logger.debug(f"Failed query params on subset parsing: {e}")
 
@@ -242,7 +249,7 @@ def Page() -> None:
         HelpBlurb()
 
         # theme toggle button
-        if DEV:
+        if not PROD:
             ThemeToggle()
 
     if df is not None:

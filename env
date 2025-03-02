@@ -1,0 +1,6 @@
+EXPLORER_SCRATCH=/root/scratch
+EXPLORER_DATAPATH=/root/data
+EXPLORER_LOGPATH=/app/logs
+EXPLORER_MOUNT_DASHBOARD=True
+EXPLORER_DOWNLOAD_URL="https://bing.com/search?query="
+EXPLORER_API_URL="http://0.0.0.0:8050"

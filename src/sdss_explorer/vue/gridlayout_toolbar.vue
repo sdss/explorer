@@ -28,10 +28,17 @@
                    drag-ignore-from=".no-drag"
                    drag-allow-from=".v-toolbar"
         >
-            <div v-if="!items[item.i]">
-              placeholder: {{item.i}}
-            </div>
             <v-toolbar color="blue-grey" title="Click on this toolbar to drag." height="18px"></v-toolbar>
+            <div v-if="!items[item.i]" 
+                :class="$vuetify.theme.dark ? 'bg-grey-darken-3' : 'bg-grey-lighten-3'" 
+                class="rounded elevation-2 pa-4 d-flex justify-center align-center" 
+                style="min-height: 150px">
+              <v-progress-circular
+                indeterminate
+                color="primary"
+                size="40"
+              ></v-progress-circular>
+            </div>
             <div v-if="items[item.i]"
                   class="no-drag">
               <jupyter-widget :widget="items[item.i]" :key="'child_' + item.i"></jupyter-widget>
