@@ -222,7 +222,7 @@ def DownloadMenu(key: str) -> ValueElement:
             response: previous response data (when failing)
         """
         try:
-            resp = requests.get(f"{settings.api_url}/status/{uid}")
+            resp = requests.get(urljoin(settings.api_url, f"status/{uid}"))
             if resp.status_code == 200:
                 data = json.loads(resp.text)
                 return data
@@ -296,7 +296,10 @@ def DownloadMenu(key: str) -> ValueElement:
         try:
             # TODO: no idea how requests works
             resp = requests.post(
-                f"{settings.api_url}/filter_subset/ipl3/{State.datatype}/{dataset}",
+                urljoin(
+                    settings.api_url,
+                    f"filter_subset/{State.release}/{State.datatype}/{dataset}",
+                ),
                 params=data,
                 data=jsonData,
             )
