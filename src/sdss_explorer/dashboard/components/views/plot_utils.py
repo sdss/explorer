@@ -218,8 +218,8 @@ def _calculate_color_range(
             high = len(plotstate.colormapping) - 1
         else:
             if plotstate.logcolor.value:
-                expr = dff[dff[col] > 0][
-                    col]  # WARNING: may throw AssertionError
+                expr = np.log10(dff[dff[col] > 0]
+                                [col])  # WARNING: may throw AssertionError
             low = expr.min()[()]
             high = expr.max()[()]
     return low, high

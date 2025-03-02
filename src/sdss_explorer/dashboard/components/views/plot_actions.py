@@ -3,6 +3,7 @@
 import logging
 from bokeh.models.tools import HoverTool
 from typing import Optional
+import pyarrow as pa
 import numpy as np
 import vaex as vx
 from numpy import ndarray
@@ -87,6 +88,8 @@ def update_axis(
         change_formatter(plotstate, fig_model, dff,
                          axis=axis)  # change formatter to cat if needed
         update_label(plotstate, fig_model, axis=axis)
+        if axis == "color":
+            update_color_mapper(plotstate, fig_model, dff)
         reset_range(plotstate, fig_model, dff, axis=axis)
         update_tooltips(plotstate, fig_model)
 
@@ -287,9 +290,13 @@ def fetch_data(plotstate: PlotState,
             # check if the update will make all nan, and set accordingly
             try:
                 test = colData.values
+                try:  # pyarrow array instance check didnt work; just do this
+                    test = test.to_numpy()
+                except Exception:
+                    pass
                 test[np.abs(test) == np.inf] = np.nan
                 assert not np.all(np.isnan(test))
-            except AssertionError:
+            except Exception:
                 raise ValueError(
                     "taking log of color gives no data, not updating.")
         else:
