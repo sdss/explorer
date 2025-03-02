@@ -328,6 +328,8 @@ def aggregate_data(
         raise ValueError(
             "no assigned bintype for aggregation. bug somewhere in settings.")
 
+    assert len(dff) > 0, "no data in dataframe"
+
     if plotstate.plottype == "histogram":
         if check_categorical(dff[plotstate.x.value]):
             update_mapping(plotstate, dff, axis="x")
