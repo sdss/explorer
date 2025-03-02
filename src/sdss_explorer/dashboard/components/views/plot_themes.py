@@ -1,10 +1,10 @@
-"""Plot themes"""
+"""Plot themes. See Bokeh documentation on Theme class"""
 
 from bokeh.themes import Theme
 
 __all__ = ["darkprops", "lightprops", "DARKTHEME", "LIGHTTHEME"]
 
-darkprops = {
+darkprops: dict[str, dict[str, str]] = {
     "Plot": {
         "background_fill_color": "#212121",  # grey-darken-3
         "border_fill_color": "#424242",
@@ -41,7 +41,9 @@ darkprops = {
         "text_color": "#FFFFFF",
     },
 }
-lightprops = {
+"""Specific hex colors for the dark theme."""
+
+lightprops: dict[str, dict[str, str]] = {
     "Plot": {
         "background_fill_color": "#FAFAFA",  # grey-lighten-3 (paper_bgcolor)
         "border_fill_color": "#EEEEEE",
@@ -79,6 +81,10 @@ lightprops = {
         "text_color": "#212121",
     },
 }
+"""Specific hex colors for the light theme."""
 
-DARKTHEME = Theme(json={"attrs": darkprops})
-LIGHTTHEME = Theme(json={"attrs": lightprops})
+DARKTHEME: Theme = Theme(json={"attrs": darkprops})
+"""Dark theme object"""
+
+LIGHTTHEME: Theme = Theme(json={"attrs": lightprops})
+"""Light theme object"""

@@ -51,7 +51,8 @@ def add_common_effects(
         plotstate: plot variables
         source: CDS object, for binding
         dff: filtered dataframe
-        layout: grid layout dictionary for the card. used for triggering height effect
+        set_filter (Callable): filter setter, used for binding the crossfiltering updates
+        layout (dict[str,int]): grid layout dictionary for the card. used for triggering height effect
     """
 
     def update_logx():
@@ -226,7 +227,7 @@ def add_scatter_effects(
         pfig: figure element
         plotstate: plot variables
         dff: filtered dataframe
-        filter: filter object, for use in triggering effects
+        filter (vx.Expression): filter object, for use in triggering effects
     """
     df = SubsetState.subsets.value[plotstate.subset.value].df
 
@@ -317,8 +318,8 @@ def add_heatmap_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
     Args:
         pfig: figure element
         plotstate: plot variables
-        dff: filtered dataframe
-        filter: filter object, for use in triggering effects
+        dff (vx.DataFrame): filtered dataframe
+        filter (vx.Expression): filter object, for use in triggering effects
     """
     df = SubsetState.subsets.value[plotstate.subset.value].df
 
@@ -439,8 +440,8 @@ def add_histogram_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
     Args:
         pfig: figure element
         plotstate: plot variables
-        dff: filtered dataframe
-        filter: filter object, for use in triggering effects
+        dff (vx.DataFrame): filtered dataframe
+        filter (vx.Expression): filter object, for use in triggering effects
     """
     df = SubsetState.subsets.value[plotstate.subset.value].df
 

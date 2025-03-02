@@ -1,12 +1,9 @@
 """Main user-facing subset components"""
 
-from typing import List, Union, Tuple
 import logging
 import solara as sl
 import vaex as vx
-import numpy as np
 import reacton.ipyvuetify as rv
-from solara.hooks.misc import use_force_update
 from reacton.core import ValueElement
 
 from ..dialog import Dialog
@@ -22,9 +19,9 @@ def SubsetMenu() -> ValueElement:
     """Control and display subset cards
 
     State variables:
-        add: whether the add dialog is open
-        name: the text input state of the name of new subset to be added
-
+        * `add`: whether the add dialog is open
+        * `name`: the text input state of the name of new subset to be added
+        * `model`: the open model, used to have first subset be open on initialize.
     """
     add = sl.use_reactive(False)
     name, set_name = sl.use_state("")  # new name of subset
@@ -56,9 +53,6 @@ def SubsetMenu() -> ValueElement:
                         on_click=lambda: add.set(True),
                         block=True,
                     )
-        # NOTE: starting app with expanded panels requires
-        # enabling the multiple prop for this version of vuetify.
-        # This is really annoying for UX (too much info), so we cant do it
         with rv.ExpansionPanels(flat=True,
                                 popout=True,
                                 v_model=model,
@@ -83,7 +77,18 @@ def SubsetMenu() -> ValueElement:
 
 @sl.component()
 def SubsetCard(key: str) -> ValueElement:
-    """Holds filter update info, card structure, and calls to options"""
+    """Holds filter update info, card structure, and calls to options.
+
+    State variables:
+        * `filter`: subset crossfilter hook
+        * `open`: whether the panel is expanded or not
+
+    Args:
+        key: subset key
+
+    Returns:
+        main: SubsetCard element
+    """
     subset = SubsetState.subsets.value[key]
     open, set_open = sl.use_state(False)
     df = subset.df

@@ -1,3 +1,5 @@
+"""Main FastAPI app for serving downloads."""
+
 import asyncio
 import os
 import logging
@@ -13,12 +15,12 @@ from uuid import UUID
 import vaex.cache
 import vaex.logging
 
-from .logging import setup_logging
+from ..util import setup_logging
 from .filter import filter_dataframe
 from .jobs import Job, jobs
 from ..util.config import settings
 
-setup_logging()
+setup_logging(log_path=settings.logpath, console_log_level=settings.loglevel)
 
 vaex.logging.remove_handler()  # dump handler
 vaex.cache.on()  # ensure cache on!
@@ -89,7 +91,7 @@ async def task_handler(
     mapper: str = "",
     flags: str = "",
     crossmatch: str = "",
-    cmtype: str = "",
+    cmtype: str = "gaia_dr3",
     combotype: str = "AND",
     invert: bool = False,
 ):
@@ -99,7 +101,18 @@ async def task_handler(
         You can't have this kwargs overload because it needs to know the properties.
 
     Args:
-        Everything from the subset
+        release: data release to hit
+        datatype: datatype, star or visit
+        dataset: specific dataset
+        name: name of subset, used in export
+        expression: custom filter expression
+        carton: list of cartons
+        mapper: list of selected mappers
+        flags: list of flags
+        crossmatch: crossmatch multiline string
+        cmtype: crossmatch identifier type to search for
+        combotype: how to combine filters. unused.
+        invert: whether to invert filters. unused.
     """
     new_task = Job()  # create jobspec
     jobs[new_task.uid] = new_task  # add to global joblist

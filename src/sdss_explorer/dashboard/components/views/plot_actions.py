@@ -105,10 +105,6 @@ def reset_range(plotstate: PlotState,
         fig_model: figure object
         dff: filtered dataframe
         axis: axis to update for. 'x', 'y', or 'color'.
-
-    Returns:
-        newrange: tuple of new range values, only in x/y resets
-
     """
     assert axis in ("x", "y", "color"), f"expected axis x or y but got {axis}"
     if dff is not None:
@@ -266,7 +262,7 @@ def fetch_data(plotstate: PlotState,
 
     Args:
         plotstate: plot variables
-        fig_model: figure object
+        dff: filtered dataframe
         axis: axis to fetch for. either 'x', 'y', or 'color'.
 
     Returns:

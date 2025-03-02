@@ -40,7 +40,7 @@ nav:
   - Introduction: index.md
   - User Guide:
     - Plotting: guide/plotting.md
-    - Multiple subsets: guide/subsets.md
+    - Subsets: guide/subsets.md
     - Virtual columns: guide/vc.md
     - Selecting targeting cartons: guide/cartons.md
     - Crossmatching: guide/crossmatch.md
@@ -51,8 +51,10 @@ nav:
     - Selecting targeting cartons : examples/yso.md
     - Comparing and contrasting datasets: examples/flags.md
   - Developer Guide:
-    - Index: developer/index.md
-    - Layout: developer/codebase.md
+    - App state: developer/state.md
+    - Plots: developer/plots.md
+    - Configuration and environment variables: developer/config.md
+    - Codebase layout: developer/codebase.md
     - Data files: developer/datafiles.md
     - Guardrailing: developer/guardrailing.md
   - Reference: reference/

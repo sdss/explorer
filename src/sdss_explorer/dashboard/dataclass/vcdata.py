@@ -9,13 +9,22 @@ logger = logging.getLogger("dashboard")
 
 
 class VCList:
-    """Virtual column data class"""
+    """Virtual column data class
+
+    Attributes:
+        columns (dict[str,str]): list of virtual columns by their name and expression.
+    """
 
     def __init__(self) -> None:
         self.columns = sl.reactive({})
 
     def add_column(self, name, expression):
-        """Add a virtual column to the DataFrame."""
+        """Add a virtual column to the DataFrame.
+
+        Args:
+            name (str): name of vc to add
+            expression (str): custom expression
+        """
         columns = self.columns.value.copy()
         columns.update({name: expression})
         self.columns.set(columns)
@@ -28,7 +37,14 @@ class VCList:
                 subset.df.add_virtual_column(name, expression)
 
     def delete_column(self, name):
-        """Remove a virtual column from the DataFrame."""
+        """Remove a virtual column from the DataFrame.
+
+        Warning:
+            This could lead to race conditions. Untested under high stress.
+
+        Args:
+            name (str): name of vc to remove
+        """
         # trigger plot resets FIRST
         columns = self.columns.value.copy()
         columns.pop(name)
@@ -56,3 +72,4 @@ class VCList:
 
 
 VCData = VCList()
+"""Specific VCList instance for each kernel."""

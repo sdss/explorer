@@ -24,20 +24,18 @@ def use_subset(
 ):
     """Provides cross filtering across a subset, all other filters are combined using the reducer.
 
-    Cross filtering will collect a set of filters (from other components), and combine
-    them into a single filter, that excludes the filter we set for the current component.
-    This is often used in dashboards where a filter is defined in a visualization component,
-    but only applied to all other components.
 
-    The graph below shows what happens when component A and B set a filter, and C does not.
+    Args:
+        data_key (int): expected id(DataFrame)
+        subset_key: the key for the subset. Can be reactive or string.
+        name: name of the reducer, used to help identify in debugs
+        write_only: whether this filter should attach a listener. Can significantly increase performance with many filters.
+        reducer: type of reduction to use on the returned cross filtering.
+        eq (Callable[[Any,Any],bool]): type of equality check to use
 
-    ```mermaid
-    graph TD;
-        A--"filter A"-->B;
-        B--"filter B"-->C;
-        A--"filter A"-->C;
-        B--"filter B"-->A;
-    ```
+    Returns:
+        cross_filter (vx.Expression): combined crossfilter
+        set_filter (Callable): callable method to set a filter
     """
     subset_reactive = solara.use_reactive(subset_key)
     del subset_key

@@ -17,7 +17,7 @@ We can enter this as a new column by clicking on the _Virtual Calculations_ menu
 
 where $\log g_{\odot} = 4.44$ and $M_{bol,\odot} = 4.75$ and $T_{\rm eff} = 5770$.
 
-![vc_add](../../assets/vc_add.png)
+![vc_add](../assets/vc_add.png)
 /// caption
 *The Virtual Columns add menu, which opens when you click "Add Virtual Column" in the sidebar menu.*
 ///

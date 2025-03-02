@@ -1,6 +1,7 @@
 """Application settings. Places everything that is set by an envvar under a namespace."""
 
 import os
+import logging
 from pydantic_settings import BaseSettings
 from pydantic import Field
 
@@ -21,6 +22,9 @@ class Settings(BaseSettings):
     logpath: str = Field(default=os.path.expanduser("~"),
                          validation_alias="EXPLORER_LOGPATH")
     """The home directory for logs. Defaults to `$HOME`."""
+
+    loglevel: str = Field(default="INFO", validation_alias="EXPLORER_LOGLEVEL")
+    """The log level for stdout/err. Defaults to INFO."""
 
     datapath: str = Field(default="./home",
                           validation_alias="EXPLORER_DATAPATH")

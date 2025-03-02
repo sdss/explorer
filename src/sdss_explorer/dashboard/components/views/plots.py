@@ -60,6 +60,17 @@ index_context = sl.create_context(0)
 
 @sl.component()
 def show_plot(plottype, del_func, **kwargs):
+    """Helper function to show a specific plot type with its settings. Wraps all into card.
+
+    Note:
+        `PlotState` is instantiated here.
+
+    Args:
+        plottype (str): plot type
+        del_func (Callable): callable to delete this plot from the grid.
+        kwargs (kwargs): overload for plot variable setup
+
+    """
     # NOTE: force set to grey darken-3 colour for visibility of card against grey darken-4 background
     dark = sl.lab.use_dark_effective()
     with rv.Card(
@@ -117,7 +128,17 @@ def show_plot(plottype, del_func, **kwargs):
 
 @sl.component()
 def HistogramPlot(plotstate: PlotState) -> ValueElement:
-    """Histogram plot"""
+    """Histogram plot component.
+
+    Reactives:
+        df: subset dataframe
+        filter: subset filter hook
+        layout: layout, used to hook height resizing
+        dff: filtered dataframe
+
+    Args:
+        plotstate: plot variables
+    """
     df: vx.DataFrame = SubsetState.subsets.value[plotstate.subset.value].df
     filter, set_filter = use_subset(id(df), plotstate.subset, name="histogram")
     i = sl.use_context(index_context)
@@ -212,7 +233,17 @@ def HistogramPlot(plotstate: PlotState) -> ValueElement:
 
 @sl.component()
 def HeatmapPlot(plotstate: PlotState) -> ValueElement:
-    """2D Histogram (heatmap) plot"""
+    """2D Histogram (heatmap) plot
+
+    Reactives:
+        df: subset dataframe
+        filter: subset filter hook
+        layout: layout, used to hook height resizing
+        dff: filtered dataframe
+
+    Args:
+        plotstate: plot variables
+    """
     df: vx.DataFrame = SubsetState.subsets.value[plotstate.subset.value].df
     filter, set_filter = use_subset(id(df), plotstate.subset, name="heatmap")
     i = sl.use_context(index_context)
@@ -320,6 +351,20 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
 
 @sl.component()
 def ScatterPlot(plotstate: PlotState) -> ValueElement:
+    """ScatterPlot component. Adaptively rerenders based on zoom state.
+
+    Reactives:
+        df: subset dataframe
+        filter: subset filter hook
+        layout: layout, used to hook height resizing
+        ranges: current plot ranges, used for adaptive rerendering
+        dff: filtered dataframe
+        dfe: filtered dataframe _without_ local filter, used for resetting ranges
+
+    Args:
+        plotstate: plot variables
+    """
+
     df: vx.DataFrame = SubsetState.subsets.value[plotstate.subset.value].df
     filter, set_filter = use_subset(id(df), plotstate.subset, name="scatter")
     i = sl.use_context(index_context)

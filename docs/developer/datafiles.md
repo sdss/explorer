@@ -31,13 +31,16 @@ Subset.df = dff.extract() # now when doing new filters, they are only applied to
 
 The `columnsAllStar` and `columnsAllVisit` assist with guardrailing users and downloading by allowing the app to efficiently selecting columns that have no NaN values. 
 
-These `columns` JSON files are loaded as `dict[str]` to **TODO** `StateData.columns`, which is then accessed to fill `Subset.columns` on each `dataset`/`pipeline` update. 
+These `columns` JSON files are loaded as `dict[str]` to [`State.columns`](../../reference/sdss_explorer/dashboard/dataclass/state#StateData), which is then accessed to fill [`Subset.columns`](../../reference/sdss_explorer/dashboard/dataclass/subset#Subset) on each `dataset`/`pipeline` update. 
 
-Computing which columns are all nan per dataset switch within the app live was ineffecient. Precompiling them is a trivial operation and takes minimal memory/CPU to load.
+Computing which columns are all `nan` per `dataset` switch within the app live was inefficient. Precompiling them is a trivial operation and takes minimal memory/CPU to load.
 
 
 ### Mappings parquet
-`mappings.parquet` is a compiled datafile of all the `sdss` targeting cartons and programs, which is used by the **TODO** `Targeting Filters Panel`. 
+`mappings.parquet` is a compiled datafile of all the `sdss` targeting cartons and programs, which is used by the [`filter_carton_mapper` function](../../reference/sdss_explorer/util/filters#filter_carton_mapper) for selecting cartons and mapper programs.
+
+!!! warning
+    `mappings.parquet` is not generated via the datafile generation described below. It must be generated manually (trival via `pandas`) from any updated `bitmappings.csv` file in [`sdss/semaphore`](https://github.com/sdss/semaphore).
 
 # Generating new data files
 
@@ -45,8 +48,8 @@ Generation of new datafiles requires the use of a computer with lots of memory d
 
 Generation can be done with the files in [`sdss/explorer-filegen`](https://github.com/sdss/explorer-filegen) repository and takes three steps.
 
-1. Source all current astra summary data files + `spAll` files.
-    * Place these in some working directory with enough space to store upwards of 200GB of total data.
+1. Source all current `astra` summary data files + relevant `spAll` files and place into a subdirectory corresponding to the `astra` version.
+    * Place these in some working directory with enough space to store upwards of 100GB of total data.
     * For `spall`, we use the BOSS pipeline summary files 
         * `spAll-lite` for visit .
         * `spAll-lite_multimjd` for star, since many BOSS-only sources (like quasars) have no real "star" coadd equivalent.
@@ -56,8 +59,10 @@ Generation can be done with the files in [`sdss/explorer-filegen`](https://githu
         * Note that this process drops the `tags` and `carton_0` columns.
     * This also automagically ensures that ALL datatypes are encoded as Apache Arrow ones.
     * When we reconvert back to HDF5, we additionally ensure that *any* nested `pa.ChunkedArray` (list of list) datatypes are converted back into `numpy` datatypes to ensure compatibility.
-    * **NOTE:** you must convert `spAll-lite` files used in the stacks manually using `spall_convert.py`.
+    * **NOTE:** you must convert `spAll-lite` files used in the stacks __manually__ using `spall_convert.py`.
 3. Merge all files together and output `columns*.json`
     * Columns files are used for guardrailing, see [here](guardrailing.md).
+4. Generate custom datamodels for Column Glossary
+    * __TODO__
 
-Within the `misc` folder, you will find additional slurm commands and scripts to run the generators via `sbatch`.
+Within the repository, you will find additional slurm commands and scripts to run the generators (only steps 2 and 3) via `sbatch`.

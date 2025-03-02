@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from typing import Any
 
 import solara as sl
 from reacton.ipyvuetify import ValueElement
@@ -62,8 +63,13 @@ def show_settings(type: str, plotstate: PlotState):
     return
 
 
-def debounce(value, sleep: float = 0.1):
-    """Generates a debouncer function"""
+def debounce(value: Any, sleep: float = 0.1):
+    """Generates a debouncer function
+
+    Args:
+        value: value to debounce
+        sleep: time for debounce in seconds. defaults to 0.1s.
+    """
 
     async def debouncer():
         await asyncio.sleep(sleep)
@@ -74,7 +80,11 @@ def debounce(value, sleep: float = 0.1):
 
 @sl.component
 def CommonSettings(plotstate: PlotState) -> ValueElement:
-    """Common plot settings, with debouncers"""
+    """Common plot settings, with debouncers.
+
+    Args:
+        plotstate: plot variables
+    """
     plottype = plotstate.plottype
     logx = sl.use_reactive(getattr(plotstate, "logx").value)
     logy = sl.use_reactive(getattr(plotstate, "logy").value)
@@ -133,7 +143,7 @@ def ScatterMenu(plotstate: PlotState, columns):
 
     Args:
         plotstate: plot variables
-        columns(list): list of valid columns
+        columns (list[str]): list of valid columns
     """
     with sl.Column() as main:
         with Card(margin=0):
@@ -183,7 +193,7 @@ def HistogramMenu(plotstate: PlotState, columns):
 
     Args:
         plotstate: plot variables
-        columns(list): list of valid columns
+        columns (list[str]): list of valid columns
     """
     nbins = sl.use_reactive(getattr(plotstate, "nbins").value)
     db_nbins = sl.lab.use_task(debounce(nbins.value, 0.05),
@@ -217,7 +227,7 @@ def HeatmapMenu(plotstate: PlotState, columns):
 
     Args:
         plotstate: plot variables
-        columns(list): list of valid columns
+        columns (list[str]): list of valid columns
     """
     nbins = sl.use_reactive(getattr(plotstate, "nbins").value)
     db_nbins = sl.lab.use_task(debounce(nbins.value, 0.05),

@@ -34,12 +34,12 @@ from .components.views import ObjectGrid, add_view  # noqa: E402
 from .components.views.dataframe import NoDF  # noqa: E402
 
 # logging setup
-DEV = settings.dev or (sl.server.settings.main.mode == "production")
+PROD = sl.server.settings.main.mode != "production"
 
 setup_logging(
     log_path=settings.logpath,
-    console_log_level=logging.DEBUG if DEV else logging.ERROR,
-    file_log_level=logging.DEBUG if DEV else logging.INFO,
+    console_log_level=settings.loglevel,
+    file_log_level="INFO" if PROD else "DEBUG",
 )
 
 logger = logging.getLogger("dashboard")
@@ -249,7 +249,7 @@ def Page() -> None:
         HelpBlurb()
 
         # theme toggle button
-        if DEV:
+        if not PROD:
             ThemeToggle()
 
     if df is not None:

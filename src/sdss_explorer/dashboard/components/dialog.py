@@ -22,6 +22,7 @@ def Dialog(
     max_width: Union[int, str] = 500,
     persistent: bool = False,
 ):
+    """Custom dialog component"""
 
     def on_open(open_value):
         if not open_value:

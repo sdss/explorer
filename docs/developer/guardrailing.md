@@ -4,7 +4,7 @@ To ensure users do not do unanticipated actions that they may not want to do, we
 
 ## Allowed columns JSON
 
-In each release's data directory, there are files `columnsAllStar-VASTRA.json` and `columnsAllVisit-VASTRA.json`. These are used as global column lookups within the [`State` dataclass](../reference/state.md) for use with suggesting columns that will have data in plot settings menus.
+In each release's data directory, there are files `columnsAllStar-VASTRA.json` and `columnsAllVisit-VASTRA.json`. These are used as global column lookups within the [`State` dataclass](../reference/sdss_explorer/dashboard/dataclass/state#StateData) for use with suggesting columns that will have data in plot settings menus.
 
 ## Loaded default flags
 

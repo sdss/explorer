@@ -28,7 +28,9 @@ for file in map(os.path.basename, glob.glob(f"{HELPDIR}/*.md")):
         )
         f.close()
 
-lookup = dict()
+lookup: dict[int, str] = dict()
+"""Lookup of help text."""
+
 for i, k in enumerate(sorted(help_text.keys())):
     lookup[k] = i
 
@@ -36,6 +38,11 @@ for i, k in enumerate(sorted(help_text.keys())):
 class Help:
     """
     Help message settings
+
+    Attributes:
+        open (solara.Reactive[bool]): whether menu is open or not
+        tab (solara.Reactive[int]): which tab is open
+        lookup (dict[int,str]): the lookup instance
     """
 
     open = sl.reactive(False)

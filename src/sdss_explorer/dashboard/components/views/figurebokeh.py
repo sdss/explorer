@@ -1,5 +1,6 @@
 from typing import Callable
 
+from bokeh.plotting import figure
 import solara as sl
 from bokeh.io import curdoc
 from bokeh.models import Plot
@@ -14,11 +15,25 @@ def BokehLoaded(loaded: bool, on_loaded: Callable[[bool], None]):
 
 @sl.component
 def FigureBokeh(
-    fig,
+    fig: Plot | figure,
     light_theme: str | Theme = "light_minimal",
     dark_theme: str | Theme = "dark_minimal",
     dependencies=None,
 ):
+    """Generates a Bokeh figure as a solara Jupyter widget.
+
+    Note:
+        This is very experimental. You may notice render issues.
+
+    Warning:
+        We never use this `dependencies` prop. We do callbacks ourselves for performance.
+
+    Args:
+        fig: figure object
+        light_theme: theme to use in light mode
+        dark_theme: theme to use in dark mode
+        dependencies (list[str] | None): dependencies to trigger data updates on.
+    """
     loaded = sl.use_reactive(False)
     dark = sl.lab.use_dark_effective()
     BokehLoaded(loaded=loaded.value, on_loaded=loaded.set)
