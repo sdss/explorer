@@ -105,8 +105,8 @@ class PlotState:
         # saves current to p and q
         p = self.x.value
         q = self.y.value
-        self.x.value = q
-        self.y.value = p
+        self.x.set(q)
+        self.y.set(p)
 
     def reset_values(self):
         """Conditional reset based on if given column/subset is still in list. Triggered by threads in plot_settings."""

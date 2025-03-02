@@ -288,17 +288,17 @@ def fetch_data(plotstate: PlotState,
         if (axis == "color") and plotstate.logcolor.value:
             colData = np.log10(dff[col])
             # check if the update will make all nan, and set accordingly
-            try:
-                test = colData.values
-                try:  # pyarrow array instance check didnt work; just do this
-                    test = test.to_numpy()
-                except Exception:
-                    pass
-                test[np.abs(test) == np.inf] = np.nan
-                assert not np.all(np.isnan(test))
-            except Exception:
-                raise ValueError(
-                    "taking log of color gives no data, not updating.")
+            # try:
+            #    test = colData.values
+            #    try:  # pyarrow array instance check didnt work; just do this
+            #        test = test.to_numpy()
+            #    except Exception:
+            #        pass
+            #    test[np.abs(test) == np.inf] = np.nan
+            #    assert not np.all(np.isnan(test))
+            # except Exception:
+            #    raise ValueError(
+            #        "taking log of color gives no data, not updating.")
         else:
             colData = dff[col]
     return colData

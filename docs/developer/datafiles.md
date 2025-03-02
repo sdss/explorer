@@ -7,7 +7,7 @@ The Explorer uses custom HDF5, parquet, and JSON files for its application. Data
 
 Each of the `explorerAllVisit.hdf5` and `explorerAllStar.hdf5` files are *stacked* versions of the `astraAllStar` and `astraAllVisit` FITS summary files produced by [`sdss/astra`](https://github.com/sdss/astra) after each run.
 
-All data within these are stored as [Apache Arrow datatypes](https://arrow.apache.org/docs/python/api/datatypes.html) to ensure maximum access and filtering speed ***except for 2D columns***, such as `sdss5_target_flags` or similar nested lists. Nested lists are instead stored as [numpy arrays](https://numpy.org/) for efficient filtering and data access.
+All data within these are stored as [Apache Arrow datatypes](https://arrow.apache.org/docs/python/api/datatypes.html) to ensure maximum access and filtering speed ***except for 2D columns***, such as `sdss5_target_flags` or similar nested lists. Nested lists are instead stored as [numpy arrays](https://numpy.org/) for efficient filtering and data access (because `vaex` doesn't support 2D Arrow data yet).
 
 
 #### Accessing each dataset
@@ -41,20 +41,22 @@ Computing which columns are all nan per dataset switch within the app live was i
 
 # Generating new data files
 
-Generation of new datafiles requires the use of a computer with lots of memory due to the size of the merge operation, which requires that the entire dataset fits into memory (i.e. a cluster).
+Generation of new datafiles requires the use of a computer with lots of memory due to the size of the merge operation, which requires that the entire dataset fits into memory.
 
-Generation can be done with the `sdss_explorer.filegenerator` module and takes three steps.
+Generation can be done with the files in [`sdss/explorer-filegen`](https://github.com/sdss/explorer-filegen) repository and takes three steps.
 
-1. Source all current astra summary data files (*link to function that does this here*).
+1. Source all current astra summary data files + `spAll` files.
+    * Place these in some working directory with enough space to store upwards of 200GB of total data.
     * For `spall`, we use the BOSS pipeline summary files 
-        * `spAll-lite` for visit 
+        * `spAll-lite` for visit .
         * `spAll-lite_multimjd` for star, since many BOSS-only sources (like quasars) have no real "star" coadd equivalent.
 2. Convert all astra summary files to arrow (parquet), then HDF5.
     * `vaex` can't load `fits` files since `vaex.astro` hasn't been updated in some time, so we use Bristol's `STILTS` (part of TOPCAT) to convert them to `parquet`.
         * This requires the `topcat-extra.jar` file.
         * Note that this process drops the `tags` and `carton_0` columns.
-    * This also automagically ensures that ALL datatypes are Apache Arrow
-    * When we reconvert back to HDF5, we additionally ensure that *any* `pa.ChunkedArray` (list of list) datatypes are converted back into `numpy` datatypes to ensure compatibility.
+    * This also automagically ensures that ALL datatypes are encoded as Apache Arrow ones.
+    * When we reconvert back to HDF5, we additionally ensure that *any* nested `pa.ChunkedArray` (list of list) datatypes are converted back into `numpy` datatypes to ensure compatibility.
+    * **NOTE:** you must convert `spAll-lite` files used in the stacks manually using `spall_convert.py`.
 3. Merge all files together and output `columns*.json`
     * Columns files are used for guardrailing, see [here](guardrailing.md).
 

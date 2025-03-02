@@ -40,6 +40,7 @@ docs = [
     'mkdocs-literate-nav',
     'mkdocs-section-index',
     'griffe-pydantic',
+    "pymdown-extensions>=10.14.3",
 ]
 
 [build-system]

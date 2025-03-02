@@ -554,5 +554,5 @@ def calculate_colorbar_ticks(low, high) -> list[float]:
         return np.arange(round(low / interval) * interval, high,
                          interval).tolist()
     except Exception as e:
-        Alert.update("Failed to construct colorbar! " + str(e), color="error")
-        return np.arange(0, 3 + 0.5, 0.5)  # dummy data on crash
+        # dummy data on failure, will show nothing on colorbar
+        return np.arange(0, 3 + 0.5, 0.5)

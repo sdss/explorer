@@ -1601,6 +1601,7 @@ docs = [
     { name = "mkdocs-section-index" },
     { name = "mkdocstrings" },
     { name = "mkdocstrings-python" },
+    { name = "pymdown-extensions" },
 ]
 
 [package.metadata]
@@ -1623,6 +1624,7 @@ requires-dist = [
     { name = "numpy", specifier = "==1.26.4" },
     { name = "plotly", specifier = ">=5.18.0,<6.0.0" },
     { name = "pydantic-settings", specifier = ">=2.8.0" },
+    { name = "pymdown-extensions", marker = "extra == 'docs'", specifier = ">=10.14.3" },
     { name = "pynvim", marker = "extra == 'dev'" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
     { name = "solara", specifier = ">=1.40.0,<=1.42.0" },
