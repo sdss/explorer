@@ -15,7 +15,13 @@ logger = logging.getLogger("dashboard")
 
 
 def show_settings(type: str, plotstate: PlotState):
-    """Wrapper to case switch logic for menus"""
+    """Wrapper to case switch logic for menus
+
+    Args:
+        type: plottype, any of `'histogram','scatter','heatmap'`
+        plotstate: plot variables
+
+    """
     subset = SubsetState.subsets.value.get(plotstate.subset.value,
                                            Subset(name="temp"))
     columns = list(VCData.columns.value.keys()) + subset.columns

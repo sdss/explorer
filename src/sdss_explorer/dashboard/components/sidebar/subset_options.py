@@ -49,24 +49,25 @@ def SubsetOptions(key: str, deleter: Callable):
 
     # User facing
     with sl.Column() as main:
-        ExprEditor(key, invert)
-        DatasetSelect(key, dataset, set_dataset)
-        # complex option panels
-        with rv.ExpansionPanels(flat=True,
-                                multiple=True,
-                                v_model=open,
-                                on_v_model=set_open):
-            TargetingFiltersPanel(key, invert)
-            CrossmatchPanel(key)
+        if subset.df is not None:
+            ExprEditor(key, invert)
+            DatasetSelect(key, dataset, set_dataset)
+            # complex option panels
+            with rv.ExpansionPanels(flat=True,
+                                    multiple=True,
+                                    v_model=open,
+                                    on_v_model=set_open):
+                TargetingFiltersPanel(key, invert)
+                CrossmatchPanel(key)
 
-        # bottom card actions
-        with rv.Row(style_="width: 100%; height: 100%"):
-            DownloadMenu(key)  # download button
-            InvertButton(invert)  # invert button
-            rv.Spacer()  # spacer
-            RenameSubsetButton(key)  # rename button
-            CloneSubsetButton(key)  # clone button
-            DeleteSubsetDialog(deleter)  # delete button
+            # bottom card actions
+            with rv.Row(style_="width: 100%; height: 100%"):
+                DownloadMenu(key)  # download button
+                InvertButton(invert)  # invert button
+                rv.Spacer()  # spacer
+                RenameSubsetButton(key)  # rename button
+                CloneSubsetButton(key)  # clone button
+                DeleteSubsetDialog(deleter)  # delete button
 
     return main
 

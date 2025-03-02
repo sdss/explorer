@@ -161,7 +161,8 @@ def Page() -> None:
             subset_keys = ["dataset", "expression"]
             list_subset_keys = ["mapper", "carton", "flags"]
             subset_data = {
-                k: v.split(",") if k in list_subset_keys else v
+                k: v.split(",") if
+                ((k in list_subset_keys) & (len(v) > 0)) else v
                 for k, v in query_params.items()
                 if k in subset_keys + list_subset_keys
             }

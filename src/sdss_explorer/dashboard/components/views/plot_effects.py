@@ -138,8 +138,8 @@ def add_common_effects(
                     # NOTE: numpy arrays
                     if check_categorical(plotstate.x.value):
                         data = source.data["centers"][new]
-                        dataExpr = df[plotstate.x.value].map(
-                            plotstate.xmapping)
+                        mapping = getattr(plotstate, "xmapping")
+                        dataExpr = df[plotstate.x.value].map(mapping)
                         logger.debug(f"hist: {str(dataExpr)}")
                         set_filter(dataExpr.isin(data))
                     else:
@@ -156,7 +156,8 @@ def add_common_effects(
                     datax = source.data["x"][new]
                     datay = source.data["y"][new]
                     if check_categorical(plotstate.x.value):
-                        colx = df[plotstate.x.value].map(plotstate.xmapping)
+                        mapping = getattr(plotstate, "xmapping")
+                        colx = df[plotstate.x.value].map(mapping)
                         xfilter = colx.isin(datax)
                     else:
                         colx = plotstate.x.value
@@ -164,7 +165,8 @@ def add_common_effects(
                         xmax = np.nanmax(datax)
                         xfilter = (df[colx] >= xmin) & (df[colx] <= xmax)
                     if check_categorical(plotstate.y.value):
-                        coly = df[plotstate.y.value].map(plotstate.ymapping)
+                        mapping = getattr(plotstate, "xmapping")
+                        coly = df[plotstate.y.value].map(mapping)
                         yfilter = coly.isin(datay)
                     else:
                         coly = plotstate.y.value
@@ -179,9 +181,9 @@ def add_common_effects(
                     # NOTE: pyarrow ChunkedArrays
                     datax = source.data["x"].take(new)
                     datay = source.data["y"].take(new)
-                    colx = plotstate.x.value
-                    coly = plotstate.y.value
-                    newfilter = (df[colx].isin(datax)) & (df[coly].isin(datay))
+                    colx = fetch_data(plotstate, df, axis="x")
+                    coly = fetch_data(plotstate, df, axis="y")
+                    newfilter = (colx.isin(datax)) & (coly.isin(datay))
                     logger.debug(f"scatter: {str(newfilter)}")
                     set_filter(newfilter)
             else:
@@ -197,7 +199,8 @@ def add_common_effects(
 
         return cleanup
 
-    sl.use_effect(bind_crossmatch, dependencies=[df])
+    sl.use_effect(bind_crossmatch,
+                  dependencies=[df, plotstate.x.value, plotstate.y.value])
 
     try:
         sl.use_effect(update_height, dependencies=[debounced_height.finished])
@@ -264,17 +267,38 @@ def add_scatter_effects(
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
             if dff is not None:
-                x = fetch_data(plotstate, dff, axis="x")
-                y = fetch_data(plotstate, dff, axis="y")
-                color = fetch_data(plotstate, dff, axis="color")
-                fig_model.renderers[0].data_source.data = dict(
-                    x=x.values,
-                    y=y.values,
-                    color=color.values,
-                    sdss_id=dff["sdss_id"].values,
-                )
-                update_color_mapper(plotstate, fig_model, dff)
-                change_formatter(plotstate, fig_model, dff, axis="color")
+                with fig_model.hold(render=True):
+                    try:
+                        x = fetch_data(plotstate, dff, axis="x").values
+                        y = fetch_data(plotstate, dff, axis="y").values
+                        color = fetch_data(plotstate, dff, axis="color").values
+                        sdss_id = dff["sdss_id"].values
+                    # in the event of chunking errors, pull
+                    except AssertionError:
+                        temp = dff.extract()
+                        x = fetch_data(plotstate, temp, axis="x").values
+                        y = fetch_data(plotstate, temp, axis="y").values
+                        color = fetch_data(plotstate, temp,
+                                           axis="color").values
+                        sdss_id = temp["sdss_id"].values
+                    fig_model.renderers[0].data_source.data = dict(
+                        x=x,
+                        y=y,
+                        color=color,
+                        sdss_id=sdss_id,
+                    )
+                    try:
+                        update_color_mapper(plotstate, fig_model, dff)
+                        change_formatter(plotstate,
+                                         fig_model,
+                                         dff,
+                                         axis="color")
+                    except AssertionError:
+                        update_color_mapper(plotstate, fig_model, temp)
+                        change_formatter(plotstate,
+                                         fig_model,
+                                         temp,
+                                         axis="color")
 
     sl.use_effect(update_filter, dependencies=[df, dff])
     sl.use_effect(update_x, dependencies=[plotstate.x.value])
@@ -427,8 +451,6 @@ def add_histogram_effects(pfig: rv.ValueElement, plotstate: PlotState, dff,
         if isinstance(fig_widget, BokehModel):
             fig_model: Plot = fig_widget._model
             try:
-                if check_categorical(dff[plotstate.x.value]):
-                    update_mapping(plotstate, axis="x")
                 assert len(dff) > 0, "zero length dataframe"
                 centers, edges, counts = aggregate_data(plotstate, dff)
             except Exception as e:

@@ -59,8 +59,11 @@ def export_layout(gridstate: GridData) -> dict[str, Any]:
         for k, v in vars(state).items():
             if k == "Lookup":
                 continue
-            elif k == "plottype":
+
+            elif k in {"plottype", "xmapping", "ymapping", "colormapping"}:
                 newstate[k] = v
+            elif k == "subset":
+                newstate[k] = v.value
             else:
                 newstate[k] = v.value
         states.append(newstate)

@@ -205,7 +205,7 @@ def _calculate_color_range(
         assert not check_categorical(
             col), "handed categorical data for aggregation"
         bintype = getattr(plotstate, "bintype")
-        if bintype == "count":
+        if (bintype == "count") and not plotstate.logcolor.value:
             low = 0
         else:
             low = np.nanmin(expr)

@@ -1,8 +1,11 @@
 """Virtual columns dataclass"""
 
+import logging
 import solara as sl
 from .state import State
 from .subsets import SubsetState
+
+logger = logging.getLogger("dashboard")
 
 
 class VCList:
@@ -20,6 +23,8 @@ class VCList:
         State.df.value.add_virtual_column(name, expression)
         for subset in SubsetState.subsets.value.values():
             if name not in subset.df.virtual_columns.keys():
+                logger.debug("adding vc " + str(name) + " to subset " +
+                             str(subset.name))
                 subset.df.add_virtual_column(name, expression)
 
     def delete_column(self, name):

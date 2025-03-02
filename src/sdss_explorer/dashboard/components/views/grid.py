@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 from typing import Optional
 
+from bokeh.io import output_notebook
 import ipyvuetify as v
 import ipywidgets as widgets
 import reacton as r
@@ -68,9 +69,10 @@ def ViewCard(plottype, i, **kwargs):
         GridState.objects.value[i] = rv.Card()
 
     index_context.provide(i)  # used to access height data for dynamic resize
-    show_plot(plottype, lambda: remove(i), **kwargs)  # plot shower
+    main = show_plot(plottype, lambda: remove(i), **kwargs)  # plot shower
 
-    return
+    logger.debug("returning viewcard now")
+    return main
 
 
 def add_view(plottype, layout: Optional[dict] = None, **kwargs):
@@ -85,9 +87,9 @@ def add_view(plottype, layout: Optional[dict] = None, **kwargs):
         if plottype == "stats":
             height = 7
         elif plottype == "targets":
-            height = 10
-            maxH = 10
-            minH = 10
+            height = 9
+            maxH = 9
+            minH = 9
         else:
             height = 10
         # horizontal or vertical offset depending on width
@@ -114,12 +116,17 @@ def add_view(plottype, layout: Optional[dict] = None, **kwargs):
     layout.update({"i": i})
 
     # add and update state vars
-    GridState.grid_layout.value.append(layout)
     GridState.index.value += 1
+    GridState.grid_layout.value = GridState.grid_layout.value + [layout]
 
-    GridState.objects.value = GridState.objects.value + [
-        ViewCard(plottype, i, **kwargs)
-    ]
+    logger.debug("entering cardmake")
+    card = ViewCard(plottype, i, **kwargs)
+    logger.debug("got card")
+    newlist = GridState.objects.value.copy() + [card]
+    logger.debug("appended")
+    GridState.objects.value = newlist
+    logger.debug("set")
+    logger.debug("append done, exiting")
 
 
 @sl.component()
@@ -132,42 +139,77 @@ def ObjectGrid():
         GridState.index.value = 0
         GridState.grid_layout.value = []
         GridState.objects.value = []
+        GridState.states.value = []
         GridState.index.value = 0
 
     def set_grid_layout(data):
         GridState.grid_layout.value = data
 
-    # WARNING: this is a janky workaround to a solara bug where
-    # this will likely have to be changed in future.
-    # BUG: it appears to incorrectly NOT reset the grid_layout reactive between different user instances/dev reset
-    # don't know what's happening, but it appears to run some threads
-    # below fix via thread solves it
-    def monitor_grid():
-        """Check to ensure length of layout spec is not larger than the number of objects.
+    def import_applayout(fileobj: FileInfo) -> None:
+        """Converts JSON to app state and updates accordingly.
 
-        Solves a solara bug where global reactives do not appear to reset."""
+        Note:
+            Function has to be here to serve state updates properly.
 
-        if len(GridState.objects.value) != len(GridState.grid_layout.value):
-            while len(GridState.grid_layout.value) > len(
-                    GridState.objects.value):
-                GridState.grid_layout.value.pop(-1)
-            GridState.index.value = len(GridState.objects.value)
+        Args:
+            fileobj: the file data, loaded as a solara.FileInfo object.
+        """
+        # convert from json to dicts
+        set_lockout(True)
+        try:
+            data = json.load(fileobj["file_obj"])
+        except Exception as e:
+            Alert.update("Import failed!", color="error")
+            logger.debug(f"JSON load to import layout failed failed: {e}")
+            set_lockout(False)
+            set_impmenu(False)
+            return
 
-    sl.lab.use_task(
-        monitor_grid,
-        dependencies=[GridState.objects.value, GridState.grid_layout.value],
-    )
+        # wipe current layout & delete all virtual columns
+        reset_layout()
+        for name in VCData.columns.value.keys():
+            VCData.delete_column(name)
 
-    # NOTE: workaround for reactive monitoring of n subsets
-    def update_n_subsets():
-        return len(SubsetState.subsets.value)
+        # now, readd all virtual columns
+        for name, expr in data["virtual_columns"].items():
+            VCData.add_column(name, expr)
 
-    n_subsets = sl.use_memo(
-        update_n_subsets,
-        dependencies=[
-            SubsetState.subsets.value,
-        ],
-    )
+        # second, readd all subsets
+        subsets = data["subsets"]
+        for subset in subsets.values():
+            subset["df"] = (State.df.value[State.df.value[
+                f"(pipeline=='{subset.get('dataset')}')"]].copy().extract())
+            subset["columns"] = State.columns.value[subset.get("dataset")]
+
+        subsets_spawned = {k: Subset(**v) for k, v in subsets.items()}
+        SubsetState.index.set(len(subsets))
+        SubsetState.subsets.set(subsets_spawned)
+
+        # finally, create/add all plots with states and their according layout
+        layouts = data["views"]["layout"]
+        states = data["views"]["states"]
+
+        for layout, state in zip(layouts, states):
+            try:
+                logger.debug("adding view")
+                logger.debug(layout)
+                logger.debug(state)
+                plottype = state.pop("plottype")
+                add_view(plottype, layout=layout, **state)
+            except Exception as e:
+                Alert.update(f"JSON load of {fileobj['name']} failed!",
+                             color="error")
+                Alert.update
+                logger.debug("failed to add view on import" + str(e))
+                continue
+
+        Alert.update("Layout imported successfully!", color="success")
+
+        # unlock
+        set_lockout(False)
+        set_impmenu(False)
+
+        return
 
     def export_applayout() -> str:
         """Creates JSON for file export."""
@@ -222,56 +264,6 @@ def ObjectGrid():
                     max_width=960,
                     on_cancel=lambda *_: set_impmenu(False),
             ):
-
-                def import_applayout(fileobj: FileInfo) -> None:
-                    """Converts JSON to app state and updates accordingly.
-                    Function has to be here to serve state updates properly."""
-                    # convert from json to dicts
-                    set_lockout(True)
-                    try:
-                        data = json.load(fileobj["file_obj"])
-                    except Exception as e:
-                        Alert.update(f"JSON load of {fileobj['name']} failed!",
-                                     color="error")
-                        logger.debug(
-                            f"JSON load of {fileobj['name']} failed: {e}")
-                        set_lockout(False)
-                        set_impmenu(False)
-                        return
-
-                    # wipe current layout & delete all virtual columns
-                    reset_layout()
-                    for name in VCData.columns.value.keys():
-                        VCData.delete_column(name)
-
-                    # now, readd all virtual columns
-                    for name, expr in data["virtual_columns"].items():
-                        VCData.add_column(name, expr)
-
-                    # second, readd all subsets
-                    subsets = data["subsets"]
-                    subsets_spawned = {
-                        k: Subset(**v)
-                        for k, v in subsets.items()
-                    }
-                    SubsetState.index.set(len(subsets))
-                    SubsetState.subsets.set(subsets_spawned)
-
-                    # finally, create/add all plots with states and their according layout
-                    layouts = data["views"]["layout"]
-                    states = data["views"]["states"]
-                    for layout, state in zip(layouts, states):
-                        add_view(layout=layout, **state)
-
-                    Alert.update("Layout imported successfully!",
-                                 color="success")
-
-                    # unlock
-                    set_lockout(False)
-                    set_impmenu(False)
-
-                    return
-
                 sl.FileDrop(label="Drop file here", on_file=import_applayout)
 
                 # lockout via indeterminate loading circle and overlay (ui is uninteractable)

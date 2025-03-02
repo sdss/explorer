@@ -24,6 +24,7 @@ from .plot_settings import show_settings
 from .plot_utils import (
     add_all_tools,
     add_callbacks,
+    check_categorical,
     calculate_range,
     generate_color_mapper,
     generate_tooltips,
@@ -43,10 +44,11 @@ from .plot_actions import (
     reset_range,
     aggregate_data,
     fetch_data,
+    update_mapping,
     update_tooltips,
 )
 
-from ...dataclass import PlotState, SubsetState, GridState, use_subset, Alert
+from ...dataclass import PlotState, SubsetState, GridState, use_subset, Alert, VCData
 
 logger = logging.getLogger("dashboard")
 
@@ -56,19 +58,20 @@ index_context = sl.create_context(0)
 """context: used for tracing parent card in the grid for height resizing"""
 
 
-@sl.component
+@sl.component()
 def show_plot(plottype, del_func, **kwargs):
     # NOTE: force set to grey darken-3 colour for visibility of card against grey darken-4 background
     dark = sl.lab.use_dark_effective()
     with rv.Card(
             class_="grey darken-3" if dark else "grey lighten-3",
             style_="width: 100%; height: 100%",
-    ):
+    ) as main:
         # NOTE: current key has to be memoized outside the instantiation (why I couldn't tell you)
         current_key = sl.use_memo(
             lambda: list(SubsetState.subsets.value.keys())[-1],
             dependencies=[])
         plotstate = PlotState(plottype, current_key, **kwargs)
+        df = SubsetState.subsets.value[current_key].df
 
         def add_to_grid():
             """Adds a pointer/reference to PlotState instance in GridState for I/O."""
@@ -77,36 +80,39 @@ def show_plot(plottype, del_func, **kwargs):
 
         sl.use_memo(add_to_grid, dependencies=[])  # runs once
 
-        with rv.CardText():
-            with sl.Column(
-                    classes=["grey darken-3" if dark else "grey lighten-3"]):
-                if plottype == "histogram":
-                    HistogramPlot(plotstate)
-                elif plottype == "heatmap":
-                    HeatmapPlot(plotstate)
-                elif plottype == "scatter":
-                    ScatterPlot(plotstate)
-                elif plottype == "delta2d":
-                    pass
-                    # DeltaHeatmapPlot(plotstate)
-                elif plottype == "stats":
-                    StatisticsTable(plotstate)
-                elif plottype == "targets":
-                    TargetsTable(plotstate)
-                btn = sl.Button(
-                    icon_name="mdi-settings",
-                    outlined=False,
-                    classes=["grey darken-3" if dark else "grey lighten-3"],
-                )
-                with sl.lab.Menu(activator=btn, close_on_content_click=False):
-                    with sl.Card(margin=0):
-                        show_settings(plottype, plotstate)
-                        sl.Button(
-                            icon_name="mdi-delete",
-                            color="red",
-                            block=True,
-                            on_click=del_func,
-                        )
+        if df is not None:
+            with rv.CardText():
+                with sl.Column(classes=[
+                        "grey darken-3" if dark else "grey lighten-3"
+                ]):
+                    if plottype == "histogram":
+                        HistogramPlot(plotstate)
+                    elif plottype == "heatmap":
+                        HeatmapPlot(plotstate)
+                    elif plottype == "scatter":
+                        ScatterPlot(plotstate)
+                    elif plottype == "stats":
+                        StatisticsTable(plotstate)
+                    elif plottype == "targets":
+                        TargetsTable(plotstate)
+                    btn = sl.Button(
+                        icon_name="mdi-settings",
+                        outlined=False,
+                        classes=[
+                            "grey darken-3" if dark else "grey lighten-3"
+                        ],
+                    )
+                    with sl.lab.Menu(activator=btn,
+                                     close_on_content_click=False):
+                        with sl.Card(margin=0):
+                            show_settings(plottype, plotstate)
+                            sl.Button(
+                                icon_name="mdi-delete",
+                                color="red",
+                                block=True,
+                                on_click=del_func,
+                            )
+    return main
 
 
 @sl.component()
@@ -162,7 +168,7 @@ def HistogramPlot(plotstate: PlotState) -> ValueElement:
             right="right",
             fill_color="skyblue",
         )
-        gr = p.add_glyph(source, glyph)
+        p.add_glyph(source, glyph)
         # p.y_range.bounds = [0, None] NOTE: tried this but it makes it janky to zoom
 
         p.y_range.start = 0  # force set 0 at start
@@ -226,6 +232,10 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
         dff = df
 
     def generate_cds():
+        for axis in {"x", "y", "color"}:
+            col = getattr(plotstate, axis).value
+            if check_categorical(col):
+                update_mapping(plotstate, axis="x")
         try:
             color, x_centers, y_centers, _ = aggregate_data(plotstate, dff)
         except Exception as e:
@@ -257,11 +267,13 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
 
         mapper = generate_color_mapper(plotstate, color=source.data["color"])
         # generate rectangles
+        logger.debug(source.data)
+        logger.debug(f"{mapper.low} to {mapper.high}")
         glyph = Rect(
             x="x",
             y="y",
-            width=(xlimits[1] - xlimits[0]) / plotstate.nbins.value,
-            height=(ylimits[1] - ylimits[0]) / plotstate.nbins.value,
+            width=abs(xlimits[1] - xlimits[0]) / plotstate.nbins.value,
+            height=abs(ylimits[1] - ylimits[0]) / plotstate.nbins.value,
             dilate=True,
             line_color=None,
             fill_color={
@@ -306,7 +318,7 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
     return pfig
 
 
-@sl.component
+@sl.component()
 def ScatterPlot(plotstate: PlotState) -> ValueElement:
     df: vx.DataFrame = SubsetState.subsets.value[plotstate.subset.value].df
     filter, set_filter = use_subset(id(df), plotstate.subset, name="scatter")
@@ -368,38 +380,25 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
                                              dependencies=[local_filter],
                                              prefer_threaded=False)
 
-    def get_dff():
-        """This filters down the dataset to what is necessary."""
-        filters = []
-        logger.debug("type = " + str(type(df)))
-        try:
-            logger.debug("starting dff gen")
-            if debounced_local_filter.finished:
-                if debounced_local_filter.value == local_filter:
-                    if debounced_local_filter.value is not None:
-                        filters.append(debounced_local_filter.value)
-                        logger.debug("added debounce local")
-            if filter is not None:
-                filters.append(filter)
-                logger.debug("added cross")
-            if filters:
-                total_filter = reduce(operator.and_, filters[1:], filters[0])
-                logger.debug("returning filtered")
-                dfe = df[total_filter]
-            else:
-                logger.debug("returning normal")
-                dfe = df
-        except Exception:
-            dfe = df
-        if dfe is not None:
-            if len(dfe) > 10001:  # bugfix
-                logger.debug("returing sliced")
-                return dfe[:10_000]
-        logger.debug("returing as is")
-        return dfe
-
-    dff = sl.use_memo(
-        get_dff, dependencies=[df, filter, debounced_local_filter.finished])
+    # combine the filters every render
+    filters = []
+    try:
+        if debounced_local_filter.finished:
+            if debounced_local_filter.value == local_filter:
+                if debounced_local_filter.value is not None:
+                    filters.append(debounced_local_filter.value)
+        if filter is not None:
+            filters.append(filter)
+        if filters:
+            total_filter = reduce(operator.and_, filters[1:], filters[0])
+            dff = df[total_filter]
+        else:
+            dff = df
+    except Exception:
+        dff = df
+    if dff is not None:
+        if len(dff) > 10001:  # bugfix
+            dff = dff[:10_000]
 
     def generate_cds():
         """Generate initial CDS object. Runs once"""
@@ -586,29 +585,10 @@ def TargetsTable(plotstate):
     df = SubsetState.subsets.value[subset].df
     filter, _ = use_subset(id(df), plotstate.subset, name="filter-tableview")
 
-    i = sl.use_context(index_context)
-    layout, set_layout = sl.use_state({"w": 6, "h": 10, "i": i})
-
-    def update_grid():
-        # fetch from gridstate
-        for spec in GridState.grid_layout.value:
-            if spec["i"] == i:
-                set_layout(spec)
-                break
-
-    sl.lab.use_task(update_grid, dependencies=[GridState.grid_layout.value])
-
-    if filter:
+    if filter is not None:
         dff = df[filter]
     else:
         dff = df
-    if len(dff) < 10:
-        new_layout = layout.copy()
-        h = max(4, len(dff))
-        new_layout["minH"] = h
-        new_layout["maxH"] = h
-        new_layout["h"] = h
-        set_layout(new_layout)
 
     dff = dff[plotstate.columns.value]
 

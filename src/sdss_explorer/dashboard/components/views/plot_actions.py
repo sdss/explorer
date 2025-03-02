@@ -75,11 +75,7 @@ def update_axis(
     # get all attributes of plotstate + fig_model
     assert axis in ("x", "y", "color"), (
         f"expected axis 'x','y', or 'color' but got {axis}")
-    col = getattr(plotstate, axis).value  # column name
     try:
-        # update before datafetch
-        if check_categorical(col):
-            update_mapping(plotstate, axis=axis)
         colData = fetch_data(plotstate, dff, axis=axis)
     except Exception as e:
         logger.debug("fetch update" + str(e))
@@ -104,6 +100,7 @@ def reset_range(plotstate: PlotState,
     Args:
         plotstate: plot variables
         fig_model: figure object
+        dff: filtered dataframe
         axis: axis to update for. 'x', 'y', or 'color'.
 
     Returns:
@@ -117,11 +114,10 @@ def reset_range(plotstate: PlotState,
         elif axis == "color":
             update_color_mapper(plotstate, fig_model, dff)
         else:
-            datarange = getattr(fig_model, f"{axis}_range")
             # NOTE: flip/log is automatically by the calculation function
+            datarange = getattr(fig_model, f"{axis}_range")
             newrange = calculate_range(plotstate, dff, axis=axis)
             datarange.update(start=newrange[0], end=newrange[1])
-            return newrange
 
 
 def _reset_histogram_yrange(plotstate: PlotState, fig_model: Plot,
@@ -165,25 +161,25 @@ def update_label(plotstate: PlotState,
     )
 
 
-def update_mapping(plotstate: PlotState, axis: str = "x") -> None:
+def update_mapping(plotstate: PlotState,
+                   dff: vx.DataFrame,
+                   axis: str = "x") -> None:
     """Updates the categorical datamapping for the given axis
 
     Args:
         plotstate: plot variables
+        dff: filtered dataframe
         axis: axis to perform update on. any of 'x', 'y', or 'color'
 
     """
-    df = SubsetState.subsets.value[
-        plotstate.subset.
-        value].df  # WARNING: this df must be from SubsetState.subsets later
 
     assert axis in ("x", "y", "color"), f"expected axis x or y but got {axis}"
     col = getattr(plotstate, axis).value  # column name
 
-    assert df[col].nunique() < 10, (
+    assert dff[col].nunique() < 10, (
         "this column has too many unique categories. not supported.")
 
-    mapping = generate_datamap(df[col])
+    mapping = generate_datamap(dff[col])
     setattr(plotstate, f"{axis}mapping", mapping)  # categorical datamap
     return
 
@@ -282,7 +278,7 @@ def fetch_data(plotstate: PlotState,
     col = getattr(plotstate, axis).value  # column name
 
     if check_categorical(col):
-        # NOTE: we always ensure this is altered prior to fetch
+        update_mapping(plotstate, dff, axis=axis)
         mapping = getattr(plotstate, f"{axis}mapping")  # categorical datamap
         colData = dff[col].map(mapping)
     else:
@@ -331,7 +327,7 @@ def aggregate_data(
 
     if plotstate.plottype == "histogram":
         if check_categorical(dff[plotstate.x.value]):
-            update_mapping(plotstate, axis="x")
+            update_mapping(plotstate, dff, axis="x")
             nbins = len(plotstate.xmapping)
         else:
             nbins = plotstate.nbins.value
@@ -354,21 +350,31 @@ def aggregate_data(
             series = expr.value_counts()  # value_counts as in Pandas
             counts = series.values
         else:
-            counts = dff.count(binby=expr,
-                               shape=nbins,
-                               delay=True,
-                               array_type="numpy")
-            dff.execute()
-            counts = counts.get().flatten()
+            try:
+                counts = dff.count(binby=expr,
+                                   shape=nbins,
+                                   delay=True,
+                                   array_type="numpy")
+                dff.execute()
+                counts = counts.get().flatten()
+            except Exception:
+                temp = dff.extract()
+                expr = temp[plotstate.x.value]
+                counts = temp.count(binby=expr,
+                                    shape=nbins,
+                                    delay=True,
+                                    array_type="numpy")
+                temp.execute()
+                counts = counts.get().flatten()
 
         return centers, edges, counts
 
     elif plotstate.plottype == "heatmap":
         # update mappings if needed
         if check_categorical(dff[plotstate.x.value]):
-            update_mapping(plotstate, axis="x")
+            update_mapping(plotstate, dff, axis="x")
         if check_categorical(dff[plotstate.y.value]):
-            update_mapping(plotstate, axis="y")
+            update_mapping(plotstate, dff, axis="y")
         assert not check_categorical(dff[plotstate.color.value]), (
             "cannot perform aggregations on categorical data")
 
@@ -411,20 +417,33 @@ def aggregate_data(
             aggFunc = getattr(dff, "median_approx")  # median under diff name
         else:
             aggFunc = getattr(dff, bintype)
-        # try:
-        color = aggFunc(
-            expression=expr_c if bintype != "count" else None,
-            binby=expr,
-            limits=limits,
-            shape=shape,
-            delay=True,
-        )
-        # except Exception:
-        # in the event this stride bugs, you can bypass it with
-
-        # execute!
-        dff.execute()
-        color = color.get()
+        try:
+            color = aggFunc(
+                expression=expr_c if bintype != "count" else None,
+                binby=expr,
+                limits=limits,
+                shape=shape,
+                delay=True,
+            )
+            dff.execute()
+            color = color.get()
+        except Exception:
+            # recompile exprs and expr c if chunk failed
+            temp = dff.extract()
+            expr = (
+                fetch_data(plotstate, temp, axis="x"),
+                fetch_data(plotstate, temp, axis="y"),
+            )
+            expr_c = temp[plotstate.color.value]
+            color = aggFunc(
+                expression=expr_c if bintype != "count" else None,
+                binby=expr,
+                limits=limits,
+                shape=shape,
+                delay=True,
+            )
+            dff.execute()
+            color = color.get()
 
         # convert because it breaks
         if bintype == "count":

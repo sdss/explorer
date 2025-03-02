@@ -57,11 +57,10 @@ class PlotState:
         self.columns = sl.use_reactive(init_cols)
 
         # setup init columns, also used for resets;
-        # these are STABLE columns, so they should have minimal invalids
-        valid_columns = SubsetState.subsets.value[current_key].columns
-        initx = "teff" if "teff" in valid_columns else "ra"
-        inity = "logg" if "logg" in valid_columns else "dec"
-        initc = "fe_h" if "fe_h" in valid_columns else "plx"
+        # these are STABLE columns, so they should have minimal invalids; even if the dataset is small
+        initx = "ra"
+        inity = "dec"
+        initc = "plx"
 
         self.x = sl.use_reactive(kwargs.get("x", initx))
         self.y = sl.use_reactive(kwargs.get("y", inity))

@@ -18,4 +18,6 @@ Note that currently, _Astra_ does not have a selection of the "best" parameters.
 
 #### Downloading
 
-Downloading functionality is currently unimplemented in this beta deployment. In future, one can download a _Subset_  by clicking the (![image](icons/mdi-download.svg)) icon.
+You can download your subset by clicking on the button in the bottom left of the Subset card.
+
+Note that plot selections are not included in your download outputs.
