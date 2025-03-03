@@ -10,6 +10,7 @@
     outlined 
     @keyup.enter="onEnter"
     @blur="onEnter"
+    @click:clear="onClear"
   >
     <template v-slot:append-outer>
       <v-tooltip bottom>
@@ -47,9 +48,14 @@ export default {
   methods: {
       onEnter(event) {
       // this.$emit('enter', event);
-      // optional: trigger blur on enter
       //event.target.blur();
       this.value = this.model;
+    },
+      onClear(event) {
+      // this.$emit('enter', event);
+      this.value = "";
+      this.model = "";
+      event.target.blur();
     }
   }
 }
