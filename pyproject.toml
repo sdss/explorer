@@ -7,22 +7,50 @@ license = {file = "LICENSE"}
 classifiers = ["Intended Audience :: Developers",  "Programming Language :: Python :: 3.10"]
 dynamic = ["version", "description"]
 dependencies = [
-    "solara>=1.40.0",
-    "plotly",
-    "vaex>=4.17.0",
-    "numpy",
+    "solara>=1.40.0,<=1.42.0",
+    "bokeh>=3.6.3",
+    "colorcet>=3.1.0",
+    "jupyter-bokeh>=4.0.5",
+    "vaex-core >=4.17.0",
+    "vaex-hdf5",
     "diskcache>=5.6.3",
+    "numpy==1.26.4",
+    # dependency force because its being annoying
+    "xarray",
+    "dotenv",
+    "gunicorn==20.1.0",
+    "fastapi",
+    "pydantic-settings>=2.8.0",
 ]
-requires-python = ">= 3.10"
+requires-python = ">=3.10,<3.11"
 readme = "README.md"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pynvim",
+]
+docs = [
+    "mkdocs",
+    "mkdocs-material",
+    "mkdocstrings",
+    "mkdocstrings-python",
+    'mkdocs-gen-files',
+    'mkdocs-literate-nav',
+    'mkdocs-section-index',
+    'griffe-pydantic',
+    "pymdown-extensions>=10.14.3",
+]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
-path = "sdss_explorer/__init__.py"
+path = "src/sdss_explorer/__init__.py"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/sdss_explorer"]
 
 [tool.black]
 line-length = 160

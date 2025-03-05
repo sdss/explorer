@@ -1,0 +1,64 @@
+site_name: Explorer documentation
+theme:
+  name: material
+  features:
+    - content.tooltips 
+    - navigation.expand 
+    - navigation.indexes 
+    - navigation.sections 
+plugins:
+- mkdocstrings:
+    handlers:
+      python:
+        options:
+          extensions:
+          - griffe_pydantic:
+              schema: true
+- search
+- gen-files:
+    scripts:
+    - scripts/gen_reference_pages.py
+- literate-nav:
+    nav_file: SUMMARY.md
+markdown_extensions:
+  - toc:
+      permalink: "#"
+      separator: "_"
+      baselevel: 2
+  - attr_list
+  - md_in_html
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.blocks.caption
+  - pymdownx.arithmatex:
+      generic: true
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+nav:
+  - Introduction: index.md
+  - User Guide:
+    - Plotting: guide/plotting.md
+    - Subsets: guide/subsets.md
+    - Virtual columns: guide/vc.md
+    - Selecting targeting cartons: guide/cartons.md
+    - Crossmatching: guide/crossmatch.md
+    - Downloading data: guide/download.md
+  - Examples:
+    - Creating a HR Diagram with calculations: examples/hr.md
+    - Crossmatching and inspecting spectra: examples/crossmatch.md
+    - Selecting targeting cartons : examples/yso.md
+    - Comparing and contrasting datasets: examples/flags.md
+  - Developer Guide:
+    - App state: developer/state.md
+    - Plots: developer/plots.md
+    - Configuration and environment variables: developer/config.md
+    - Codebase layout: developer/codebase.md
+    - Data files: developer/datafiles.md
+    - Guardrailing: developer/guardrailing.md
+  - Reference: reference/
+  - About: 
+    - Description: about.md
+    - License: license.md
+

@@ -1,0 +1,25 @@
+# Ignore .git dirs
+.git
+.github
+
+# DO NOT COPY THE DATA; my personal dir setup
+data/*
+**/data/**
+scratch/*
+**/scratch/**
+logs/*
+**/logs/**
+
+# Ignore any venvs
+.venv
+
+# Ignore tests directory
+**/tests/*
+**/test_*.py
+
+# Ignore docs directory
+**/docs/*
+
+# Ignore Python bytecode
+**/__pycache__/
+**/*.pyc
