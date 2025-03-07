@@ -2,13 +2,11 @@
 
 import logging
 from urllib.parse import parse_qs
-from os import getenv
 
 from bokeh.io import output_notebook
 import solara as sl
 import numpy as np
 import vaex as vx
-from reacton.ipyvuetify import ValueElement
 from solara.lab import ThemeToggle
 
 # vaex setup
@@ -119,25 +117,29 @@ def Page() -> None:
 
         ## DATAFRAME SETUP
         # setup dataframe (non-optional step)
-        release: str = query_params.pop("release", "ipl3")
-        datatype: str = query_params.pop("datatype", "star")
-        try:
-            assert validate_release(settings.datapath, release), 1
-            if not ((datatype == "star") or (datatype == "visit")):
-                datatype = "star"  # force reassignment if bad; ensures no load failure
+        release: str = query_params.pop("release", "ipl3").lower()
+        datatype: str = query_params.pop("datatype", "star").lower()
 
-            # set the release and datatype
-            State._release.set(release)
-            State._datatype.set(datatype)
-            # this changes State.df.value & State.columns.value
-            load_success = State.load_dataset()
-            assert load_success, 2
-        except Exception as e:
-            if e == 1:
-                logger.debug("Invalid query params on release/datatype")
-            elif e == 2:
-                logger.critical("Failed to load dataset and columns!")
-            return  # early return, no point in continuing
+        # check the datapath, release, and datatype
+        valid_release = validate_release(settings.datapath, release)
+        if not valid_release:
+            logger.error("Invalid query params on release/datatype")
+            return
+
+        if datatype not in ["star", "visit"]:
+            logger.warning("Invalid datatype, defaulting to star")
+            datatype = "star"  # force reassignment if bad; ensures no load failure
+
+        # set the release and datatype
+        logger.info("Loading release %s and datatype %s", release, datatype)
+        State._release.set(release)
+        State._datatype.set(datatype)
+
+        # this changes State.df.value & State.columns.value
+        load_success = State.load_dataset()
+        if not load_success:
+            logger.critical("Failed to load dataset and columns!")
+            return
 
         # set the valid pipeline when not set properly with visit spec
         if "dataset" not in query_params.keys():
@@ -262,6 +264,7 @@ def Page() -> None:
 
 @sl.component()
 def Layout(children):
+    """ main solara layout component """
     # force remove the navigation tabs from solara app layout
     route, routes = sl.use_route()
 

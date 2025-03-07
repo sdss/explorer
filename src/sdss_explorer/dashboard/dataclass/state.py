@@ -2,6 +2,7 @@
 
 import logging
 import os
+import pathlib
 import json
 from typing import Optional, cast
 
@@ -41,15 +42,15 @@ def load_column_json(release: str, datatype: str) -> dict | None:
         return None
 
     file = f"{release}/columnsAll{datatype.capitalize()}-{VASTRA}.json"
-
-    try:
-        with open(f"{datapath}/{file}") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        data = None
+    path = pathlib.Path(f"{datapath}/{file}")
+    if not path.exists():
         logger.critical(
-            f"Expected to find {file} for column lookup, didn't find it.")
-    return data
+            "Expected to find %s for column lookup, didn't find it.", file)
+        return None
+
+    with open(path, 'r', encoding="utf-8") as f:
+        data = json.load(f)
+        return data
 
 
 def open_file(filename):
@@ -75,10 +76,10 @@ def open_file(filename):
         return dataset
     except FileNotFoundError:
         logger.critical(
-            f"Expected to find {filename} for dataframe, didn't find it.")
+            "Expected to find %s for dataframe, didn't find it.", filename)
         return None
     except Exception as e:
-        logger.debug(f"caught exception on dataframe load: {e}")
+        logger.debug("caught exception on dataframe load: %s", e)
         return None
 
 
@@ -92,18 +93,24 @@ def load_datamodel() -> pd.DataFrame | None:
     # no fail found
     # TODO: replace with a real datamodel from the real things
     file = "ipl3_partial.json"
-    try:
-        with open(f"{settings.datapath}/{file}") as f:
-            data = json.load(f).values()
-            f.close()
-        return pd.DataFrame(data)  # TODO: back to vaex
-    except FileNotFoundError as e:
+
+    path = pathlib.Path(f"{settings.datapath}/{file}")
+    if not path.exists():
         logger.critical(
-            f"Expected to find {file} for column glossary datamodel, didn't find it: {e}"
+            "Expected to find %s for column glossary datamodel, didn't find it.", path
         )
-    except Exception as e:
-        logger.debug(f"caught exception on datamodel loader: {e}")
         return None
+
+    try:
+        with open(f"{settings.datapath}/{file}", "r", encoding='utf-8') as f:
+            data = json.load(f).values()
+    except Exception as e:
+        logger.debug("caught exception on datamodel loader: %s", e)
+        return None
+    else:
+        logger.info('successfully loaded datamodel')
+        return pd.DataFrame(data)  # TODO: back to vaex
+
 
 
 class StateData:
@@ -144,6 +151,7 @@ class StateData:
     def load_dataset(self,
                      release: Optional[str] = None,
                      datatype: Optional[str] = None) -> bool:
+        """ load the HDF5 dataset for the dashboard """
         # use attributes if not manually overridden
         if not release:
             release = self.release
