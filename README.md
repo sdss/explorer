@@ -97,7 +97,7 @@ uvicorn --reload sdss_explorer.server:app --port=8050
 This will start _purely_ the app in development refresh mode on two uvicorn instances. To run in production mode, add `--production` to the `solara` command, and remove the `--reload` flag from the `uvicorn` call.
 
 ### Docker
-This repo comes included with a basic production/dev docker image.
+This repo comes included with a basic production docker image.  This docker image deploys **only** the dashboard "download server", a lightweight FastAPI server to handle downloading data subsets from the UI dashboard. 
 
 To build, run:
 ```bash
