@@ -1,16 +1,16 @@
 # start with python dependencies
-FROM python:3.10-slim as dep-stage
+FROM python:3.10-slim AS dep-stage
 
 # UV settings
 # Enable bytecode compilation, copy from cache instal of links b/c mounted, dont download python
-ENV UV_COMPILE_BYTECODE=1 
-ENV UV_LINK_MODE=copy 
-ENV UV_PYTHON_DOWNLOADS=0 
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
+ENV UV_PYTHON_DOWNLOADS=0
 
 # setrup app dir
 WORKDIR /app
 
-# project files 
+# project files
 COPY ./pyproject.toml ./uv.lock /app
 
 # install system requirements
@@ -44,7 +44,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 
 # Stage 2: Development stage for the project
-FROM dep-stage as dev-stage
+FROM dep-stage AS dev-stage
 
 # Copy the main project files over and install
 COPY ./ /app
@@ -53,13 +53,13 @@ COPY ./ /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --all-extras --frozen
 
-FROM dev-stage as build-stage
+FROM dev-stage AS build-stage
 # place executables in the environment at the front of the path
 ENV PATH="/app/.venv/bin:$PATH"
 
 # module setup
 # this is overriden by wsgi cfg
-ENV EXPLORER_SOCKET_DIR='/app/webapp' 
+ENV EXPLORER_SOCKET_DIR='/app/webapp'
 ENV SOLARA_CHECK_HOOKS="off"
 ENV EXPLORER_NPROCESSES=4
 ENV EXPLORER_NWORKERS=1
@@ -70,8 +70,8 @@ ENV VAEX_CACHE_DISK_SIZE_LIMIT="20GB"
 ENV VAEX_CACHE_MEMORY_SIZE_LIMIT="4GB"
 
 # label
-LABEL org.opencontainers.image.source https://github.com/sdss/explorer
-LABEL org.opencontainers.image.description "explorer dev image"
+LABEL org.opencontainers.image.source=https://github.com/sdss/explorer
+LABEL org.opencontainers.image.description="explorer dev image"
 
 # port goes out @ 8050
 EXPOSE 8050
