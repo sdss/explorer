@@ -6,6 +6,8 @@ theme:
     - navigation.expand 
     - navigation.indexes 
     - navigation.sections 
+repo_url: https://github.com/sdss/explorer
+repo_name: sdss/explorer
 plugins:
 - mkdocstrings:
     handlers:
