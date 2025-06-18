@@ -189,7 +189,7 @@ class StateData:
     def get_default_dataset(self) -> str:
         """Method version to get the default dataset of app (star or visit). Used for defaulting the Subset dataclass"""
         datatype = self._datatype.value
-        return "best" if datatype == "star" else "thepayne"
+        return "mwmlite" if datatype == "star" else "thepayne"
 
     @property
     def uuid(self) -> str:

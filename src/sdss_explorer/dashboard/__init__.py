@@ -117,7 +117,7 @@ def Page() -> None:
 
         ## DATAFRAME SETUP
         # setup dataframe (non-optional step)
-        release: str = query_params.pop("release", "ipl3").lower()
+        release: str = query_params.pop("release", "dr19").lower()
         datatype: str = query_params.pop("datatype", "star").lower()
 
         # check the datapath, release, and datatype
@@ -146,7 +146,7 @@ def Page() -> None:
             if datatype == "visit":
                 query_params.update({"dataset": "thepayne"})
             else:
-                query_params.update({"dataset": "best"})
+                query_params.update({"dataset": "mwmlite"})
 
         # parse subset/plot initializes
         if len(query_params) > 0:

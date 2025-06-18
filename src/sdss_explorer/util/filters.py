@@ -213,7 +213,7 @@ def filter_flags(df: vx.DataFrame,
     filters = []
     for flag in flags:
         # Skip iteration if the subset's dataset is 'best' and the flag is 'Purely non-flagged'
-        if (dataset == "best") and (flag == "purely non-flagged"):
+        if (dataset == "mwmlite") and (flag == "purely non-flagged"):
             continue
         # boss-only pipeline exceptions for zwarning_flags filtering
         elif np.isin(

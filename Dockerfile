@@ -64,6 +64,7 @@ RUN mkdir -p /app/webapp
 # this is overriden by wsgi cfg
 ENV EXPLORER_SOCKET_DIR='/app/webapp'
 ENV SOLARA_CHECK_HOOKS="off"
+ENV SOLARA_THEME_SHOW_BANNER="False"
 ENV EXPLORER_NPROCESSES=4
 ENV EXPLORER_NWORKERS=1
 ENV VAEX_HOME="~/"
