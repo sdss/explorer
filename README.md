@@ -21,7 +21,7 @@ or, to have a local copy on your machine, clone and install as an editable packa
 ```
 git clone https://www.github.com/sdss/explorer.git ./sdss-explorer
 cd sdss-explorer
-pip install -e . 
+pip install -e .
 ```
 
 These instructions are the same as in `conda`.
@@ -49,14 +49,29 @@ pip install -e .
 
 
 ### Data files
-Explorer uses stacked, custom HDF5 renders of the [astra](https://github.com/sdss/astra) summary files for each data release. You can download the HDF5's from [here](https://data.sdss5.org/sas/sdsswork/users/u6054929/). These are proprietary SDSS data files, and should not be shared outside the collaboration.
+Explorer uses stacked, custom HDF5 renders of the [astra](https://github.com/sdss/astra) summary files for each data release. You can download the HDF5's from [here](https://data.sdss5.org/sas/sas/sdsswork/sandbox/data-viz/explorer/). These are proprietary SDSS data files, and should not be shared outside the collaboration.
 
 It additionally uses a custom parquet render of the mappings used in [semaphore](https://github.com/sdss/semaphore), available in the same directory.
+
+### Generating New Data Files
+
+New datafiles for the dashboard must be generated each time the source SDSS summary catalog files change, as well as for each new Data Release.  The files should be located [here](https://data.sdss5.org/sas/sas/sdsswork/sandbox/data-viz/explorer/) with the following structure:
+
+- **(release)**: a directory for each data release
+   - **columnsAll(Star|Visit)-`(astra_version)`.json**: JSON files providing a list of all columns for each catalog file used in the dashboard. One file per star/visit catalogs.
+   - **explorerAll(Star|Visit)-`(astra_version)`.hdf5**: HDF5 files of the summary catalogs aggregated into a single file. One file per star/visit catalogs.
+- **ipl3_partial.json**: a JSON of the datamodel column descriptions of the catalog summary files, used for populating the dashboard column glossary.
+- **mappings.parquet**: compiled datafile of all the sdss targeting cartons and programs
+- **explorer**: a directory used as a scratch space for user's downloading subsets via the dashboard.
+
+New `columnsXXX.json` and `explorerXXX.hdf5` files are generated following instructions at https://github.com/sdss/explorer-filegen.  Also see the docs at [Explorer Dev DataFiles](https://sdss.github.io/explorer/developer/datafiles/).
+
+`ipl3_partial.json` contains, for each datamodel column name, the following fields: `name`, `description`, `type`, `unit`.
 
 ## Starting the server
 To run, the environment variables must be exported to the shell environment. The base ones are:
 
- - `EXPLORER_DATAPATH` :: path to data files (proprietary SDSS data, found on the SAS). 
+ - `EXPLORER_DATAPATH` :: path to data files (proprietary SDSS data, found on the SAS).
     - In the deployment context a folder is mounted onto the VM.
     - Files are expected to be placed as: `./[release]/[explorer|columns]All[datatype]-[vastra].[hdf5|parquet]`
  - `VASTRA` :: specific [astra](https://github.com/sdss/astra) reduction versions to read.
@@ -97,7 +112,7 @@ uvicorn --reload sdss_explorer.server:app --port=8050
 This will start _purely_ the app in development refresh mode on two uvicorn instances. To run in production mode, add `--production` to the `solara` command, and remove the `--reload` flag from the `uvicorn` call.
 
 ### Docker
-This repo comes included with a basic production docker image.  This docker image deploys **only** the dashboard "download server", a lightweight FastAPI server to handle downloading data subsets from the UI dashboard. 
+This repo comes included with a basic production docker image.  This docker image deploys **only** the dashboard "download server", a lightweight FastAPI server to handle downloading data subsets from the UI dashboard.
 
 To build, run:
 ```bash
