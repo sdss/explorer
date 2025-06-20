@@ -26,7 +26,9 @@ jobs:
 
     - name: Build documentation
       id: build
-      run: mkdocs build
+      run: |
+        python scripts/gen_reference_pages.py
+        mkdocs build
 
     - name: Upload artifact
       id: deployment

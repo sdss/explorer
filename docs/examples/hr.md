@@ -1,13 +1,13 @@
 Let's create and compare a few color magnitude diagrams.
 
 !!! note
-    This guide is slightly outdated, but everything still applies. The plots just look different, really.
+    This guide is slightly outdated, but everything still applies. The plots just look different, really.  For example, all references to `best` here should be substituted with `mwmlite`.
 
-To start, we'll load the `best` reductions, which contain SDSS-V's best parameter estimates for all stars. This is automatically done when you load the app.
+To start, we'll load the `mwmlite` reductions, which contain SDSS-V's best parameter estimates for all stars. This is automatically done when you load the app.
 
 ![image_20241211095950](../assets/image_20241211095950.png)
 
-We can create a new heatmap or scatter plot with the **Add View** button. 
+We can create a new heatmap or scatter plot with the **Add View** button.
 
 ![image_20241211100053](../assets/image_20241211100053.png)
 
@@ -45,7 +45,7 @@ $$
 m_{G} - 5\log_{10}(\bar{\omega} / 1000)
 $$
 
-since the parallax column `plx` is given in arcsec. 
+since the parallax column `plx` is given in arcsec.
 
 ![image_20241211101237](../assets/image_20241211101237.png)
 /// caption
@@ -73,7 +73,7 @@ If we restrict it to high S/N targets, and change the colorscale, we can clearly
 
 ![image_20241211102258](../assets/image_20241211102258.png)
 
-We can additionally add reddening corrections, based on any of the $E(B-V)$ columns, derived from a variety of dustmaps. 
+We can additionally add reddening corrections, based on any of the $E(B-V)$ columns, derived from a variety of dustmaps.
 
 ![image_20241211102938](../assets/image_20241211102938.png)
 /// caption
