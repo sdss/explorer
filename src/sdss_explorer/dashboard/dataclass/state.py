@@ -83,7 +83,7 @@ def open_file(filename):
         return None
 
 
-def load_datamodel() -> pd.DataFrame | None:
+def load_datamodel(release: str = None) -> pd.DataFrame | None:
     """Loads a given compiled datamodel, used in conjunction with the column glossary"""
     datapath = settings.datapath
     # no datapath
@@ -92,7 +92,12 @@ def load_datamodel() -> pd.DataFrame | None:
 
     # no fail found
     # TODO: replace with a real datamodel from the real things
-    file = "ipl3_partial.json"
+    # TODO: this is globally set on app start; these needs to be set dynamically by the app
+    #file = "ipl3_partial.json"
+    release = None if release == "None" else release
+    release = release or 'dr19'
+    file = f"{release.lower()}_dminfo.json"
+
 
     path = pathlib.Path(f"{settings.datapath}/{file}")
     if not path.exists():
@@ -128,14 +133,14 @@ class StateData:
     """
 
     def __init__(self):
-        # globally shared, read only files
-        self.mapping = sl.reactive(
-            open_file("mappings.parquet"))  # mappings for bitmasks
-        self.datamodel = sl.reactive(load_datamodel())  # datamodel spec
-
         # app settings, underscored to hide prop
         self._release = sl.reactive(cast(str, None))  # TODO: dr19
         self._datatype = sl.reactive(cast(str, None))
+
+        # globally shared, read only files
+        self.mapping = sl.reactive(
+            open_file("mappings.parquet"))  # mappings for bitmasks
+        self.datamodel = sl.reactive(load_datamodel(self.release))  # datamodel spec
 
         # adaptively rerendered on changes; set on startup in app root
         self.df = sl.reactive(cast(vx.DataFrame, None))  # main datafile

@@ -60,13 +60,13 @@ New datafiles for the dashboard must be generated each time the source SDSS summ
 - **(release)**: a directory for each data release
    - **columnsAll(Star|Visit)-`(astra_version)`.json**: JSON files providing a list of all columns for each catalog file used in the dashboard. One file per star/visit catalogs.
    - **explorerAll(Star|Visit)-`(astra_version)`.hdf5**: HDF5 files of the summary catalogs aggregated into a single file. One file per star/visit catalogs.
-- **ipl3_partial.json**: a JSON of the datamodel column descriptions of the catalog summary files, used for populating the dashboard column glossary.
+- **dr19_dminfo.json**: a JSON of the datamodel column descriptions of the catalog summary files, used for populating the dashboard column glossary.
 - **mappings.parquet**: compiled datafile of all the sdss targeting cartons and programs
 - **explorer**: a directory used as a scratch space for user's downloading subsets via the dashboard.
 
 New `columnsXXX.json` and `explorerXXX.hdf5` files are generated following instructions at https://github.com/sdss/explorer-filegen.  Also see the docs at [Explorer Dev DataFiles](https://sdss.github.io/explorer/developer/datafiles/).
 
-`ipl3_partial.json` contains, for each datamodel column name, the following fields: `name`, `description`, `type`, `unit`.
+`dr19_dminfo.json` contains, for each datamodel column name, the following fields: `name`, `description`, `type`, `unit`. Original version of this file was the `ipl3_partial.json`.  This file can be produced by running `scripts/gen_datamodel_ref.py`.
 
 ## Starting the server
 To run, the environment variables must be exported to the shell environment. The base ones are:
