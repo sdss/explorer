@@ -19,7 +19,7 @@ from bokeh.models import (
 )
 from bokeh.plotting import ColumnDataSource
 
-from .dataframe import ModdedDataTable, TargetsDataTable
+from .dataframe import ModdedDataTable, TargetsDataTable, format_targets
 from .plot_settings import show_settings
 from .plot_utils import (
     add_all_tools,
@@ -641,4 +641,5 @@ def TargetsTable(plotstate):
         dff,
         plotstate.columns.value,
         items_per_page=10,
+        format=format_targets,
     )

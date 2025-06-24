@@ -5,6 +5,7 @@ import logging
 from typing import Optional, Callable
 
 import numpy as np
+import solara as sl
 import vaex as vx
 
 from bokeh.models.grids import Grid
@@ -328,13 +329,17 @@ def add_callbacks(
 
     p.on_event("reset", on_reset)
 
+    # check for zora base cookie, default to public site
+    zbase = sl.lab.cookies.value.get('sdss_zora_base', 'dr19.sdss.org')
+    base = f'http://{zbase}' if "localhost" in zbase else f'https://{zbase}/zora'
+
     # zora jump
     if (plotstate.plottype == "scatter") or (plotstate.plottype == "skyplot"):
         # TODO: chnage to envvar
         tapcb = CustomJS(
             args=dict(source=source),
-            code="""
-            window.open(`https://data.sdss5.org/zora/target/${source.data.sdss_id[source.inspected.indices[0]]}`, '_blank').focus();
+            code=f"""
+            window.open(`{base}/target/${{source.data.sdss_id[source.inspected.indices[0]]}}`, '_blank').focus();
             """,
         )
         tap = TapTool(

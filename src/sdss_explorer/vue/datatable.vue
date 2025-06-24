@@ -67,7 +67,10 @@
               <v-slide-x-transition appear>
                 <!-- <span @click="on_item_click([props.item.__row__, header.value])">{{ props.item[header.value] }}</span> -->
                 <span>
-                  {{ props.item[header.value] }}
+                  <!-- this renders the table sdss_id column as a link to zora target page -->
+                  <span v-if="header.value === 'sdss_id'" v-html="props.item[header.value]"></span>
+                  <span v-else>{{ props.item[header.value] }}</span>
+
                   <v-menu open-on-hover bottom offset-y v-if="cell_actions.length">
                     <template v-slot:activator="{ on, attrs }">
                       <v-icon v-bind="attrs" v-on="on" small class="solara-data-table-menu">mdi-dots-vertical</v-icon>

@@ -232,6 +232,18 @@ def ModdedDataTable(
         column_header_widget=column_header_info,
     )
 
+def format_targets(df, column, row_index, value):
+    """ Format the targets dataframe for special columns like sdss_id"""
+
+    # check for zora base cookie, default to public site
+    zbase = sl.lab.cookies.value.get('sdss_zora_base', 'dr19.sdss.org')
+    base = f'http://{zbase}' if "localhost" in zbase else f'https://{zbase}/zora'
+
+    # render a link to the zora target page for sdss_id
+    if column == "sdss_id":
+        url = f"{base}/target/{value}"
+        return f'<a href="{url}" target="_blank">{value}</a>'
+    return format_default(df, column, row_index, value)
 
 @sl.component
 def TargetsDataTable(
