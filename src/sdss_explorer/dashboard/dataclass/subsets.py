@@ -6,6 +6,9 @@ import vaex as vx
 
 from .alert import Alert
 from .state import State
+import logging
+
+logger = logging.getLogger("dashboard")
 
 
 # frozen means it yells at us if we do assignment instead of replace
@@ -36,7 +39,7 @@ class Subset:
     mapper: list[str] = dataclasses.field(default_factory=list)
     crossmatch: str = ""
     cmtype: str = "gaia_dr3"
-    df: vx.DataFrame = State.df.value
+    df: vx.DataFrame = dataclasses.field(default_factory=State.get_df)
     columns: list[str] = dataclasses.field(default_factory=list)
 
     def __repr__(self) -> str:
@@ -90,6 +93,8 @@ class SubsetData:
             subsets = self.subsets.value.copy()
             subsets.update({"s" + str(key): Subset(name=name, **kwargs)})
             self.subsets.set(dict(**subsets))
+            logger.debug("Adding subset with key s" + str(key))
+            logger.debug(str(self.subsets.value["s" + str(key)]))
 
             # iterate index
             self.index.set(self.index.value + 1)

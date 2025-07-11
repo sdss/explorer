@@ -264,7 +264,7 @@ def Page() -> None:
 
 @sl.component()
 def Layout(children):
-    """ main solara layout component """
+    """main solara layout component"""
     # force remove the navigation tabs from solara app layout
     route, routes = sl.use_route()
 
