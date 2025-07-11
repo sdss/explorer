@@ -131,9 +131,8 @@ def SubsetCard(key: str) -> ValueElement:
     length, filtered_length = sl.use_memo(get_lengths,
                                           dependencies=[dff, filter])
 
-    print(length, filtered_length)
+    # check if filtered and set progress percentage
     not_filtered = filtered_length == length
-    print(not_filtered)
     denom = max(length, 1)
     progress = filtered_length / denom * 100
 
