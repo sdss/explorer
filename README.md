@@ -2,7 +2,7 @@
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 ![Versions](https://img.shields.io/badge/python-3.10-blue)
 
-The SDSS Parameter Explorer is a custom data visualization application developed for SDSS-V's Data Release 19, built using `FastAPI`, `solara`, `plotly` and `vaex`. It is designed to specifically interface with custom SDSS datafiles, providing filtered access, statistics, and visualization to the parameter data products from SDSS-V.
+The SDSS Parameter Explorer is a custom data visualization application developed for SDSS-V's Data Release 19, built using `FastAPI`, `solara`, `bokeh` and `vaex`. It is designed to specifically interface with custom SDSS datafiles, providing filtered access, statistics, and visualization to the parameter data products from SDSS-V.
 
 ## Components
 

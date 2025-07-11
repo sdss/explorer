@@ -106,7 +106,7 @@ def Page() -> None:
                     - color: main color data, any column in given dataset
                     - colorlog: whether log color, either None (not ''), 'log10', or 'log1p'
                     - bintype: aggregation type. any of mean, min, max, median.
-                    - colorscale: colorscale, see plotly colormaps for valids
+                    - colorscale: colorscale, see bokeh colormaps for valids
                     - coords: galactic, celestial; used in skyplot
                     - projection: type of projection for skyplot (i.e. hammer, mollweide, aitoff)
         """
