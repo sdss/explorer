@@ -20,7 +20,7 @@ df = vx.open("explorerAllStar.hdf5")# a Vaex DataFrame
 dff = df[df['pipeline == "aspcap"']] # dff has the exact same data as astraAllStarASPCAP.fits.gz
 ```
 
-In Explorer, this filtering step is done first, and then an extracted DataFrame object is stored with each **Subset**, which improves performance by restricting new filters to the rows of the selected dataset. This process is managed by `task` in TODO SubsetUI.
+In Explorer, this filtering step is done first, and then an extracted DataFrame object is stored with each **Subset**, which improves performance by restricting new filters to the rows of the selected dataset. This process is managed by a task `task` in [`DatasetSelect`](../../reference/sdss_explorer/dashboard/components/sidebar/subset_filters/#sdss_explorer.dashboard.components.sidebar.subset_filters.DatasetSelect).
 
 ```python
 # continuing from above; this is what the app does under the hood
@@ -42,6 +42,12 @@ Computing which columns are all `nan` per `dataset` switch within the app live w
 !!! warning
     `mappings.parquet` is not generated via the datafile generation described below. It must be generated manually (trival via `pandas`) from any updated `bitmappings.csv` file in [`sdss/semaphore`](https://github.com/sdss/semaphore).
 
+
+### Column glossary (dminfo)
+The column glossary uses a custom `JSON` file built from the [`sdss/datamodel`](https://github.com/sdss/datamodel) package data specification files. It holds descriptors for each of the columns across all summary files.
+
+The filename is formatted as `[release (lowercase)]_dminfo.json`, and stored in the root directory of the datapath.
+
 # Generating new data files
 
 Generation of new datafiles requires the use of a computer with lots of memory due to the size of the merge operation, which requires that the entire dataset fits into memory.
@@ -61,8 +67,8 @@ Generation can be done with the files in [`sdss/explorer-filegen`](https://githu
     * When we reconvert back to HDF5, we additionally ensure that *any* nested `pa.ChunkedArray` (list of list) datatypes are converted back into `numpy` datatypes to ensure compatibility.
     * **NOTE:** you must convert `spAll-lite` files used in the stacks __manually__ using `spall_convert.py`.
 3. Merge all files together and output `columns*.json`
-    * Columns files are used for guardrailing, see [here](guardrailing.md).
+    * Columns files are used for guardrailing and efficiency, see [here](guardrailing.md).
 4. Generate custom datamodels for Column Glossary
-    * __TODO__
+    * This uses the script in `sdss/explorer/scripts`, and uses the [`datamodel`](https://github.com/sdss/datamodel) interface to compile a JSON directly.
 
 Within the repository, you will find additional slurm commands and scripts to run the generators (only steps 2 and 3) via `sbatch`.

@@ -12,9 +12,9 @@ Filtering uses a combination of:
 
 #### Dataset
 
-Within SDSS-5, multiple stellar parameters pipelines are used. For a valid analysis, one must choose a specific pipeline output to use for analysis.
+Within SDSS-V, multiple stellar parameters pipelines are used. For a valid analysis, one must choose a specific pipeline output to use for analysis.
 
-By default, we use the `best` parameters, as described **here** **TODO**.
+By default, we use the `astraMWMLite` parameters for simplicity, as described [**here (sdss.org/dr19)**](https://www.sdss.org/dr19/mwm/astra/pipelines-in-astra/bestparams/). Remember that this is largely a "stepping stone", and no guarantee is made about scale consistency in stellar parameters from different pipelines.
 
 #### Downloading
 
