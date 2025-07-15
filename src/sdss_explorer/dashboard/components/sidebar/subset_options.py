@@ -69,6 +69,10 @@ def SubsetOptions(key: str, deleter: Callable):
                 RenameSubsetButton(key)  # rename button
                 CloneSubsetButton(key)  # clone button
                 DeleteSubsetDialog(deleter)  # delete button
+        else:
+            sl.Error(
+                label=
+                "Error in app setup! Subset has no dataframe! Inform admins.")
 
     return main
 

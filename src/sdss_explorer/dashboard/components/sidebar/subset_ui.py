@@ -58,6 +58,7 @@ def SubsetMenu() -> ValueElement:
                                 v_model=model,
                                 on_v_model=set_model):
             for key in SubsetState.subsets.value.keys():
+                logger.debug("rendering card" + str(key))
                 SubsetCard(key).key(key)
         with Dialog(
                 add,
@@ -93,7 +94,10 @@ def SubsetCard(key: str) -> ValueElement:
     open, set_open = sl.use_state(False)
     df = subset.df
     if df is None:
+        logger.debug(
+            "we had a None df in SubsetCard, loading directly from State.")
         df = State.df.value
+
     filter, _set_filter = use_subset(id(df), key, "subset-summary")
     name = subset.name
 
@@ -106,13 +110,16 @@ def SubsetCard(key: str) -> ValueElement:
         dff = df
 
     def get_lengths():
-        length = df.count()[()]
+        logger.debug(key + ": promising length")
+        length = df[df.pipeline == subset.dataset].count()[()]
 
         # BUG: this bypassses the AssertionError on chunks
         try:
             filtered_length_promise = dff.count(delay=True)
+            logger.debug(key + ": promising length")
             dff.execute()
             filtered_length = filtered_length_promise.get()[()]
+            logger.debug(key + ": length received = " + str(filtered_length))
         except AssertionError as e:
             from ...dataclass import Alert
 
@@ -124,7 +131,8 @@ def SubsetCard(key: str) -> ValueElement:
     length, filtered_length = sl.use_memo(get_lengths,
                                           dependencies=[dff, filter])
 
-    filtered = filtered_length < length
+    # check if filtered and set progress percentage
+    not_filtered = filtered_length == length
     denom = max(length, 1)
     progress = filtered_length / denom * 100
 
@@ -138,7 +146,7 @@ def SubsetCard(key: str) -> ValueElement:
                     children=[
                         rv.Icon(
                             children=["mdi-filter"],
-                            style_="opacity:e0.1" if not filtered else "",
+                            style_="opacity:0.4" if not_filtered else "",
                         ),
                         f"{filtered_length:,}",
                     ],
@@ -149,4 +157,5 @@ def SubsetCard(key: str) -> ValueElement:
             with sl.Column(gap="12px"):
                 sl.ProgressLinear(value=progress, color="blue")
                 SubsetOptions(key, lambda: SubsetState.remove_subset(key))
+
     return main

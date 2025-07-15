@@ -1,7 +1,7 @@
 Let's create and compare a few color magnitude diagrams.
 
 !!! note
-    This guide is slightly outdated, but everything still applies. The plots just look different, really.  For example, all references to `best` here should be substituted with `mwmlite`.
+    This guide is slightly outdated, but everything still applies. The plots just look different, really.  For example, all references to `best` in images here refer to `mwmlite`.
 
 To start, we'll load the `mwmlite` reductions, which contain SDSS-V's best parameter estimates for all stars. This is automatically done when you load the app.
 

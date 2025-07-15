@@ -292,7 +292,9 @@ def ObjectGrid():
                 outlined=False,
                 icon_name="mdi-database-settings",
             )
-            with sl.Tooltip("Import, export, and reset the layout."):
+            with sl.Tooltip(
+                    "Import, export, and reset the layout (currently disabled)."
+            ):
                 with sl.Column():
                     with Menu(activator=btn2):
                         with rv.List(dense=True, ):
@@ -304,6 +306,7 @@ def ObjectGrid():
                                         sl.Button(
                                             "Import",
                                             outlined=False,
+                                            disabled=True,
                                             on_click=lambda *_: set_impmenu(
                                                 True),
                                             icon_name="mdi-application-import",
@@ -320,6 +323,7 @@ def ObjectGrid():
                                             sl.Button(
                                                 "Export",
                                                 outlined=False,
+                                                disabled=True,
                                                 icon_name=
                                                 "mdi-application-export",
                                                 style={"width": "100%"},

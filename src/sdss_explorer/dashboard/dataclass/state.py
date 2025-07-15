@@ -48,7 +48,7 @@ def load_column_json(release: str, datatype: str) -> dict | None:
             "Expected to find %s for column lookup, didn't find it.", file)
         return None
 
-    with open(path, 'r', encoding="utf-8") as f:
+    with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
         return data
 
@@ -75,8 +75,8 @@ def open_file(filename):
         )  # shuffle to ensure skyplot looks nice, constant seed for reproducibility
         return dataset
     except FileNotFoundError:
-        logger.critical(
-            "Expected to find %s for dataframe, didn't find it.", filename)
+        logger.critical("Expected to find %s for dataframe, didn't find it.",
+                        filename)
         return None
     except Exception as e:
         logger.debug("caught exception on dataframe load: %s", e)
@@ -93,29 +93,27 @@ def load_datamodel(release: str = None) -> pd.DataFrame | None:
     # no fail found
     # TODO: replace with a real datamodel from the real things
     # TODO: this is globally set on app start; these needs to be set dynamically by the app
-    #file = "ipl3_partial.json"
+    # file = "ipl3_partial.json"
     release = None if release == "None" else release
-    release = release or 'dr19'
+    release = release or "dr19"
     file = f"{release.lower()}_dminfo.json"
-
 
     path = pathlib.Path(f"{settings.datapath}/{file}")
     if not path.exists():
         logger.critical(
-            "Expected to find %s for column glossary datamodel, didn't find it.", path
-        )
+            "Expected to find %s for column glossary datamodel, didn't find it.",
+            path)
         return None
 
     try:
-        with open(f"{settings.datapath}/{file}", "r", encoding='utf-8') as f:
+        with open(f"{settings.datapath}/{file}", "r", encoding="utf-8") as f:
             data = json.load(f).values()
     except Exception as e:
         logger.debug("caught exception on datamodel loader: %s", e)
         return None
     else:
-        logger.info('successfully loaded datamodel')
+        logger.info("successfully loaded datamodel")
         return pd.DataFrame(data)  # TODO: back to vaex
-
 
 
 class StateData:
@@ -140,7 +138,8 @@ class StateData:
         # globally shared, read only files
         self.mapping = sl.reactive(
             open_file("mappings.parquet"))  # mappings for bitmasks
-        self.datamodel = sl.reactive(load_datamodel(self.release))  # datamodel spec
+        self.datamodel = sl.reactive(load_datamodel(
+            self.release))  # datamodel spec
 
         # adaptively rerendered on changes; set on startup in app root
         self.df = sl.reactive(cast(vx.DataFrame, None))  # main datafile
@@ -156,7 +155,7 @@ class StateData:
     def load_dataset(self,
                      release: Optional[str] = None,
                      datatype: Optional[str] = None) -> bool:
-        """ load the HDF5 dataset for the dashboard """
+        """load the HDF5 dataset for the dashboard"""
         # use attributes if not manually overridden
         if not release:
             release = self.release
@@ -195,6 +194,11 @@ class StateData:
         """Method version to get the default dataset of app (star or visit). Used for defaulting the Subset dataclass"""
         datatype = self._datatype.value
         return "mwmlite" if datatype == "star" else "thepayne"
+
+    def get_df(self) -> vx.DataFrame:
+        """Method version to get the dataframe. Used for defaulting the Subset dataclass"""
+        df = self.df.value
+        return df
 
     @property
     def uuid(self) -> str:
