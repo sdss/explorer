@@ -32,7 +32,7 @@ from .components.views import ObjectGrid, add_view  # noqa: E402
 from .components.views.dataframe import NoDF  # noqa: E402
 
 # logging setup
-PROD = sl.server.settings.main.mode != "production"
+PROD = sl.server.settings.main.mode == "production"
 
 setup_logging(
     log_path=settings.logpath,
