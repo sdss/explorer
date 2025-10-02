@@ -22,7 +22,7 @@ dependencies = [
     "fastapi",
     "pydantic-settings>=2.8.0",
 ]
-requires-python = ">=3.10,<3.11"
+requires-python = ">=3.10"
 readme = "README.md"
 
 [project.optional-dependencies]
