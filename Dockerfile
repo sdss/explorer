@@ -2,7 +2,7 @@
 # downloading of data subsets from the dashboard UI.
 
 # start with python dependencies
-FROM python:3.10-slim AS dep-stage
+FROM python:3.12-slim AS dep-stage
 
 # UV settings
 # Enable bytecode compilation, copy from cache instal of links b/c mounted, dont download python
@@ -25,7 +25,7 @@ RUN apt-get update && \
         # these are for h5py in sdss_explorer
         curl libhdf5-dev pkg-config \
         # these are for vaex
-        libpcre3 libpcre3-dev gcc g++ libboost-all-dev \
+        gcc g++ libboost-all-dev \
         libffi-dev python3-dev libxml2-dev libxslt-dev \
         libpq-dev zlib1g-dev \
     && apt-get clean \
