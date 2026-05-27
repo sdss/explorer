@@ -43,7 +43,7 @@ def filter_dataframe(
         uuid: unique job id
         release: data release
         datatype: datatype (star or visit)
-        dataset: specific dataset i.e. aspcap, spall, best
+        dataset: specific dataset i.e. aspcap, spall, mwmlite
         name: name of subset, used in generating output file
         expression: filter expression
         carton: comma-separated cartons
@@ -62,15 +62,15 @@ def filter_dataframe(
     filters = list()
 
     # generic unpack; show to console
-    logger.debug(f"""requested {release}/{datatype}/{dataset}{uuid}
-                 expr:                 {expression} 
-                 carton:               {carton} 
-                 mapper:               {mapper} 
-                 flags:                {flags}
-                 crossmatch({cmtype}): {crossmatch[:8]}...
-                 combotype:            {combotype}
-                 invert:               {invert}
-                 """)
+    logger.debug("""requested %s/%s/%s%s
+                 expr:                 %s
+                 carton:               %s
+                 mapper:               %s
+                 flags:                %s
+                 crossmatch(%s): %s...
+                 combotype:            %s
+                 invert:               %s
+                 """, release, datatype, dataset, uuid, expression, carton, mapper, flags, cmtype, crossmatch[:8], combotype, invert)
 
     # process list-like data
     if carton:
