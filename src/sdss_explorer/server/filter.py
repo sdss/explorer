@@ -7,7 +7,7 @@ import operator
 from functools import reduce
 from datetime import datetime
 
-from .dataframe import load_dataframe, mappings
+from .dataframe import load_dataframe, load_mappings
 from ..util.config import settings
 from ..util.filters import (
     filter_carton_mapper,
@@ -57,6 +57,7 @@ def filter_dataframe(
     """
     logger.debug("starting filter job")
     dff, columns = load_dataframe(release, datatype, dataset)
+    mappings = load_mappings(release)
     if (dff is None) or (columns is None):
         raise Exception("dataframe/columns load failed")
     filters = list()

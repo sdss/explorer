@@ -10,7 +10,19 @@ from ..util.util import resolve_vastra
 
 logger = logging.getLogger("server")
 
-mappings = vx.open(os.path.join(settings.datapath, "mappings.parquet"))
+
+def load_mappings(release: str):
+    """Loads release-aware mappings parquet with backward-compatible fallbacks."""
+    release = (release or "dr19").lower()
+    primary = os.path.join(settings.datapath, release, f"mappings_{release}.parquet")
+    if os.path.exists(primary):
+        return vx.open(primary)
+
+    backup = os.path.join(settings.datapath, f"mappings_{release}.parquet")
+    if os.path.exists(backup):
+        return vx.open(backup)
+
+    return vx.open(os.path.join(settings.datapath, "mappings.parquet"))
 
 
 def load_columns(release: str, datatype: str, dataset: str):
