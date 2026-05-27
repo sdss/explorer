@@ -1,17 +1,17 @@
 """Main application state variables"""
 
+import json
 import logging
 import pathlib
-import json
 from typing import Optional, cast
 
 import pandas as pd
 import solara as sl
 import vaex as vx
 
-from .subsetstore import SubsetStore
 from ...util import settings
 from ...util.util import resolve_vastra
+from .subsetstore import SubsetStore
 
 logger = logging.getLogger("dashboard")
 
@@ -44,8 +44,7 @@ def load_column_json(release: str, datatype: str) -> dict | None:
     file = f"{release}/columnsAll{datatype.capitalize()}-{vastra}.json"
     path = pathlib.Path(f"{datapath}/{file}")
     if not path.exists():
-        logger.critical(
-            "Expected to find %s for column lookup, didn't find it.", file)
+        logger.critical("Expected to find %s for column lookup, didn't find it.", file)
         return None
 
     with open(path, "r", encoding="utf-8") as f:
@@ -76,8 +75,7 @@ def open_file(filename):
         )  # shuffle to ensure skyplot looks nice, constant seed for reproducibility
         return dataset
     except FileNotFoundError:
-        logger.critical("Expected to find %s for dataframe, didn't find it.",
-                        filename)
+        logger.critical("Expected to find %s for dataframe, didn't find it.", filename)
         return None
     except Exception as e:
         logger.debug("caught exception on dataframe load: %s", e)
@@ -126,7 +124,9 @@ def load_datamodel(release: str = None) -> pd.DataFrame | None:
     if not path.exists() and not back.exists():
         logger.critical(
             "Expected to find %s for column glossary datamodel, didn't find it. Nor in backup %s",
-            path, back)
+            path,
+            back,
+        )
         return None
 
     target = file if path.exists() else backup
@@ -166,8 +166,7 @@ class StateData:
 
         # adaptively rerendered on changes; set on startup in app root
         self.df = sl.reactive(cast(vx.DataFrame, None))  # main datafile
-        self.columns = sl.reactive(cast(
-            dict, None))  # column glossary for guardrailing
+        self.columns = sl.reactive(cast(dict, None))  # column glossary for guardrailing
 
         # user-binded instances
         # NOTE: this approach allows UUID + subsetstore to be read-only
@@ -175,9 +174,9 @@ class StateData:
         self._kernel_id = sl.reactive(cast(str, None))
         self._subset_store = sl.reactive(SubsetStore())
 
-    def load_dataset(self,
-                     release: Optional[str] = None,
-                     datatype: Optional[str] = None) -> bool:
+    def load_dataset(
+        self, release: Optional[str] = None, datatype: Optional[str] = None
+    ) -> bool:
         """load the HDF5 dataset for the dashboard"""
         # use attributes if not manually overridden
         if not release:
@@ -246,14 +245,17 @@ class StateData:
     def __repr__(self) -> str:
         """Show relevant properties of class as string."""
         return "\n".join(
-            f"{k:15}: {v}" for k, v in {
+            f"{k:15}: {v}"
+            for k, v in {
                 "uuid": self.uuid,
                 "kernel_id": self.kernel_id,
                 "df": hex(id(self.df.value)),  # dataframe mem address
                 "subset_backend": hex(id(self.subset_store)),
                 "release": self.release,
                 "datatype": self.datatype,
-            }.items())
+            }.items()
+        )
+
 
 State = StateData()
 """Specific StateData instance used for app"""

@@ -1,20 +1,20 @@
-import os
 import gc
 import logging
+import operator
+import os
+from datetime import datetime
+from functools import reduce
 from typing import ParamSpec
 from uuid import UUID
-import operator
-from functools import reduce
-from datetime import datetime
 
-from .dataframe import load_dataframe, load_mappings
 from ..util.config import settings
 from ..util.filters import (
     filter_carton_mapper,
-    filter_flags,
     filter_crossmatch,
     filter_expression,
+    filter_flags,
 )
+from .dataframe import load_dataframe, load_mappings
 
 _P = ParamSpec("_P")
 logger = logging.getLogger("server")
@@ -63,7 +63,8 @@ def filter_dataframe(
     filters = list()
 
     # generic unpack; show to console
-    logger.debug("""requested %s/%s/%s%s
+    logger.debug(
+        """requested %s/%s/%s%s
                  expr:                 %s
                  carton:               %s
                  mapper:               %s
@@ -71,7 +72,20 @@ def filter_dataframe(
                  crossmatch(%s): %s...
                  combotype:            %s
                  invert:               %s
-                 """, release, datatype, dataset, uuid, expression, carton, mapper, flags, cmtype, crossmatch[:8], combotype, invert)
+                 """,
+        release,
+        datatype,
+        dataset,
+        uuid,
+        expression,
+        carton,
+        mapper,
+        flags,
+        cmtype,
+        crossmatch[:8],
+        combotype,
+        invert,
+    )
 
     # process list-like data
     if carton:
@@ -83,8 +97,7 @@ def filter_dataframe(
 
     # make all filters via utility funcs
     if expression:
-        filters.append(
-            filter_expression(dff, columns, expression, invert=invert))
+        filters.append(filter_expression(dff, columns, expression, invert=invert))
     if carton or mapper:
         cmp_filter = filter_carton_mapper(
             dff,

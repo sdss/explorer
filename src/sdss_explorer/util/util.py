@@ -1,7 +1,7 @@
 """General utility functions"""
 
-import uuid
 import os
+import uuid
 
 import vaex as vx  # noqa
 
