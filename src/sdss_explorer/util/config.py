@@ -1,6 +1,7 @@
 """Application settings. Places everything that is set by an envvar under a namespace."""
 
 import os
+from typing import Dict
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
@@ -36,6 +37,16 @@ class Settings(BaseSettings):
     vastra: str = Field(default="0.6.0",
                         validation_alias="VASTRA",
                         description="Astra reduction versions to read.")
+
+    release_map: Dict[str, str] = Field(
+        default_factory=lambda: {
+            "ipl3": "0.6.0",
+            "dr19": "0.6.0",
+            "dr20": "0.8.1",
+        },
+        validation_alias="RELEASE_MAP",
+        description="Mapping of release name to Astra reduction version.",
+    )
 
     solara: bool = Field(
         default=False, validation_alias="EXPLORER_MOUNT_DASHBOARD",

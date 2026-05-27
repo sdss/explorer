@@ -1,7 +1,6 @@
 """Main application state variables"""
 
 import logging
-import os
 import pathlib
 import json
 from typing import Optional, cast
@@ -12,6 +11,7 @@ import vaex as vx
 
 from .subsetstore import SubsetStore
 from ...util import settings
+from ...util.util import resolve_vastra
 
 logger = logging.getLogger("dashboard")
 
@@ -19,7 +19,6 @@ logger = logging.getLogger("dashboard")
 if sl.server.settings.main.mode == "production":
     vx.logging.remove_handler()  # force remove handler on production instance
 
-VASTRA = settings.vastra
 DATAPATH = settings.datapath
 
 if DATAPATH is None:
@@ -41,7 +40,8 @@ def load_column_json(release: str, datatype: str) -> dict | None:
     if datapath is None:
         return None
 
-    file = f"{release}/columnsAll{datatype.capitalize()}-{VASTRA}.json"
+    vastra = resolve_vastra(release)
+    file = f"{release}/columnsAll{datatype.capitalize()}-{vastra}.json"
     path = pathlib.Path(f"{datapath}/{file}")
     if not path.exists():
         logger.critical(
@@ -81,6 +81,12 @@ def open_file(filename):
     except Exception as e:
         logger.debug("caught exception on dataframe load: %s", e)
         return None
+
+
+def open_explorer_file(release: str, datatype: str):
+    """Release-aware vaex open wrapper for release-specific datafiles."""
+    vastra = resolve_vastra(release)
+    return open_file(f"{release}/explorerAll{datatype.capitalize()}-{vastra}.hdf5")
 
 
 def load_datamodel(release: str = None) -> pd.DataFrame | None:
@@ -132,7 +138,7 @@ class StateData:
 
     def __init__(self):
         # app settings, underscored to hide prop
-        self._release = sl.reactive(cast(str, None))  # TODO: dr19
+        self._release = sl.reactive(cast(str, None))
         self._datatype = sl.reactive(cast(str, None))
 
         # globally shared, read only files
@@ -148,8 +154,8 @@ class StateData:
 
         # user-binded instances
         # NOTE: this approach allows UUID + subsetstore to be read-only
-        self._uuid = sl.reactive(sl.get_session_id())
-        self._kernel_id = sl.reactive(sl.get_kernel_id())
+        self._uuid = sl.reactive(cast(str, None))
+        self._kernel_id = sl.reactive(cast(str, None))
         self._subset_store = sl.reactive(SubsetStore())
 
     def load_dataset(self,
@@ -164,8 +170,7 @@ class StateData:
 
         # start with standard open operation
         # TODO: redux version via envvar?
-        df = open_file(
-            f"{release}/explorerAll{datatype.capitalize()}-{VASTRA}.hdf5")
+        df = open_explorer_file(release, datatype)
         columns = load_column_json(release, datatype)
 
         if (df is None) and (columns is None):
@@ -193,7 +198,7 @@ class StateData:
     def get_default_dataset(self) -> str:
         """Method version to get the default dataset of app (star or visit). Used for defaulting the Subset dataclass"""
         datatype = self._datatype.value
-        return "mwmlite" if datatype == "star" else "thepayne"
+        return "bossnet" if datatype == "star" else "thepayne"
 
     def get_df(self) -> vx.DataFrame:
         """Method version to get the dataframe. Used for defaulting the Subset dataclass"""
@@ -226,7 +231,6 @@ class StateData:
                 "release": self.release,
                 "datatype": self.datatype,
             }.items())
-
 
 State = StateData()
 """Specific StateData instance used for app"""

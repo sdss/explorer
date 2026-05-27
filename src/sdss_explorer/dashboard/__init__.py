@@ -42,6 +42,7 @@ setup_logging(
 
 logger = logging.getLogger("dashboard")
 
+#State = StateData()
 
 def on_start():
     """Startup function, runs on every kernel instance startup and sets (some) unique sesion parameters."""
@@ -146,7 +147,7 @@ def Page() -> None:
             if datatype == "visit":
                 query_params.update({"dataset": "thepayne"})
             else:
-                query_params.update({"dataset": "mwmlite"})
+                query_params.update({"dataset": "bossnet"})
 
         # parse subset/plot initializes
         if len(query_params) > 0:
