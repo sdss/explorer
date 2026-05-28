@@ -59,37 +59,53 @@ index_context = sl.create_context(0)
 
 
 @sl.component()
-def show_plot(plottype, del_func, **kwargs):
-    """Helper function to show a specific plot type with its settings. Wraps all into card.
+def PlotToolbarMenu(plottype, plotstate: PlotState, del_func):
+    """Compact settings menu for use in the grid's top drag toolbar."""
+    with sl.Column(gap="0px",
+                   style={
+                       "padding": "0px",
+                       "margin": "0px",
+                       "min-width": "22px",
+                   }) as main:
+        btn = sl.Button(
+            icon_name="mdi-settings",
+            outlined=False,
+            classes=["ma-0 pa-0 white--text"],
+            style={
+                "min-width": "20px",
+                "width": "20px",
+                "height": "20px",
+            },
+        )
 
-    Note:
-        `PlotState` is instantiated here.
+        with sl.lab.Menu(activator=btn, close_on_content_click=False):
+            with sl.Card(margin=0):
+                show_settings(plottype, plotstate)
+                sl.Button(
+                    icon_name="mdi-delete",
+                    color="red",
+                    block=True,
+                    on_click=del_func,
+                )
+    return main
+
+
+@sl.component()
+def show_plot(plottype, plotstate: PlotState):
+    """Helper function to show a specific plot type with its settings. Wraps all into card.
 
     Args:
         plottype (str): plot type
-        del_func (Callable): callable to delete this plot from the grid.
-        kwargs (kwargs): overload for plot variable setup
+        plotstate (PlotState): pre-instantiated plot state from the parent view card
 
     """
     # NOTE: force set to grey darken-3 colour for visibility of card against grey darken-4 background
     dark = sl.lab.use_dark_effective()
     with rv.Card(
             class_="grey darken-3" if dark else "grey lighten-3",
-            style_="width: 100%; height: 100%",
+            style_="width: 100%; height: 100%;",
     ) as main:
-        # NOTE: current key has to be memoized outside the instantiation (why I couldn't tell you)
-        current_key = sl.use_memo(
-            lambda: list(SubsetState.subsets.value.keys())[-1],
-            dependencies=[])
-        plotstate = PlotState(plottype, current_key, **kwargs)
-        df = SubsetState.subsets.value[current_key].df
-
-        def add_to_grid():
-            """Adds a pointer/reference to PlotState instance in GridState for I/O."""
-            GridState.states.set(list(GridState.states.value + [plotstate]))
-            return None
-
-        sl.use_memo(add_to_grid, dependencies=[])  # runs once
+        df = SubsetState.subsets.value[plotstate.subset.value].df
 
         if df is not None:
             with rv.CardText():
@@ -106,23 +122,6 @@ def show_plot(plottype, del_func, **kwargs):
                         StatisticsTable(plotstate)
                     elif plottype == "targets":
                         TargetsTable(plotstate)
-                    btn = sl.Button(
-                        icon_name="mdi-settings",
-                        outlined=False,
-                        classes=[
-                            "grey darken-3" if dark else "grey lighten-3"
-                        ],
-                    )
-                    with sl.lab.Menu(activator=btn,
-                                     close_on_content_click=False):
-                        with sl.Card(margin=0):
-                            show_settings(plottype, plotstate)
-                            sl.Button(
-                                icon_name="mdi-delete",
-                                color="red",
-                                block=True,
-                                on_click=del_func,
-                            )
     return main
 
 

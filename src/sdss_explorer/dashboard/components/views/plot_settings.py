@@ -15,11 +15,12 @@ from ..sidebar.autocomplete import SingleAutocomplete, AutocompleteSelect
 logger = logging.getLogger("dashboard")
 
 
-def show_settings(type: str, plotstate: PlotState):
+@sl.component
+def show_settings(plottype: str, plotstate: PlotState):
     """Wrapper to case switch logic for menus
 
     Args:
-        type: plottype, any of `'histogram','scatter','heatmap'`
+        plottype: any of `'histogram','scatter','heatmap'`
         plotstate: plot variables
 
     """
@@ -49,15 +50,15 @@ def show_settings(type: str, plotstate: PlotState):
             value=name,
             on_value=plotstate.update_subset,
         )
-        if (type == "stats") or (type == "targets"):
+        if (plottype == "stats") or (plottype == "targets"):
             TableMenu(plotstate)
         else:
             with sl.Columns([1, 1]):
-                if type == "scatter":
+                if plottype == "scatter":
                     ScatterMenu(plotstate, columns)
-                elif type == "histogram":
+                elif plottype == "histogram":
                     HistogramMenu(plotstate, columns)
-                elif type == "heatmap":
+                elif plottype == "heatmap":
                     HeatmapMenu(plotstate, columns)
                 CommonSettings(plotstate)
     return

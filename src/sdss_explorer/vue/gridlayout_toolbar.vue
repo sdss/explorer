@@ -28,10 +28,15 @@
                    drag-ignore-from=".no-drag"
                    drag-allow-from=".v-toolbar"
         >
-            <v-toolbar color="blue-grey" title="Click on this toolbar to drag." height="18px"></v-toolbar>
-            <div v-if="!items[item.i]" 
-                :class="$vuetify.theme.dark ? 'bg-grey-darken-3' : 'bg-grey-lighten-3'" 
-                class="rounded elevation-2 pa-4 d-flex justify-center align-center" 
+            <v-toolbar color="blue-grey" title="Click on this toolbar to drag." height="22px" dense>
+              <v-spacer></v-spacer>
+              <v-btn icon small class="no-drag mr-1" @click.stop="openSettings(item.i)">
+                <span style="color: #ffffff; font-size: 25px; line-height: 25px; font-weight: 700;">⚙</span>
+              </v-btn>
+            </v-toolbar>
+            <div v-if="!items[item.i]"
+                :class="$vuetify.theme.dark ? 'bg-grey-darken-3' : 'bg-grey-lighten-3'"
+                class="rounded elevation-2 pa-4 d-flex justify-center align-center"
                 style="min-height: 150px">
               <v-progress-circular
                 indeterminate
@@ -61,6 +66,10 @@ module.exports = {
       this.gridlayout_loaded = true;
     },
     methods: {
+        openSettings(i) {
+          // Sync clicked grid-item id back to Python so ObjectGrid can open settings.
+          this.selected_settings_i = i;
+        },
         resizedEvent(i, newH, newW, newHPx, newWPx) {
           // this will cause bqplot to layout itself
           window.dispatchEvent(new Event('resize'));
