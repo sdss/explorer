@@ -3,33 +3,37 @@
 import logging
 from urllib.parse import parse_qs
 
-from bokeh.io import output_notebook
-import solara as sl
 import numpy as np
+import solara as sl
 import vaex as vx
+from bokeh.io import output_notebook
 from solara.lab import ThemeToggle
 
 # vaex setup
 # NOTE: vaex gets its cache settings from envvars, see README.md
 if sl.server.settings.main.mode == "production":
-    vx.logging.remove_handler(
-    )  # force remove handler prior to any imports on production
+    vx.logging.remove_handler()  # force remove handler prior to any imports on production
 vx.cache.on()  # activate caching
 
-from .dataclass import (
-    State,
-    Subset,
-    SubsetStore,
-    AlertSystem,
-    Alert,
-    SubsetState,
-)  # noqa: E402
-from ..util import settings, validate_release, validate_pipeline, setup_logging  # noqa: E402
+from ..util import (  # noqa: E402
+    settings,
+    setup_logging,
+    validate_pipeline,
+    validate_release,
+)
 from .components.sidebar import Sidebar  # noqa: E402
 from .components.sidebar.glossary import HelpBlurb  # noqa: E402
 from .components.sidebar.subset_filters import flagList  # noqa: E402
 from .components.views import ObjectGrid, add_view  # noqa: E402
 from .components.views.dataframe import NoDF  # noqa: E402
+from .dataclass import (
+    Alert,
+    AlertSystem,
+    State,
+    Subset,
+    SubsetState,
+    SubsetStore,
+)  # noqa: E402
 
 # logging setup
 PROD = sl.server.settings.main.mode == "production"
@@ -78,8 +82,7 @@ def Page() -> None:
     """
     df = State.df.value
 
-    output_notebook(
-        hide_banner=True)  # required so plots can exist; loads BokehJS
+    output_notebook(hide_banner=True)  # required so plots can exist; loads BokehJS
 
     # check query params
     # NOTE: query params are not avaliable on kernel load, so it must be an effect.
@@ -146,7 +149,7 @@ def Page() -> None:
             if datatype == "visit":
                 query_params.update({"dataset": "thepayne"})
             else:
-                query_params.update({"dataset": "mwmlite"})
+                query_params.update({"dataset": "bossnet"})
 
         # parse subset/plot initializes
         if len(query_params) > 0:
@@ -163,8 +166,7 @@ def Page() -> None:
             subset_keys = ["dataset", "expression"]
             list_subset_keys = ["mapper", "carton", "flags"]
             subset_data = {
-                k: v.split(",") if
-                ((k in list_subset_keys) & (len(v) > 0)) else v
+                k: v.split(",") if ((k in list_subset_keys) & (len(v) > 0)) else v
                 for k, v in query_params.items()
                 if k in subset_keys + list_subset_keys
             }
@@ -173,32 +175,40 @@ def Page() -> None:
             if subset_data:
                 try:
                     if subset_data.get("dataset"):
-                        assert validate_pipeline(State.df.value,
-                                                 subset_data.get("dataset"))
+                        assert validate_pipeline(
+                            State.df.value, subset_data.get("dataset")
+                        )
                     if subset_data.get("flags"):
-                        assert all({
-                            flag in list(flagList.keys())
-                            for flag in subset_data.get("flags")
-                        }), "flags failed"
+                        assert all(
+                            {
+                                flag in list(flagList.keys())
+                                for flag in subset_data.get("flags")
+                            }
+                        ), "flags failed"
                     if subset_data.get("mapper"):
                         assert all(
                             np.isin(
                                 subset_data.get("mapper"),
                                 State.mapping.value["mapper"].unique(),
                                 assume_unique=True,
-                            )), "mapper failed"
+                            )
+                        ), "mapper failed"
                     if subset_data.get("carton"):
                         assert all(
                             np.isin(
                                 subset_data.get("carton"),
                                 State.mapping.value["alt_name"].unique(),
                                 assume_unique=True,
-                            )), "carton failed"
+                            )
+                        ), "carton failed"
 
                     expr = subset_data.get("expression")
                     if expr:
-                        expr = (expr.replace(".and.", " & ").replace(
-                            ".or.", " | ").replace(".eq.", "=="))
+                        expr = (
+                            expr.replace(".and.", " & ")
+                            .replace(".or.", " | ")
+                            .replace(".eq.", "==")
+                        )
                         State.df.value.validate_expression(expr)
                         subset_data["expression"] = expr
                 except Exception as e:
@@ -206,12 +216,18 @@ def Page() -> None:
 
                 # set first subset dataframe and columns
                 try:
-                    subset_data["df"]: vx.DataFrame = (State.df.value[
-                        State.df.
-                        value[f"(pipeline=='{subset_data.get('dataset')}')"]].
-                                                       copy().extract())
+                    subset_data["df"]: vx.DataFrame = (
+                        State.df.value[
+                            State.df.value[
+                                f"(pipeline=='{subset_data.get('dataset')}')"
+                            ]
+                        ]
+                        .copy()
+                        .extract()
+                    )
                     subset_data["columns"] = State.columns.value[
-                        subset_data.get("dataset")]
+                        subset_data.get("dataset")
+                    ]
 
                     # generate subset and update
                     subsets = {"s0": Subset(**subset_data)}

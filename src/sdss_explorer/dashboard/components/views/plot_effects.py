@@ -110,12 +110,12 @@ def add_common_effects(
         if isinstance(fig_widget, BokehModel):
             fig_model = fig_widget._model
             with fig_model.hold(render=True):
-                if debounced_height.finished:
-                    if height == debounced_height.value:
-                        fig_model.height = debounced_height.value
+                if debounced_height.finished and debounced_height.value is not None:
+                    fig_model.height = debounced_height.value
 
     def get_height():
-        return layout["h"] * 45 - 90
+        # Scale figure height with grid rows; tuned for h=9 cards to keep plot area near full.
+        return layout["h"] * 45 - 45
 
     height = sl.use_memo(get_height, dependencies=[layout["h"]])
 
@@ -204,7 +204,9 @@ def add_common_effects(
                   dependencies=[df, plotstate.x.value, plotstate.y.value])
 
     try:
-        sl.use_effect(update_height, dependencies=[debounced_height.finished])
+        sl.use_effect(update_height,
+                  dependencies=[debounced_height.finished,
+                        debounced_height.value])
         sl.use_effect(update_flipx, dependencies=[plotstate.flipx.value])
         if plotstate.plottype != "histogram":
             sl.use_effect(update_flipy, dependencies=[plotstate.flipy.value])

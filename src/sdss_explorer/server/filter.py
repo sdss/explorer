@@ -1,20 +1,20 @@
-import os
 import gc
 import logging
+import operator
+import os
+from datetime import datetime
+from functools import reduce
 from typing import ParamSpec
 from uuid import UUID
-import operator
-from functools import reduce
-from datetime import datetime
 
-from .dataframe import load_dataframe, mappings
 from ..util.config import settings
 from ..util.filters import (
     filter_carton_mapper,
-    filter_flags,
     filter_crossmatch,
     filter_expression,
+    filter_flags,
 )
+from .dataframe import load_dataframe, load_mappings
 
 _P = ParamSpec("_P")
 logger = logging.getLogger("server")
@@ -43,7 +43,7 @@ def filter_dataframe(
         uuid: unique job id
         release: data release
         datatype: datatype (star or visit)
-        dataset: specific dataset i.e. aspcap, spall, best
+        dataset: specific dataset i.e. aspcap, spall, mwmlite
         name: name of subset, used in generating output file
         expression: filter expression
         carton: comma-separated cartons
@@ -57,20 +57,35 @@ def filter_dataframe(
     """
     logger.debug("starting filter job")
     dff, columns = load_dataframe(release, datatype, dataset)
+    mappings = load_mappings(release)
     if (dff is None) or (columns is None):
         raise Exception("dataframe/columns load failed")
     filters = list()
 
     # generic unpack; show to console
-    logger.debug(f"""requested {release}/{datatype}/{dataset}{uuid}
-                 expr:                 {expression} 
-                 carton:               {carton} 
-                 mapper:               {mapper} 
-                 flags:                {flags}
-                 crossmatch({cmtype}): {crossmatch[:8]}...
-                 combotype:            {combotype}
-                 invert:               {invert}
-                 """)
+    logger.debug(
+        """requested %s/%s/%s%s
+                 expr:                 %s
+                 carton:               %s
+                 mapper:               %s
+                 flags:                %s
+                 crossmatch(%s): %s...
+                 combotype:            %s
+                 invert:               %s
+                 """,
+        release,
+        datatype,
+        dataset,
+        uuid,
+        expression,
+        carton,
+        mapper,
+        flags,
+        cmtype,
+        crossmatch[:8],
+        combotype,
+        invert,
+    )
 
     # process list-like data
     if carton:
@@ -82,8 +97,7 @@ def filter_dataframe(
 
     # make all filters via utility funcs
     if expression:
-        filters.append(
-            filter_expression(dff, columns, expression, invert=invert))
+        filters.append(filter_expression(dff, columns, expression, invert=invert))
     if carton or mapper:
         cmp_filter = filter_carton_mapper(
             dff,

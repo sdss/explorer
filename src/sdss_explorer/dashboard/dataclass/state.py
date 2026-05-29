@@ -1,17 +1,17 @@
 """Main application state variables"""
 
-import logging
-import os
-import pathlib
 import json
+import logging
+import pathlib
 from typing import Optional, cast
 
 import pandas as pd
 import solara as sl
 import vaex as vx
 
-from .subsetstore import SubsetStore
 from ...util import settings
+from ...util.util import resolve_vastra
+from .subsetstore import SubsetStore
 
 logger = logging.getLogger("dashboard")
 
@@ -19,7 +19,6 @@ logger = logging.getLogger("dashboard")
 if sl.server.settings.main.mode == "production":
     vx.logging.remove_handler()  # force remove handler on production instance
 
-VASTRA = settings.vastra
 DATAPATH = settings.datapath
 
 if DATAPATH is None:
@@ -41,11 +40,11 @@ def load_column_json(release: str, datatype: str) -> dict | None:
     if datapath is None:
         return None
 
-    file = f"{release}/columnsAll{datatype.capitalize()}-{VASTRA}.json"
+    vastra = resolve_vastra(release)
+    file = f"{release}/columnsAll{datatype.capitalize()}-{vastra}.json"
     path = pathlib.Path(f"{datapath}/{file}")
     if not path.exists():
-        logger.critical(
-            "Expected to find %s for column lookup, didn't find it.", file)
+        logger.critical("Expected to find %s for column lookup, didn't find it.", file)
         return None
 
     with open(path, "r", encoding="utf-8") as f:
@@ -67,6 +66,7 @@ def open_file(filename):
     if datapath is None:
         return None
 
+    logger.info("opening file %s", filename)
     # TODO: verify auth status when attempting to load a working group dataset
     try:
         dataset = vx.open(f"{datapath}/{filename}")
@@ -75,12 +75,32 @@ def open_file(filename):
         )  # shuffle to ensure skyplot looks nice, constant seed for reproducibility
         return dataset
     except FileNotFoundError:
-        logger.critical("Expected to find %s for dataframe, didn't find it.",
-                        filename)
+        logger.critical("Expected to find %s for dataframe, didn't find it.", filename)
         return None
     except Exception as e:
         logger.debug("caught exception on dataframe load: %s", e)
         return None
+
+
+def open_explorer_file(release: str, datatype: str):
+    """Release-aware vaex open wrapper for release-specific datafiles."""
+    vastra = resolve_vastra(release)
+    return open_file(f"{release}/explorerAll{datatype.capitalize()}-{vastra}.hdf5")
+
+
+def open_mapping_file(release: str):
+    """Release-aware vaex open wrapper for mapping parquet files."""
+    release = (release or "dr19").lower()
+    primary = f"{release}/mappings_{release}.parquet"
+    dataset = open_file(primary)
+    if dataset is not None:
+        return dataset
+
+    # Backward compatibility for older layouts.
+    backup = open_file(f"mappings_{release}.parquet")
+    if backup is not None:
+        return backup
+    return open_file("mappings.parquet")
 
 
 def load_datamodel(release: str = None) -> pd.DataFrame | None:
@@ -95,24 +115,29 @@ def load_datamodel(release: str = None) -> pd.DataFrame | None:
     # TODO: this is globally set on app start; these needs to be set dynamically by the app
     # file = "ipl3_partial.json"
     release = None if release == "None" else release
-    release = release or "dr19"
-    file = f"{release.lower()}_dminfo.json"
+    release = (release or "dr19").lower()
+    file = f"{release}/{release}_dminfo.json"
+    backup = f"{release}_dminfo.json"
 
     path = pathlib.Path(f"{settings.datapath}/{file}")
-    if not path.exists():
+    back = pathlib.Path(f"{settings.datapath}/{backup}")
+    if not path.exists() and not back.exists():
         logger.critical(
-            "Expected to find %s for column glossary datamodel, didn't find it.",
-            path)
+            "Expected to find %s for column glossary datamodel, didn't find it. Nor in backup %s",
+            path,
+            back,
+        )
         return None
 
+    target = file if path.exists() else backup
     try:
-        with open(f"{settings.datapath}/{file}", "r", encoding="utf-8") as f:
+        with open(f"{settings.datapath}/{target}", "r", encoding="utf-8") as f:
             data = json.load(f).values()
     except Exception as e:
         logger.debug("caught exception on datamodel loader: %s", e)
         return None
     else:
-        logger.info("successfully loaded datamodel")
+        logger.info("successfully loaded datamodel for release %s", release)
         return pd.DataFrame(data)  # TODO: back to vaex
 
 
@@ -132,29 +157,26 @@ class StateData:
 
     def __init__(self):
         # app settings, underscored to hide prop
-        self._release = sl.reactive(cast(str, None))  # TODO: dr19
+        self._release = sl.reactive(cast(str, None))
         self._datatype = sl.reactive(cast(str, None))
 
         # globally shared, read only files
-        self.mapping = sl.reactive(
-            open_file("mappings.parquet"))  # mappings for bitmasks
-        self.datamodel = sl.reactive(load_datamodel(
-            self.release))  # datamodel spec
+        self.mapping = sl.reactive(cast(vx.DataFrame, None))
+        self.datamodel = sl.reactive(cast(pd.DataFrame, None))
 
         # adaptively rerendered on changes; set on startup in app root
         self.df = sl.reactive(cast(vx.DataFrame, None))  # main datafile
-        self.columns = sl.reactive(cast(
-            dict, None))  # column glossary for guardrailing
+        self.columns = sl.reactive(cast(dict, None))  # column glossary for guardrailing
 
         # user-binded instances
         # NOTE: this approach allows UUID + subsetstore to be read-only
-        self._uuid = sl.reactive(sl.get_session_id())
-        self._kernel_id = sl.reactive(sl.get_kernel_id())
+        self._uuid = sl.reactive(cast(str, None))
+        self._kernel_id = sl.reactive(cast(str, None))
         self._subset_store = sl.reactive(SubsetStore())
 
-    def load_dataset(self,
-                     release: Optional[str] = None,
-                     datatype: Optional[str] = None) -> bool:
+    def load_dataset(
+        self, release: Optional[str] = None, datatype: Optional[str] = None
+    ) -> bool:
         """load the HDF5 dataset for the dashboard"""
         # use attributes if not manually overridden
         if not release:
@@ -162,10 +184,15 @@ class StateData:
         if not datatype:
             datatype = self.datatype
 
+        release = (release or "dr19").lower()
+
+        # Keep auxiliary files in sync with the active release.
+        self.mapping.set(open_mapping_file(release))
+        self.datamodel.set(load_datamodel(release))
+
         # start with standard open operation
         # TODO: redux version via envvar?
-        df = open_file(
-            f"{release}/explorerAll{datatype.capitalize()}-{VASTRA}.hdf5")
+        df = open_explorer_file(release, datatype)
         columns = load_column_json(release, datatype)
 
         if (df is None) and (columns is None):
@@ -193,7 +220,7 @@ class StateData:
     def get_default_dataset(self) -> str:
         """Method version to get the default dataset of app (star or visit). Used for defaulting the Subset dataclass"""
         datatype = self._datatype.value
-        return "mwmlite" if datatype == "star" else "thepayne"
+        return "bossnet" if datatype == "star" else "thepayne"
 
     def get_df(self) -> vx.DataFrame:
         """Method version to get the dataframe. Used for defaulting the Subset dataclass"""
@@ -218,14 +245,16 @@ class StateData:
     def __repr__(self) -> str:
         """Show relevant properties of class as string."""
         return "\n".join(
-            f"{k:15}: {v}" for k, v in {
+            f"{k:15}: {v}"
+            for k, v in {
                 "uuid": self.uuid,
                 "kernel_id": self.kernel_id,
                 "df": hex(id(self.df.value)),  # dataframe mem address
                 "subset_backend": hex(id(self.subset_store)),
                 "release": self.release,
                 "datatype": self.datatype,
-            }.items())
+            }.items()
+        )
 
 
 State = StateData()

@@ -1,8 +1,9 @@
 """Logging configuration and setup"""
 
-from os.path import join as pathjoin
 import logging
 import logging.config
+from os.path import join as pathjoin
+
 import solara as sl
 
 __all__ = ["setup_logging"]
@@ -73,8 +74,7 @@ def setup_logging(
                 "()":
                 # logging.Formatter,
                 MultiLineFormatter,  # use custom multi-line formatter
-                "format":
-                "%(asctime)s - %(name)s - %(levelname)s - %(kernel_id)s - %(message)s",  # standard format
+                "format": "%(asctime)s - %(name)s - %(levelname)s - %(kernel_id)s - %(message)s",  # standard format
             }
         },
         "handlers": {

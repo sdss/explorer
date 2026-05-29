@@ -4,7 +4,6 @@ import os
 from datetime import datetime
 from typing import Optional
 
-from bokeh.io import output_notebook
 import ipyvuetify as v
 import ipywidgets as widgets
 import reacton as r
@@ -14,9 +13,10 @@ import traitlets as t
 from solara.components.file_drop import FileInfo
 from solara.lab import Menu
 
-from ...dataclass import Alert, GridState, State, Subset, SubsetState, VCData
+from ...dataclass import Alert, GridState, PlotState, State, Subset, SubsetState, VCData
 from ...util.io import export_layout, export_subset, export_vcdata
 from ..dialog import Dialog
+from .plot_settings import show_settings
 from .plots import index_context, show_plot
 
 logger = logging.getLogger("dashboard")
@@ -36,6 +36,8 @@ class GridLayout(v.VuetifyTemplate):
     items = t.Union([t.List(), t.Dict()],
                     default_value=[]).tag(sync=True,
                                           **widgets.widget_serialization)
+    # Selected grid item index whose toolbar cog was clicked in the Vue header.
+    selected_settings_i = t.CInt(-1).tag(sync=True)
     grid_layout = t.List(default_value=[]).tag(sync=True)
     draggable = t.CBool(True).tag(sync=True)
     resizable = t.CBool(True).tag(sync=True)
@@ -46,30 +48,20 @@ GridDraggableToolbar = r.core.ComponentWidget(GridLayout)
 
 @sl.component()
 def ViewCard(plottype, i, **kwargs):
-
-    def remove(i):
-        """
-        i: unique identifier key, position in objects list
-        q: specific, adaptive index in grid_objects (position dict)
-        """
-        # find where in grid_layout has key (i)
-        for n, obj in enumerate(GridState.grid_layout.value):
-            if obj["i"] == i:
-                q = n
-                break
-
-        # cut layout and states at that spot
-        GridState.grid_layout.value = (GridState.grid_layout.value[:q] +
-                                       GridState.grid_layout.value[q + 1:])
-        GridState.states.value = (GridState.states.value[:q] +
-                                  GridState.states.value[q + 1:])
-
-        # replace the object in object list with a dummy renderable
-        # INFO: cannot be deleted because it breaks all renders
-        GridState.objects.value[i] = rv.Card()
-
     index_context.provide(i)  # used to access height data for dynamic resize
-    main = show_plot(plottype, lambda: remove(i), **kwargs)  # plot shower
+    current_key = sl.use_memo(
+        lambda: list(SubsetState.subsets.value.keys())[-1],
+        dependencies=[])
+    plotstate = PlotState(plottype, current_key, **kwargs)
+
+    def add_to_grid():
+        """Adds a pointer/reference to PlotState instance in GridState for I/O."""
+        GridState.states.set(list(GridState.states.value + [plotstate]))
+        return None
+
+    sl.use_memo(add_to_grid, dependencies=[])
+
+    main = show_plot(plottype, plotstate)  # plot shower
 
     logger.debug("returning viewcard now")
     return main
@@ -85,13 +77,14 @@ def add_view(plottype, layout: Optional[dict] = None, **kwargs):
         maxH = 40
         minH = 7
         if plottype == "stats":
-            height = 7
+            height = 6
+            minH = 6
         elif plottype == "targets":
-            height = 9
-            maxH = 9
-            minH = 9
+            height = 8
+            maxH = 8
+            minH = 8
         else:
-            height = 10
+            height = 9
         # horizontal or vertical offset depending on width
         if 12 - prev["w"] - prev["x"] >= 6:
             # beside
@@ -134,8 +127,36 @@ def ObjectGrid():
     impmenu, set_impmenu = sl.use_state(False)
     lockout, set_lockout = sl.use_state(False)
     areyousure, set_areyousure = sl.use_state(False)
+    # Mirrored from GridLayout.selected_settings_i; drives the settings dialog target.
+    selected_settings_i, set_selected_settings_i = sl.use_state(-1)
+
+    def _state_for_view_index(i: int):
+        """Return PlotState for a grid item id (`i`) by aligning with grid_layout ordering."""
+        for q, obj in enumerate(GridState.grid_layout.value):
+            if obj["i"] == i and q < len(GridState.states.value):
+                return GridState.states.value[q]
+        return None
+
+    selected_plotstate = _state_for_view_index(selected_settings_i)
+
+    def _remove_by_view_index(i: int):
+        """Remove one grid view by id and keep layout/state/object collections consistent."""
+        for q, obj in enumerate(GridState.grid_layout.value):
+            if obj["i"] == i:
+                GridState.grid_layout.value = (GridState.grid_layout.value[:q] +
+                                               GridState.grid_layout.value[q + 1:])
+                GridState.states.value = (GridState.states.value[:q] +
+                                          GridState.states.value[q + 1:])
+                # Keep object slots indexed by stable view id for Vue lookups: items[item.i].
+                objects = GridState.objects.value.copy()
+                if i >= len(objects):
+                    objects.extend([rv.Card() for _ in range(i - len(objects) + 1)])
+                objects[i] = rv.Card()
+                GridState.objects.value = objects
+                break
 
     def reset_layout():
+        """Reset all grid-managed view containers and state references."""
         GridState.index.value = 0
         GridState.grid_layout.value = []
         GridState.objects.value = []
@@ -143,6 +164,7 @@ def ObjectGrid():
         GridState.index.value = 0
 
     def set_grid_layout(data):
+        """Persist updated layout emitted by the draggable/resizable grid widget."""
         GridState.grid_layout.value = data
 
     def import_applayout(fileobj: FileInfo) -> None:
@@ -287,6 +309,25 @@ def ObjectGrid():
                 on_cancel=lambda *_: set_areyousure(False),
             )
 
+            with Dialog(
+                    open=selected_plotstate is not None,
+                    ok=None,
+                    ok_enable=False,
+                    title="Plot settings",
+                    cancel="Close",
+                    max_width=960,
+                    on_cancel=lambda *_: set_selected_settings_i(-1),
+            ):
+                if selected_plotstate is not None:
+                    show_settings(selected_plotstate.plottype, selected_plotstate)
+                    sl.Button(
+                        icon_name="mdi-delete",
+                        color="red",
+                        block=True,
+                        on_click=lambda *_: (_remove_by_view_index(selected_settings_i),
+                                             set_selected_settings_i(-1)),
+                    )
+
             btn2 = sl.Button(
                 "Layout options",
                 outlined=False,
@@ -343,6 +384,9 @@ def ObjectGrid():
                                         )
         GridDraggableToolbar(
             items=GridState.objects.value,
+            # Vue toolbar cog writes an item id here; Python reacts by opening settings.
+            selected_settings_i=selected_settings_i,
+            on_selected_settings_i=set_selected_settings_i,
             grid_layout=GridState.grid_layout.value,
             on_grid_layout=set_grid_layout,
             resizable=True,

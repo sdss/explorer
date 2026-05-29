@@ -1,6 +1,7 @@
 """Grid layout dataclass"""
 
 import solara as sl
+from typing import Optional
 
 from .state import State
 
@@ -19,7 +20,15 @@ class GridData:
         index (sl.Reactive[int]): index, used for ensuring unique state between widgets
     """
 
-    def __init__(self, objects=[], layout=[], states=[]) -> None:
+    def __init__(
+        self,
+        objects: Optional[list] = None,
+        layout: Optional[list] = None,
+        states: Optional[list] = None,
+    ) -> None:
+        objects = objects or []
+        layout = layout or []
+        states = states or []
         self.grid_layout = sl.reactive(layout)
         self.objects = sl.reactive(objects)
         self.states = sl.reactive(states)

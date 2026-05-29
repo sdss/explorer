@@ -60,13 +60,15 @@ New datafiles for the dashboard must be generated each time the source SDSS summ
 - **(release)**: a directory for each data release
    - **columnsAll(Star|Visit)-`(astra_version)`.json**: JSON files providing a list of all columns for each catalog file used in the dashboard. One file per star/visit catalogs.
    - **explorerAll(Star|Visit)-`(astra_version)`.hdf5**: HDF5 files of the summary catalogs aggregated into a single file. One file per star/visit catalogs.
-- **dr19_dminfo.json**: a JSON of the datamodel column descriptions of the catalog summary files, used for populating the dashboard column glossary.
-- **mappings.parquet**: compiled datafile of all the sdss targeting cartons and programs
+   - **(release)_dminfo.json**: a JSON of the datamodel column descriptions of the catalog summary files, used for populating the dashboard column glossary.
+   - **mappings_(release).parquet**: compiled datafile of all the sdss targeting cartons and programs bit flags from semaphore
+- **dr19_dminfo.json**: (Deprecated location) a JSON of the datamodel column descriptions of the catalog summary files, used for populating the dashboard column glossary.
+- **mappings.parquet**: A deprecated DR19-specific version of the bitmaps file, possibly around for backwards compatibility.
 - **explorer**: a directory used as a scratch space for user's downloading subsets via the dashboard.
 
 New `columnsXXX.json` and `explorerXXX.hdf5` files are generated following instructions at https://github.com/sdss/explorer-filegen.  Also see the docs at [Explorer Dev DataFiles](https://sdss.github.io/explorer/developer/datafiles/).
 
-`dr19_dminfo.json` contains, for each datamodel column name, the following fields: `name`, `description`, `type`, `unit`. Original version of this file was the `ipl3_partial.json`.  This file can be produced by running `scripts/gen_datamodel_ref.py`.
+`(release)_dminfo.json` contains, for each datamodel column name, the following fields: `name`, `description`, `type`, `unit`. Original version of this file was the `ipl3_partial.json`.  This file can be produced by running `scripts/gen_datamodel_ref.py`.
 
 ## Starting the server
 To run, the environment variables must be exported to the shell environment. The base ones are:
@@ -157,6 +159,31 @@ uvicorn valis.wsgi:app --reload
 ```
 
 The local web server is exposed at `http://localhost:8000`, with the solara app at `http://localhost:8000/valis/solara/dashboard`.
+
+
+## Structure of Project
+
+This describes the structure of the `src/sdss_explorer` project.
+
+- `assets/`: application assets bundled with the package.
+- `assets/help/`: help content and icons for dashboard tooltips/help UI.
+- `dashboard/`: Solara dashboard application and state management logic.
+- `dashboard/components/`: reusable UI component modules used by the dashboard.
+- `dashboard/components/sidebar/`: sidebar-specific UI and filter controls.
+- `dashboard/components/views/`: plotting, grid, and dataframe view components.
+- `dashboard/dataclass/`: dataclass-based state containers for alerts, plots, subsets, and grid state.
+- `dashboard/util/`: dashboard helper utilities (I/O, regex helpers, and other support logic).
+- `server/`: FastAPI backend for rendering/filtering datasets and handling download jobs.
+- `util/`: shared package utilities (configuration, logging, filtering, and common helpers).
+- `vue/`: custom Vue component files integrated into the dashboard frontend.
+
+Typical dashboard workflow when the app starts:
+
+- Initializes the page component (the `Page()` component in `dashboard/__init__.py`)
+- Sets state and loads datasets (via `State.load_dataset()` in `dashboard/dataclass/state.py`)
+- Sidebar subset creation and filtering (via `SubsetState` in `dashboard/components/sidebar/subset_ui.py` and `subset_filters.py`)
+- Clicking **Add View** in calls `add_view()` to create a plot card and `PlotState` (in `dashboard/components/views/grid.py`).
+- A chart type is rendered in `dashboard/components/views/plots.py` (`HistogramPlot`, `ScatterPlot`, `HeatmapPlot`, etc.), where aggregations and callbacks are applied to the currently selected subset.
 
 
 ---

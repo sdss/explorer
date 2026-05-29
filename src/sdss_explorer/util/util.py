@@ -1,13 +1,16 @@
 """General utility functions"""
 
-import uuid
 import os
+import uuid
 
 import vaex as vx  # noqa
+
+from .config import settings
 
 __all__ = [
     "check_categorical",
     "generate_unique_key",
+    "resolve_vastra",
     "validate_release",
     "validate_pipeline",
 ]
@@ -39,6 +42,15 @@ def generate_unique_key(key: str = "") -> str:
         return str(uuid.uuid4())
 
     return key + make_uuid()
+
+
+def resolve_vastra(release: str | None) -> str:
+    """Resolve the Astra version from a release name.
+
+    Falls back to the global ``vastra`` setting if no release mapping exists.
+    """
+    key = (release or "").lower()
+    return settings.release_map.get(key, settings.vastra)
 
 
 def validate_release(path: str, release: str) -> bool:

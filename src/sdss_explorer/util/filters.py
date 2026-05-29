@@ -1,17 +1,16 @@
 """All filter conversion functions. Validation done in UI, but conversion to Expressions is done via these functions"""
 
-import operator
 import logging
+import operator
 import re
+
 import numpy as np
 import vaex as vx
 
 # TODO: get dashboard or main depending on context of functions
 logger = logging.getLogger("dashboard")
 
-__all__ = [
-    "check_flags", "filter_expression", "filter_carton_mapper", "filter_flags"
-]
+__all__ = ["check_flags", "filter_expression", "filter_carton_mapper", "filter_flags"]
 
 
 @vx.register_function(multiprocessing=True)
@@ -76,8 +75,7 @@ def filter_expression(
         illegals = ["eval", "exec", "import", "__main__"]
         for illegal in illegals:
             if illegal in expression:
-                logger.critical(
-                    "this user attempted to use ACE-like expressions!")
+                logger.critical("this user attempted to use ACE-like expressions!")
                 assert False, "Your session and IP has been logged."
 
         parts = re.split(r"(>=|<=|<|>|==|!=)", expr)
@@ -88,8 +86,9 @@ def filter_expression(
             assert (
                 re.fullmatch(r"<=|<", parts[1]) is not None
                 and re.fullmatch(r"<=|<", parts[3]) is not None
-            ), (f"expression {n} is invalid: not a proper 3-part inequality (a < col <= b)"
-                )
+            ), (
+                f"expression {n} is invalid: not a proper 3-part inequality (a < col <= b)"
+            )
 
             # check middle
             assert parts[2] in columns, (
@@ -126,7 +125,8 @@ def filter_expression(
             else:
                 assert False, f"expression {n} is invalid: one part must be column"
             assert re.match(r">=|<=|<|>|==|!=", parts[1]) is not None, (
-                f"expression {n} is invalid: middle is not comparator")
+                f"expression {n} is invalid: middle is not comparator"
+            )
 
             # change the expression in subexpression
             subexpressions[i] = "(" + expr + ")"
@@ -197,10 +197,9 @@ def filter_carton_mapper(
         return cmp_filter
 
 
-def filter_flags(df: vx.DataFrame,
-                 flags: list[str],
-                 dataset: str,
-                 invert: bool = False) -> vx.Expression | None:
+def filter_flags(
+    df: vx.DataFrame, flags: list[str], dataset: str, invert: bool = False
+) -> vx.Expression | None:
     """
     Generates a filter for flags
 
@@ -217,7 +216,7 @@ def filter_flags(df: vx.DataFrame,
             continue
         # boss-only pipeline exceptions for zwarning_flags filtering
         elif np.isin(
-                dataset,
+            dataset,
             ("spall", "lineforest"),
         ) and (flag == "purely non-flagged"):
             filters.append("zwarning_flags!=0")
@@ -237,8 +236,9 @@ def filter_flags(df: vx.DataFrame,
     return concat_filter
 
 
-def filter_crossmatch(df: vx.DataFrame, crossmatch: str,
-                      cmtype: str) -> vx.Expression | None:
+def filter_crossmatch(
+    df: vx.DataFrame, crossmatch: str, cmtype: str
+) -> vx.Expression | None:
     """
     Generates a filter for flags
 
@@ -257,8 +257,7 @@ def filter_crossmatch(df: vx.DataFrame, crossmatch: str,
         AssertionError: if users pass
 
     """
-    assert cmtype in crossmatchList.keys(
-    ), "unspported crossmatch column passed"
+    assert cmtype in crossmatchList.keys(), "unspported crossmatch column passed"
 
     # bhm doesnt fetch tic_v8's so flag
     if (cmtype == "tic_v8") and (df["pipeline"].unique()[0] == "spall"):
@@ -276,9 +275,7 @@ def filter_crossmatch(df: vx.DataFrame, crossmatch: str,
                 identifiers = crossmatch.lstrip().rstrip().split("\n")
             else:
                 # we have to make sure all are integers
-                identifiers = list(
-                    map(int,
-                        crossmatch.lstrip().rstrip().split("\n")))
+                identifiers = list(map(int, crossmatch.lstrip().rstrip().split("\n")))
         except Exception:
             # makes errors more informative
             raise ValueError("failed to convert to integer identifiers")
