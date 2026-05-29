@@ -1,16 +1,15 @@
 """Individual plot components"""
 
 import asyncio
-import operator
 import logging
+import operator
 from functools import reduce
 
 import numpy as np
-import solara as sl
 import pandas as pd
-import vaex as vx
 import reacton.ipyvuetify as rv
-from reacton.ipyvuetify import ValueElement
+import solara as sl
+import vaex as vx
 from bokeh.models import (
     HoverTool,
     Quad,
@@ -18,37 +17,36 @@ from bokeh.models import (
     Scatter,
 )
 from bokeh.plotting import ColumnDataSource
+from reacton.ipyvuetify import ValueElement
 
+from ...dataclass import Alert, GridState, PlotState, SubsetState, VCData, use_subset
 from .dataframe import ModdedDataTable, TargetsDataTable, format_targets
-from .plot_settings import show_settings
-from .plot_utils import (
-    add_all_tools,
-    add_callbacks,
-    check_categorical,
-    calculate_range,
-    generate_color_mapper,
-    generate_tooltips,
-    add_axes,
-    add_colorbar,
-    generate_plot,
-)
 from .figurebokeh import FigureBokeh
-from .plot_themes import LIGHTTHEME, DARKTHEME
-from .plot_effects import (
-    add_histogram_effects,
-    add_scatter_effects,
-    add_heatmap_effects,
-    add_common_effects,
-)
 from .plot_actions import (
-    reset_range,
     aggregate_data,
     fetch_data,
+    reset_range,
     update_mapping,
     update_tooltips,
 )
-
-from ...dataclass import PlotState, SubsetState, GridState, use_subset, Alert, VCData
+from .plot_effects import (
+    add_common_effects,
+    add_heatmap_effects,
+    add_histogram_effects,
+    add_scatter_effects,
+)
+from .plot_themes import DARKTHEME, LIGHTTHEME
+from .plot_utils import (
+    add_all_tools,
+    add_axes,
+    add_callbacks,
+    add_colorbar,
+    calculate_range,
+    check_categorical,
+    generate_color_mapper,
+    generate_plot,
+    generate_tooltips,
+)
 
 logger = logging.getLogger("dashboard")
 
@@ -56,7 +54,6 @@ logger = logging.getLogger("dashboard")
 # NOTE: must be initialized here to avoid circular imports
 index_context = sl.create_context(0)
 """context: used for tracing parent card in the grid for height resizing"""
-
 
 
 @sl.component()
@@ -71,16 +68,14 @@ def show_plot(plottype, plotstate: PlotState):
     # NOTE: force set to grey darken-3 colour for visibility of card against grey darken-4 background
     dark = sl.lab.use_dark_effective()
     with rv.Card(
-            class_="grey darken-3" if dark else "grey lighten-3",
-            style_="width: 100%; height: 100%;",
+        class_="grey darken-3" if dark else "grey lighten-3",
+        style_="width: 100%; height: 100%;",
     ) as main:
         df = SubsetState.subsets.value[plotstate.subset.value].df
 
         if df is not None:
             with rv.CardText():
-                with sl.Column(classes=[
-                        "grey darken-3" if dark else "grey lighten-3"
-                ]):
+                with sl.Column(classes=["grey darken-3" if dark else "grey lighten-3"]):
                     if plottype == "histogram":
                         HistogramPlot(plotstate)
                     elif plottype == "heatmap":
@@ -139,7 +134,8 @@ def HistogramPlot(plotstate: PlotState) -> ValueElement:
                 "left": edges[:-1],
                 "right": edges[1:],
                 "y": counts,
-            })
+            }
+        )
 
     source = sl.use_memo(generate_cds, dependencies=[])
 
@@ -234,7 +230,7 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
         for axis in {"x", "y", "color"}:
             col = getattr(plotstate, axis).value
             if check_categorical(col):
-                update_mapping(plotstate, axis="x")
+                update_mapping(plotstate, dff, axis="x")
         try:
             color, x_centers, y_centers, _ = aggregate_data(plotstate, dff)
         except Exception as e:
@@ -248,7 +244,8 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
                 "x": np.repeat(x_centers, len(y_centers)),
                 "y": np.tile(y_centers, len(x_centers)),
                 "color": color.flatten(),
-            })
+            }
+        )
 
     source = sl.use_memo(generate_cds, [])
 
@@ -275,10 +272,7 @@ def HeatmapPlot(plotstate: PlotState) -> ValueElement:
             height=abs(ylimits[1] - ylimits[0]) / plotstate.nbins.value,
             dilate=True,
             line_color=None,
-            fill_color={
-                "field": "color",
-                "transform": mapper
-            },
+            fill_color={"field": "color", "transform": mapper},
         )
         add_colorbar(plotstate, p, mapper, source.data["color"])
         gr = p.add_glyph(source, glyph)
@@ -359,7 +353,8 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
             xmax = np.nanmax(lims)
             xmin = np.nanmin(lims)
             xfilter = df[
-                f"(({plotstate.x.value} > {xmin}) & ({plotstate.x.value} < {xmax}))"]
+                f"(({plotstate.x.value} > {xmin}) & ({plotstate.x.value} < {xmax}))"
+            ]
         except Exception as e:
             pass
         try:
@@ -368,7 +363,8 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
             ymax = np.nanmax(lims)
             ymin = np.nanmin(lims)
             yfilter = df[
-                f"(({plotstate.y.value} > {ymin}) & ({plotstate.y.value} < {ymax}))"]
+                f"(({plotstate.y.value} > {ymin}) & ({plotstate.y.value} < {ymax}))"
+            ]
 
         except Exception as e:
             pass
@@ -381,17 +377,16 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
         return combined
 
     # update on dataset (df) change, or range update
-    local_filter = sl.use_memo(update_filter,
-                               dependencies=[df, ranges[0], ranges[1]])
+    local_filter = sl.use_memo(update_filter, dependencies=[df, ranges[0], ranges[1]])
 
     async def debounced_filter():
         await asyncio.sleep(0.05)
         return local_filter
 
     # debounced output
-    debounced_local_filter = sl.lab.use_task(debounced_filter,
-                                             dependencies=[local_filter],
-                                             prefer_threaded=False)
+    debounced_local_filter = sl.lab.use_task(
+        debounced_filter, dependencies=[local_filter], prefer_threaded=False
+    )
 
     # combine the filters every render
     filters = []
@@ -429,12 +424,14 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
             y = [1, 2, 3, 4]
             color = [1, 2, 3, 4]
             sdss_id = [1, 2, 3, 4]
-        source = ColumnDataSource(data={
-            "x": x,
-            "y": y,
-            "color": color,
-            "sdss_id": sdss_id,
-        })
+        source = ColumnDataSource(
+            data={
+                "x": x,
+                "y": y,
+                "color": color,
+                "sdss_id": sdss_id,
+            }
+        )
         logger.debug("cds = " + str(source.data))
         return source
 
@@ -453,13 +450,9 @@ def ScatterPlot(plotstate: PlotState) -> ValueElement:
         mapper = generate_color_mapper(plotstate, dff=dff)
 
         # add glyph
-        glyph = Scatter(x="x",
-                        y="y",
-                        size=8,
-                        fill_color={
-                            "field": "color",
-                            "transform": mapper
-                        })
+        glyph = Scatter(
+            x="x", y="y", size=8, fill_color={"field": "color", "transform": mapper}
+        )
         p.add_glyph(source, glyph)
         add_colorbar(plotstate, p, mapper, source.data["color"])
 
@@ -555,9 +548,9 @@ def StatisticsTable(state):
             dfd = pd.DataFrame({"error": ["no"], "encountered": ["data"]})
         return dfd
 
-    result = sl.lab.use_task(generate_describe,
-                             dependencies=[filter, columns,
-                                           len(columns)])
+    result = sl.lab.use_task(
+        generate_describe, dependencies=[filter, columns, len(columns)]
+    )
 
     def remove_column(name):
         """Removes column from column list"""
@@ -570,13 +563,13 @@ def StatisticsTable(state):
                 q = i
                 break
 
-        set_columns(columns[:q] + columns[q + 1:])
+        set_columns(columns[:q] + columns[q + 1 :])
 
     column_actions = [
         # TODO: a more complex action in here?
-        sl.ColumnAction(icon="mdi-delete",
-                        name="Remove column",
-                        on_click=remove_column),
+        sl.ColumnAction(
+            icon="mdi-delete", name="Remove column", on_click=remove_column
+        ),
     ]
 
     sl.ProgressLinear(result.pending)

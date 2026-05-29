@@ -6,12 +6,14 @@ import os
 
 import vaex as vx
 
+from functools import lru_cache
 from ..util.config import settings
 from ..util.util import resolve_vastra
 
 logger = logging.getLogger("server")
 
 
+@lru_cache
 def load_mappings(release: str):
     """Loads release-aware mappings parquet with backward-compatible fallbacks."""
     release = (release or "dr19").lower()
