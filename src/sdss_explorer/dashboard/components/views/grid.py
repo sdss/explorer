@@ -147,9 +147,12 @@ def ObjectGrid():
                                                GridState.grid_layout.value[q + 1:])
                 GridState.states.value = (GridState.states.value[:q] +
                                           GridState.states.value[q + 1:])
-                if q < len(GridState.objects.value):
-                    GridState.objects.value = (GridState.objects.value[:q] +
-                                               GridState.objects.value[q + 1:])
+                # Keep object slots indexed by stable view id for Vue lookups: items[item.i].
+                objects = GridState.objects.value.copy()
+                if i >= len(objects):
+                    objects.extend([rv.Card() for _ in range(i - len(objects) + 1)])
+                objects[i] = rv.Card()
+                GridState.objects.value = objects
                 break
 
     def reset_layout():
@@ -381,7 +384,6 @@ def ObjectGrid():
                                         )
         GridDraggableToolbar(
             items=GridState.objects.value,
-            #toolbar_items=GridState.toolbar_objects.value,
             # Vue toolbar cog writes an item id here; Python reacts by opening settings.
             selected_settings_i=selected_settings_i,
             on_selected_settings_i=set_selected_settings_i,
