@@ -18,7 +18,7 @@ The Explorer is SDSS-V's interface for accessing and exploring Milky Way Mapper 
 Explorer is developed by SDSS-V, using `solara`, `fastapi`,`vaex`, and `bokeh`. Explorer was developed and designed by Riley Thai, and is maintained by the SDSS-V Data Visualization Team.
 
 !!! note
-    The examples and screenshots in these docs may reference the `best` Astra summary catalog file.  This file has now been named `mwmLite`.  In the live dashboard you will see reference to the `mwmlite` dataset.  This is the same as `best` in this documentation.
+    The examples and screenshots in these docs may reference the `best` Astra summary catalog file.  In SDSS DR19, this file was renamed to `mwmLite`.  In the live dashboard for DR19 you will see reference to the `mwmlite` dataset.  This is the same as `best` in this documentation. In all data releases DR20 and above, the `mwmLite` file has been deprecated and removed.
 
 Get started with our examples:
 
