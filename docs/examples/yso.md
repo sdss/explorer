@@ -1,5 +1,5 @@
 !!! note
-    All references to `best` should be substituted with the new `mwmlite`.
+    All references to `best` should be substituted with the new `mwmlite`. This file only applies to SDSS DR19 and has been deprecated for all SDSS data releases DR20 and above.
 
 Let's say we know what specific **Targeting Carton** we want to have a look at. We can directly select these cartons via the **Targeting Filters** menu.
 

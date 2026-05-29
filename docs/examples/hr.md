@@ -1,7 +1,10 @@
 Let's create and compare a few color magnitude diagrams.
 
 !!! note
-    This guide is slightly outdated, but everything still applies. The plots just look different, really.  For example, all references to `best` in images here refer to `mwmlite`.
+    This guide is slightly outdated, but everything still applies. The plots just look different, really.  For example, all references to `best` in images here refer to `mwmlite`. This file only applies to SDSS DR19 and has been deprecated for all SDSS data releases DR20 and above.
+
+!!! note
+    This tutorial is DR19 specific.
 
 To start, we'll load the `mwmlite` reductions, which contain SDSS-V's best parameter estimates for all stars. This is automatically done when you load the app.
 

@@ -1,7 +1,7 @@
 ## Look at the spectra of some targets
 
 !!! note
-    All references to `best` should be substituted with the new `mwmlite`.
+    All references to `best` should be substituted with the new `mwmlite`.  This file only applies to SDSS DR19 and has been deprecated for all SDSS data releases DR20 and above.
 
 Let's say you have a couple of Source Identifiers from [Gaia](https://esa.gaia.int/) Data Release 3 that you want to check if they were surveyed by SDSS-V.
 
