@@ -58,37 +58,6 @@ index_context = sl.create_context(0)
 """context: used for tracing parent card in the grid for height resizing"""
 
 
-@sl.component()
-def PlotToolbarMenu(plottype, plotstate: PlotState, del_func):
-    """Compact settings menu for use in the grid's top drag toolbar."""
-    with sl.Column(gap="0px",
-                   style={
-                       "padding": "0px",
-                       "margin": "0px",
-                       "min-width": "22px",
-                   }) as main:
-        btn = sl.Button(
-            icon_name="mdi-settings",
-            outlined=False,
-            classes=["ma-0 pa-0 white--text"],
-            style={
-                "min-width": "20px",
-                "width": "20px",
-                "height": "20px",
-            },
-        )
-
-        with sl.lab.Menu(activator=btn, close_on_content_click=False):
-            with sl.Card(margin=0):
-                show_settings(plottype, plotstate)
-                sl.Button(
-                    icon_name="mdi-delete",
-                    color="red",
-                    block=True,
-                    on_click=del_func,
-                )
-    return main
-
 
 @sl.component()
 def show_plot(plottype, plotstate: PlotState):

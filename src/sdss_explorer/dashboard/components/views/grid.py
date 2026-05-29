@@ -4,7 +4,6 @@ import os
 from datetime import datetime
 from typing import Optional
 
-from bokeh.io import output_notebook
 import ipyvuetify as v
 import ipywidgets as widgets
 import reacton as r
@@ -37,9 +36,6 @@ class GridLayout(v.VuetifyTemplate):
     items = t.Union([t.List(), t.Dict()],
                     default_value=[]).tag(sync=True,
                                           **widgets.widget_serialization)
-    toolbar_items = t.Union([t.List(), t.Dict()],
-                            default_value=[]).tag(sync=True,
-                                                  **widgets.widget_serialization)
     # Selected grid item index whose toolbar cog was clicked in the Vue header.
     selected_settings_i = t.CInt(-1).tag(sync=True)
     grid_layout = t.List(default_value=[]).tag(sync=True)
@@ -151,11 +147,9 @@ def ObjectGrid():
                                                GridState.grid_layout.value[q + 1:])
                 GridState.states.value = (GridState.states.value[:q] +
                                           GridState.states.value[q + 1:])
-                GridState.objects.value[i] = rv.Card()
-                if i < len(GridState.toolbar_objects.value):
-                    toolbar_items = GridState.toolbar_objects.value.copy()
-                    toolbar_items[i] = rv.Card(flat=True, elevation=0)
-                    GridState.toolbar_objects.value = toolbar_items
+                if q < len(GridState.objects.value):
+                    GridState.objects.value = (GridState.objects.value[:q] +
+                                               GridState.objects.value[q + 1:])
                 break
 
     def reset_layout():
@@ -163,7 +157,6 @@ def ObjectGrid():
         GridState.index.value = 0
         GridState.grid_layout.value = []
         GridState.objects.value = []
-        GridState.toolbar_objects.value = []
         GridState.states.value = []
         GridState.index.value = 0
 
@@ -388,7 +381,7 @@ def ObjectGrid():
                                         )
         GridDraggableToolbar(
             items=GridState.objects.value,
-            toolbar_items=GridState.toolbar_objects.value,
+            #toolbar_items=GridState.toolbar_objects.value,
             # Vue toolbar cog writes an item id here; Python reacts by opening settings.
             selected_settings_i=selected_settings_i,
             on_selected_settings_i=set_selected_settings_i,

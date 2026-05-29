@@ -46,8 +46,6 @@ setup_logging(
 
 logger = logging.getLogger("dashboard")
 
-# State = StateData()
-
 
 def on_start():
     """Startup function, runs on every kernel instance startup and sets (some) unique sesion parameters."""
