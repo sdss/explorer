@@ -179,14 +179,42 @@ def add_common_effects(
                     set_filter(combined)
 
                 elif plotstate.plottype == "scatter":
-                    # NOTE: pyarrow ChunkedArrays
+                    # NOTE: use bounds-based propagation (same behavior as heatmap)
+                    # to avoid exact point-matching filters that can create
+                    # stride-sensitive arrays in downstream histogram updates.
                     datax = source.data["x"].take(new)
                     datay = source.data["y"].take(new)
-                    colx = fetch_data(plotstate, df, axis="x")
-                    coly = fetch_data(plotstate, df, axis="y")
-                    newfilter = (colx.isin(datax)) & (coly.isin(datay))
-                    logger.debug(f"scatter: {str(newfilter)}")
-                    set_filter(newfilter)
+
+                    def _to_numpy(data):
+                        if hasattr(data, "to_numpy"):
+                            return data.to_numpy()
+                        return np.asarray(data)
+
+                    if check_categorical(plotstate.x.value):
+                        mapping = getattr(plotstate, "xmapping")
+                        colx = df[plotstate.x.value].map(mapping)
+                        xfilter = colx.isin(datax)
+                    else:
+                        colx = plotstate.x.value
+                        xvals = _to_numpy(datax)
+                        xmin = np.nanmin(xvals)
+                        xmax = np.nanmax(xvals)
+                        xfilter = (df[colx] >= xmin) & (df[colx] <= xmax)
+
+                    if check_categorical(plotstate.y.value):
+                        mapping = getattr(plotstate, "ymapping")
+                        coly = df[plotstate.y.value].map(mapping)
+                        yfilter = coly.isin(datay)
+                    else:
+                        coly = plotstate.y.value
+                        yvals = _to_numpy(datay)
+                        ymin = np.nanmin(yvals)
+                        ymax = np.nanmax(yvals)
+                        yfilter = (df[coly] >= ymin) & (df[coly] <= ymax)
+
+                    combined = xfilter & yfilter
+                    logger.debug(f"scatter(bounds): {str(combined)}")
+                    set_filter(combined)
             else:
                 logger.debug("unsetting filter")
                 set_filter(None)

@@ -2,6 +2,7 @@
 
 import os
 import glob
+import markdown
 import solara as sl
 from solara.alias import rv
 import numpy as np
@@ -63,6 +64,14 @@ class Help:
 @sl.component()
 def HelpBlurb():
     """Dialog popup to provide short help blurbs for the application. Expected to read markdown files."""
+
+    def _make_help_parser():
+        # Use a minimal parser for bundled help text to avoid
+        # environment-specific crashes in syntax highlighter stacks.
+        return markdown.Markdown(extensions=["tables", "toc", "fenced_code"])
+
+    help_md_parser = sl.use_memo(_make_help_parser, dependencies=[])
+
     with rv.AppBarNavIcon() as main:
         with sl.Tooltip("About the app + Help"):
             sl.Button(
@@ -83,7 +92,7 @@ def HelpBlurb():
                 with Tabs(value=Help.tab.value, on_value=Help.tab.set):
                     for label, (icon, text) in sorted(help_text.items()):
                         with Tab(label=label, icon_name=icon):
-                            sl.Markdown(text)
+                            sl.Markdown(text, md_parser=help_md_parser)
 
     return main
 
