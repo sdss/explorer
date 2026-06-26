@@ -7,7 +7,6 @@ license = {file = "LICENSE"}
 classifiers = ["Intended Audience :: Developers",  "Programming Language :: Python :: 3.10"]
 dynamic = ["version", "description"]
 dependencies = [
-    #"solara>=1.40.0,<1.43.0",
     "solara>=1.57.6",
     "bokeh>=3.8.2",
     "colorcet>=3.1.0",
@@ -15,7 +14,6 @@ dependencies = [
     "vaex-core >=4.19.0",
     "vaex-hdf5",
     "diskcache>=5.6.3",
-    #"numpy==1.26.4",
     "numpy>=2.0",
     # dependency force because its being annoying
     "xarray",

@@ -2750,7 +2750,7 @@ requires-dist = [
     { name = "pynvim", marker = "extra == 'dev'" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.3" },
     { name = "solara", specifier = ">=1.57.6" },
-    { name = "vaex-core", specifier = ">=4.17.0" },
+    { name = "vaex-core", specifier = ">=4.19.0" },
     { name = "vaex-hdf5" },
     { name = "xarray" },
 ]
