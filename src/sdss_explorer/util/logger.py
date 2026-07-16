@@ -102,6 +102,19 @@ def setup_logging(
                 "level": file_log_level,
                 "propagate": False,
             },
+            # if a JS message hits after the widget is closed (server-side), it flags
+            # as a warning level
+            # this is most noticeable during grid edits because the entire grid
+            # is REBUILT on add/remove, which means it is fully reserialized.
+            #
+            # comm module :: base_comm.py l.255
+            #
+            # we can just stop the warnings this way
+            "Comm": {
+                "handlers": ["console", "file"],
+                "level": "ERROR",
+                "propagate": False,
+            },
         },
     }
 
