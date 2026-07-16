@@ -1,10 +1,11 @@
 from typing import Callable
 
-from bokeh.plotting import figure
 import solara as sl
 from bokeh.io import curdoc
 from bokeh.models import Plot
+from bokeh.plotting import figure
 from bokeh.themes import Theme
+
 from jupyter_bokeh import BokehModel
 
 
@@ -70,16 +71,36 @@ def FigureBokeh(
     sl.use_effect(update_data, dependencies or fig)
     sl.use_effect(update_theme, [dark, loaded.value])
 
+    def cleanup_widget():
+        # explicitly adds a teardown cleanup callback for the widget on unmount
+        # the comm and document callbacks are detached manually, rather than on garbage collection
+        def cleanup():
+            try:
+                fig_widget: BokehModel = sl.get_widget(fig_element)
+            except Exception:
+                return
+            if isinstance(fig_widget, BokehModel):
+                document = fig_widget._document
+                if document is not None:
+                    registry = getattr(document.callbacks, "_change_callbacks", {})
+                    if fig_widget in registry:
+                        document.remove_on_change(fig_widget)
+                # close() detaches remaining doc callbacks + should shut the comm
+                fig_widget.close()
+
+        return cleanup
+
+    sl.use_effect(cleanup_widget, dependencies=[])
+
     def set_init_theme():
         curdoc().theme = dark_theme if dark else light_theme
 
     sl.use_memo(set_init_theme, dependencies=[])
 
+    # i attempted to make a loading spinner, but it did not work.
     if loaded.value:
-        # t.sleep(0.5)  # FORCE LOCKOUT for theme rendering
         return fig_element
     # else:
-    #    # NOTE: the returned object will be a v.Sheet until Bokeh is loaded
     #    # BUG: this will show the JS error or even the figure itself temporarily before loading
     #    with sl.Card(margin=0, elevation=0):
     #        with sl.Row(justify="center"):

@@ -1,0 +1,62 @@
+{% set pyproject = load_file_data('../pyproject.toml', from_recipe_dir=True) %}
+{% set pkgjson = load_file_data('../package.json', from_recipe_dir=True) %}
+{% set project = pyproject['project'] %}
+
+{% set name = project['name'] %}
+{% set version = VERSION %}
+
+package:
+  name: {{ name }}
+  version: {{ version }}
+
+source:
+  path: ..
+
+build:
+  noarch: python
+  script: {{ PYTHON }} -m pip install --no-deps --ignore-installed .
+  script_env:
+    - JUPYTERLAB_TEST_VERSION
+
+requirements:
+  build:
+    - jupyter-packaging
+    - jupyterlab 4.0.*
+    - notebook
+    - python
+    - pip
+    - setuptools >=40.8.0
+    - wheel
+    - nodejs >=18.0
+    - hatchling >=1.5.0
+    - hatch-jupyter-builder>=0.8.2
+    - hatch-nodejs-version
+  run:
+    - python
+    - bokeh 3.*
+    - ipywidgets 8.*
+  run_constrained:
+    - jupyterlab 4.*
+
+test:
+  requires:
+    - jupyterlab
+  imports:
+    - jupyter_bokeh
+  commands:
+    - jupyter labextension list 2>&1
+    - jupyter labextension list 2>&1 | grep -q 'jupyter.bokeh.*enabled.*OK'
+
+about:
+  home: {{ pkgjson['homepage'] }}
+  license: {{ project['license']['file'] }}
+  summary: {{ pkgjson['description'] }}
+
+extra:
+  deploy:
+    - anaconda-client
+    - setuptools
+    - jq
+  channels:
+    - bokeh
+    - conda-forge

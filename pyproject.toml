@@ -42,6 +42,11 @@ docs = [
     "pymdown-extensions>=10.21.3",
 ]
 
+[tool.uv.sources]
+# use the vendored, patched fork instead of the pypi release
+# see jupyter_bokeh/ for close()/_sync_model fixes
+jupyter-bokeh = { path = "jupyter_bokeh", editable = true }
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
