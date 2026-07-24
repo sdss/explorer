@@ -1,12 +1,47 @@
 from typing import Callable
 
 import solara as sl
+from bokeh.core.serialization import DeserializationError
 from bokeh.io import curdoc
 from bokeh.models import Plot
 from bokeh.plotting import figure
 from bokeh.themes import Theme
-
 from jupyter_bokeh import BokehModel
+
+
+class SafeBokehModel(BokehModel):
+    """BokehModel with the upstream teardown faults patched out.
+
+    Both bugs are in jupyter_bokeh 4.1.0 and are patched here rather than in a
+    vendored fork, so we can track the pypi release directly.
+
+    """
+
+    def close(self) -> None:
+        """Detaches document callbacks only while still registered.
+
+        We have the explicit cleanup callback + solara cleans the widget, but
+        ipywidgets calls close() again from gc (via __del__), which raises KeyError
+        for an already deleted object
+        """
+        # skips the BokehModel.close and goes straight to the ipywidgets teardown
+        super(BokehModel, self).close()
+        document = self._document
+        if document is not None:
+            registry = getattr(document.callbacks, "_change_callbacks", {})
+            if self in registry:  # only remove if we are in the registry
+                document.remove_on_change(self)
+
+    def _sync_model(self, model, content, buffers) -> None:
+        """Drops frontend events that fail to deserialize.
+
+        An event can reference a model already removed or replaced server side,
+        which otherwise raises DeserializationError from ipywidgets
+        """
+        try:
+            super()._sync_model(model, content, buffers)
+        except DeserializationError:
+            return
 
 
 @sl.component_vue("bokeh_loaded.vue")
@@ -38,7 +73,7 @@ def FigureBokeh(
     loaded = sl.use_reactive(False)
     dark = sl.lab.use_dark_effective()
     BokehLoaded(loaded=loaded.value, on_loaded=loaded.set)
-    fig_element = BokehModel.element(model=fig)
+    fig_element = SafeBokehModel.element(model=fig)
 
     def update_data():
         fig_widget: BokehModel = sl.get_widget(fig_element)
@@ -80,12 +115,7 @@ def FigureBokeh(
             except Exception:
                 return
             if isinstance(fig_widget, BokehModel):
-                document = fig_widget._document
-                if document is not None:
-                    registry = getattr(document.callbacks, "_change_callbacks", {})
-                    if fig_widget in registry:
-                        document.remove_on_change(fig_widget)
-                # close() detaches remaining doc callbacks + should shut the comm
+                # close() detaches the doc callbacks + shuts the comm
                 fig_widget.close()
 
         return cleanup

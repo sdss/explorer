@@ -17,10 +17,6 @@ WORKDIR /app
 # project files
 COPY ./pyproject.toml ./uv.lock ./
 
-# vendored patched jupyter_bokeh fork, installed editable via tool.uv.sources
-# must be present before dep sync so uv can build the editable dependency
-COPY ./jupyter_bokeh ./jupyter_bokeh
-
 # install system requirements
 RUN apt-get update && \
     apt-get upgrade -y && \
