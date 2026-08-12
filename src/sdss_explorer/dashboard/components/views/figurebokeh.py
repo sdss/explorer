@@ -1,11 +1,47 @@
 from typing import Callable
 
-from bokeh.plotting import figure
 import solara as sl
+from bokeh.core.serialization import DeserializationError
 from bokeh.io import curdoc
 from bokeh.models import Plot
+from bokeh.plotting import figure
 from bokeh.themes import Theme
 from jupyter_bokeh import BokehModel
+
+
+class SafeBokehModel(BokehModel):
+    """BokehModel with the upstream teardown faults patched out.
+
+    Both bugs are in jupyter_bokeh 4.1.0 and are patched here rather than in a
+    vendored fork, so we can track the pypi release directly.
+
+    """
+
+    def close(self) -> None:
+        """Detaches document callbacks only while still registered.
+
+        We have the explicit cleanup callback + solara cleans the widget, but
+        ipywidgets calls close() again from gc (via __del__), which raises KeyError
+        for an already deleted object
+        """
+        # skips the BokehModel.close and goes straight to the ipywidgets teardown
+        super(BokehModel, self).close()
+        document = self._document
+        if document is not None:
+            registry = getattr(document.callbacks, "_change_callbacks", {})
+            if self in registry:  # only remove if we are in the registry
+                document.remove_on_change(self)
+
+    def _sync_model(self, _model, content, _buffers) -> None:
+        """Drops frontend events that fail to deserialize.
+
+        An event can reference a model already removed or replaced server side,
+        which otherwise raises DeserializationError from ipywidgets
+        """
+        try:
+            super()._sync_model(_model, content, _buffers)
+        except DeserializationError:
+            return
 
 
 @sl.component_vue("bokeh_loaded.vue")
@@ -37,7 +73,7 @@ def FigureBokeh(
     loaded = sl.use_reactive(False)
     dark = sl.lab.use_dark_effective()
     BokehLoaded(loaded=loaded.value, on_loaded=loaded.set)
-    fig_element = BokehModel.element(model=fig)
+    fig_element = SafeBokehModel.element(model=fig)
 
     def update_data():
         fig_widget: BokehModel = sl.get_widget(fig_element)
@@ -70,16 +106,31 @@ def FigureBokeh(
     sl.use_effect(update_data, dependencies or fig)
     sl.use_effect(update_theme, [dark, loaded.value])
 
+    def cleanup_widget():
+        # explicitly adds a teardown cleanup callback for the widget on unmount
+        # the comm and document callbacks are detached manually, rather than on garbage collection
+        def cleanup():
+            try:
+                fig_widget: BokehModel = sl.get_widget(fig_element)
+            except Exception:
+                return
+            if isinstance(fig_widget, BokehModel):
+                # close() detaches the doc callbacks + shuts the comm
+                fig_widget.close()
+
+        return cleanup
+
+    sl.use_effect(cleanup_widget, dependencies=[])
+
     def set_init_theme():
         curdoc().theme = dark_theme if dark else light_theme
 
     sl.use_memo(set_init_theme, dependencies=[])
 
+    # i attempted to make a loading spinner, but it did not work.
     if loaded.value:
-        # t.sleep(0.5)  # FORCE LOCKOUT for theme rendering
         return fig_element
     # else:
-    #    # NOTE: the returned object will be a v.Sheet until Bokeh is loaded
     #    # BUG: this will show the JS error or even the figure itself temporarily before loading
     #    with sl.Card(margin=0, elevation=0):
     #        with sl.Row(justify="center"):

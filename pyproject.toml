@@ -10,7 +10,7 @@ dependencies = [
     "solara>=1.57.6",
     "bokeh>=3.8.2",
     "colorcet>=3.1.0",
-    "jupyter-bokeh>=4.0.5",
+    "jupyter-bokeh>=4.1.0",
     "vaex-core >=4.19.0",
     "vaex-hdf5",
     "diskcache>=5.6.3",
